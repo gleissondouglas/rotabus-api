@@ -7,3 +7,4 @@ backend/.env
 frontend/.env
 .env
 .env.localcoverage/
+printf "\n# Test coverage\nfrontend/coverage/\ncoverage/\n*.lcov\n" >> .gitignore
