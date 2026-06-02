@@ -28,6 +28,7 @@
         "buildType": "apk"
       },
       "env": {
+        "API_BASE_URL": "http://192.168.0.193:3000",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
