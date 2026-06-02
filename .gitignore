@@ -1,10 +1,17 @@
 node_modules/
 .DS_Store
+
+# Environment files
 .env
-backend/node_modules/
-frontend/node_modules/
+.env.local
 backend/.env
 frontend/.env
-.env
-.env.localcoverage/
-printf "\n# Test coverage\nfrontend/coverage/\ncoverage/\n*.lcov\n" >> .gitignore
+
+# Dependencies
+backend/node_modules/
+frontend/node_modules/
+
+# Test coverage
+coverage/
+frontend/coverage/
+*.lcov
