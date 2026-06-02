@@ -68,7 +68,7 @@ module.exports = {
         {
           organization: "nuvem",
           project: "nuvem-front",
-        }
+        },
       ],
       [
         "expo-splash-screen",
