@@ -1,11 +1,17 @@
-const { 
-  validatePlanJourneyInput, 
-  validateResolveDestinationInput 
+const {
+  validatePlanJourneyInput,
+  validateResolveDestinationInput,
 } = require("./journeys.validator");
-const { computeTransitRoute, computeWalkingRoute } = require("./providers/googleRoutes.provider");
+const {
+  computeTransitRoute,
+  computeWalkingRoute,
+} = require("./providers/googleRoutes.provider");
 const { mapGoogleRouteToJourney } = require("./journey.mapper");
 const { findCachedRoute, createRouteCache } = require("./journeys.repository");
-const { getAddressFromCoordinates, geocodeAddress } = require("./providers/geocoding.provider");
+const {
+  getAddressFromCoordinates,
+  geocodeAddress,
+} = require("./providers/geocoding.provider");
 const googleSpeechProvider = require("./providers/googleSpeech.provider");
 const googlePlacesProvider = require("./providers/googlePlaces.provider");
 
@@ -19,15 +25,34 @@ function cleanDestinationText(text) {
 
   // Remover prefixos comuns de fala
   const prefixes = [
-    "me leva para o", "me leva para a", "me leva para",
-    "me leve para o", "me leva para a", "me leva para",
-    "me leve até o", "me leve até a", "me leve até",
-    "quero ir para o", "quero ir para a", "quero ir para",
-    "quero ir até o", "quero ir até a", "quero ir até",
-    "preciso ir para o", "preciso ir para a", "preciso ir para",
-    "ir para", "ir até", "levar para", "levar até",
-    "vambora para", "bora para",
-    "me leva pro", "me leva pra", "me leve pro", "me leve pra"
+    "me leva para o",
+    "me leva para a",
+    "me leva para",
+    "me leve para o",
+    "me leva para a",
+    "me leva para",
+    "me leve até o",
+    "me leve até a",
+    "me leve até",
+    "quero ir para o",
+    "quero ir para a",
+    "quero ir para",
+    "quero ir até o",
+    "quero ir até a",
+    "quero ir até",
+    "preciso ir para o",
+    "preciso ir para a",
+    "preciso ir para",
+    "ir para",
+    "ir até",
+    "levar para",
+    "levar até",
+    "vambora para",
+    "bora para",
+    "me leva pro",
+    "me leva pra",
+    "me leve pro",
+    "me leve pra",
   ];
 
   for (const prefix of prefixes) {
@@ -48,11 +73,12 @@ function cleanDestinationText(text) {
  */
 function applyLocalAliases(text) {
   const aliases = {
-    "centro": "Praça Rui Barbosa, Uberaba - MG",
+    centro: "Praça Rui Barbosa, Uberaba - MG",
     "centro da cidade": "Praça Rui Barbosa, Uberaba - MG",
-    "uniube": "UNIUBE - Universidade de Uberaba, Uberaba - MG",
+    uniube: "UNIUBE - Universidade de Uberaba, Uberaba - MG",
     "mario palmerio": "Hospital Mário Palmério Universitário, Uberaba - MG",
-    "hospital mario palmerio": "Hospital Mário Palmério Universitário, Uberaba - MG",
+    "hospital mario palmerio":
+      "Hospital Mário Palmério Universitário, Uberaba - MG",
     "praça shopping": "Praça Shopping Uberaba, Uberaba - MG",
     "shopping uberaba": "Shopping Uberaba, Uberaba - MG",
     "terminal oeste": "Terminal Oeste - BRT Vetor, Uberaba - MG",
@@ -99,8 +125,26 @@ const GENERIC_PLACE_TYPES = {
   universidades: ["university"],
   terminal: ["bus_station", "transit_station"],
   praça: ["park", "tourist_attraction"],
-  praca: ["park", "tourist_attraction"]
+  praca: ["park", "tourist_attraction"],
 };
+
+const TERMS_THAT_SHOULD_SHOW_OPTIONS = [
+  "uniube",
+  "universidade",
+  "faculdade",
+  "hospital",
+  "supermercado",
+  "mercado",
+  "farmacia",
+  "farmácia",
+  "restaurante",
+  "terminal",
+  "forum",
+  "fórum",
+  "clinica",
+  "clínica",
+  "posto de saúde",
+];
 
 /**
  * Remove acentos de uma string.
@@ -109,29 +153,78 @@ function removeAccents(str) {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
+function shouldShowOptionsForKnownTerm(text, candidates) {
+  const normalizedText = removeAccents(String(text || "").toLowerCase());
+
+  const hasKnownTerm = TERMS_THAT_SHOULD_SHOW_OPTIONS.some((term) =>
+    normalizedText.includes(removeAccents(term.toLowerCase())),
+  );
+
+  return hasKnownTerm && candidates.length > 1;
+}
+
 /**
  * Avalia se o texto possui heurísticas de endereço físico ou locais genéricos/específicos.
  */
 function guessQueryType(text) {
   const lower = text.toLowerCase().trim();
   const lowerNoAccents = removeAccents(lower);
-  
+
   if (GENERIC_PLACE_TYPES[lower] || GENERIC_PLACE_TYPES[lowerNoAccents]) {
     return "generic_category";
   }
 
-  const addressKeywords = ["rua", "avenida", "av", "av.", "travessa", "número", "nº", "n ", "numero", "bairro", "parque dos", "vila", "alameda", "estrada", "rodovia"];
-  const placeKeywords = ["hospital", "upa", "supermercado", "shopping", "terminal", "escola", "faculdade", "igreja", "uniube", "uftm", "prefeitura", "forum", "fórum", "estádio", "estadio", "praça", "parque", "universidade", "museu", "teatro", "rodoviária", "aeroporto"];
-  
-  const hasAddress = addressKeywords.some(kw => lower.includes(kw));
-  const hasPlace = placeKeywords.some(kw => lower.includes(kw));
+  const addressKeywords = [
+    "rua",
+    "avenida",
+    "av",
+    "av.",
+    "travessa",
+    "número",
+    "nº",
+    "n ",
+    "numero",
+    "bairro",
+    "parque dos",
+    "vila",
+    "alameda",
+    "estrada",
+    "rodovia",
+  ];
+  const placeKeywords = [
+    "hospital",
+    "upa",
+    "supermercado",
+    "shopping",
+    "terminal",
+    "escola",
+    "faculdade",
+    "igreja",
+    "uniube",
+    "uftm",
+    "prefeitura",
+    "forum",
+    "fórum",
+    "estádio",
+    "estadio",
+    "praça",
+    "parque",
+    "universidade",
+    "museu",
+    "teatro",
+    "rodoviária",
+    "aeroporto",
+  ];
+
+  const hasAddress = addressKeywords.some((kw) => lower.includes(kw));
+  const hasPlace = placeKeywords.some((kw) => lower.includes(kw));
 
   if (hasAddress && !hasPlace) return "address";
-  if (hasPlace) return "specific_place"; 
-  
+  if (hasPlace) return "specific_place";
+
   if (/\d+/.test(lower)) return "address";
 
-  return "unknown"; 
+  return "unknown";
 }
 
 /**
@@ -140,10 +233,15 @@ function guessQueryType(text) {
 function checkIfGenericCity(name, address) {
   if (!name) return false;
   const lowerName = name.toLowerCase();
-  const genericTerms = ["uberaba", "uberaba, mg", "uberaba - mg", "uberaba, minas gerais"];
-  
-  const isNameGeneric = genericTerms.some(term => lowerName === term);
-  
+  const genericTerms = [
+    "uberaba",
+    "uberaba, mg",
+    "uberaba - mg",
+    "uberaba, minas gerais",
+  ];
+
+  const isNameGeneric = genericTerms.some((term) => lowerName === term);
+
   return isNameGeneric;
 }
 
@@ -166,11 +264,13 @@ function evaluateConfidence(query, result, queryType) {
   }
 
   // Se o nome do resultado contém palavras-chave da busca, confiança alta
-  const queryWords = lowerQuery.split(" ").filter(w => w.length > 3);
-  const matchesAnyWord = queryWords.some(word => lowerResultName.includes(word));
+  const queryWords = lowerQuery.split(" ").filter((w) => w.length > 3);
+  const matchesAnyWord = queryWords.some((word) =>
+    lowerResultName.includes(word),
+  );
 
   if (matchesAnyWord && !isGeneric) return "high";
-  
+
   return result.confidence || "medium";
 }
 
@@ -180,42 +280,60 @@ async function resolveDestinationService({ text, origin }) {
   const interpretedDestination = cleanDestinationText(validatedData.text);
   const aliasedDestination = applyLocalAliases(interpretedDestination);
   const queryType = guessQueryType(aliasedDestination);
-  
+
   let candidates = [];
 
   const contextStr = ", Uberaba, MG, Brasil";
-  const searchStr = aliasedDestination.includes("Uberaba") ? aliasedDestination : `${aliasedDestination}${contextStr}`;
+  const searchStr = aliasedDestination.includes("Uberaba")
+    ? aliasedDestination
+    : `${aliasedDestination}${contextStr}`;
 
   if (process.env.NODE_ENV !== "production") {
-    console.log(`[ResolveDestination] Tipo inferido: ${queryType} | Texto original: ${aliasedDestination}`);
+    console.log(
+      `[ResolveDestination] Tipo inferido: ${queryType} | Texto original: ${aliasedDestination}`,
+    );
   }
 
   // ESTRATÉGIA PRIORITÁRIA: Google Places para POIs, Categorias Genéricas ou se o tipo for desconhecido
-  if (queryType === "specific_place" || queryType === "generic_category" || queryType === "unknown") {
-    const placeResults = await googlePlacesProvider.searchPlaces(aliasedDestination, validatedData.origin);
-    candidates = placeResults.map(p => ({
-      id: p.id,
-      name: p.name,
-      address: p.address,
-      lat: p.lat,
-      lng: p.lng,
-      type: "place",
-      primaryType: p.types && p.types.length > 0 ? p.types[0] : "unknown",
-      source: "GOOGLE_PLACES",
-      distanceMeters: p.distanceMeters || 0,
-      isUberaba: p.address ? p.address.includes("Uberaba") : true,
-      isGenericCityResult: checkIfGenericCity(p.name, p.address)
-    })).filter(p => p.isUberaba);
+  if (
+    queryType === "specific_place" ||
+    queryType === "generic_category" ||
+    queryType === "unknown"
+  ) {
+    const placeResults = await googlePlacesProvider.searchPlaces(
+      aliasedDestination,
+      validatedData.origin,
+    );
+    candidates = placeResults
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        address: p.address,
+        lat: p.lat,
+        lng: p.lng,
+        type: "place",
+        primaryType: p.types && p.types.length > 0 ? p.types[0] : "unknown",
+        source: "GOOGLE_PLACES",
+        distanceMeters: p.distanceMeters || 0,
+        isUberaba: p.address ? p.address.includes("Uberaba") : true,
+        isGenericCityResult: checkIfGenericCity(p.name, p.address),
+      }))
+      .filter((p) => p.isUberaba);
   }
 
   // FALLBACK OU COMPLEMENTO: Geocoding para endereços puros ou se Places não achou nada
-  if (queryType === "address" || (candidates.length === 0 && queryType !== "specific_place" && queryType !== "generic_category")) {
+  if (
+    queryType === "address" ||
+    (candidates.length === 0 &&
+      queryType !== "specific_place" &&
+      queryType !== "generic_category")
+  ) {
     const geocodeResults = await geocodeAddress(searchStr);
     const geocodeCandidates = geocodeResults
-      .filter(r => r.isUberaba)
-      .map(r => ({
+      .filter((r) => r.isUberaba)
+      .map((r) => ({
         ...r,
-        isGenericCityResult: checkIfGenericCity(r.name, r.address)
+        isGenericCityResult: checkIfGenericCity(r.name, r.address),
       }));
 
     if (queryType === "address") {
@@ -235,31 +353,41 @@ async function resolveDestinationService({ text, origin }) {
       resolvedDestination: null,
       candidates: [],
       voice: {
-        confirmationQuestion: "Não encontrei esse lugar. Tente falar de forma diferente."
-      }
+        confirmationQuestion:
+          "Não encontrei esse lugar. Tente falar de forma diferente.",
+      },
     };
   }
 
   // 4. Pós-processamento de Confiança
-  candidates = candidates.map(c => ({
+  candidates = candidates.map((c) => ({
     ...c,
-    confidence: evaluateConfidence(aliasedDestination, c, queryType)
+    confidence: evaluateConfidence(aliasedDestination, c, queryType),
   }));
 
   // Ordena por confiança
   candidates.sort((a, b) => {
-    const score = { "high": 3, "medium": 2, "low": 1 };
+    const score = { high: 3, medium: 2, low: 1 };
     return score[b.confidence] - score[a.confidence];
   });
 
   const bestOption = candidates[0];
   const isGeneric = bestOption.isGenericCityResult;
   const confidence = bestOption.confidence;
-  
+
   // Decide o Mode
-  const showSuggestions = (isGeneric && candidates.length > 1) || confidence === "low" || queryType === "generic_category";
+  const shouldAskForKnownTerm = shouldShowOptionsForKnownTerm(
+    interpretedDestination,
+    candidates,
+  );
+
+  const showSuggestions =
+    shouldAskForKnownTerm ||
+    (isGeneric && candidates.length > 1) ||
+    confidence === "low" ||
+    queryType === "generic_category";
   const mode = showSuggestions ? "suggestions" : "resolved";
-  
+
   let message = "Destino encontrado.";
   let confirmationQuestion = `Encontrei ${bestOption.name}. É esse o lugar?`;
 
@@ -283,10 +411,10 @@ async function resolveDestinationService({ text, origin }) {
     candidates: mode === "suggestions" ? candidates.slice(0, 5) : [],
     // Mantendo compatibilidade com o frontend atual que usa 'options'
     interpretedDestination,
-    options: candidates, 
+    options: candidates,
     voice: {
-      confirmationQuestion
-    }
+      confirmationQuestion,
+    },
   };
 }
 
@@ -329,38 +457,61 @@ async function planJourney({
 
   // ENRIQUECIMENTO: Garantir rota a pé detalhada até o primeiro ponto
   try {
-    if (googleResponse && googleResponse.routes && googleResponse.routes.length > 0) {
+    if (
+      googleResponse &&
+      googleResponse.routes &&
+      googleResponse.routes.length > 0
+    ) {
       for (const route of googleResponse.routes) {
         if (!route.legs || route.legs.length === 0) continue;
-        
+
         const firstLeg = route.legs[0];
-        const firstTransitStep = firstLeg.steps?.find(s => s.travelMode === "TRANSIT");
-        
-        if (firstTransitStep && firstTransitStep.transitDetails?.stopDetails?.departureStop?.location?.latLng) {
-          const stopLoc = firstTransitStep.transitDetails.stopDetails.departureStop.location.latLng;
-          
+        const firstTransitStep = firstLeg.steps?.find(
+          (s) => s.travelMode === "TRANSIT",
+        );
+
+        if (
+          firstTransitStep &&
+          firstTransitStep.transitDetails?.stopDetails?.departureStop?.location
+            ?.latLng
+        ) {
+          const stopLoc =
+            firstTransitStep.transitDetails.stopDetails.departureStop.location
+              .latLng;
+
           // Busca rota a pé dedicada do usuário até este ponto
           const walkingResponse = await computeWalkingRoute({
             origin: validatedData.origin,
-            destination: { lat: stopLoc.latitude, lng: stopLoc.longitude }
+            destination: { lat: stopLoc.latitude, lng: stopLoc.longitude },
           });
 
-          if (walkingResponse && walkingResponse.routes && walkingResponse.routes.length > 0) {
+          if (
+            walkingResponse &&
+            walkingResponse.routes &&
+            walkingResponse.routes.length > 0
+          ) {
             const walkingRoute = walkingResponse.routes[0];
             const walkingSteps = walkingRoute.legs?.[0]?.steps || [];
-            
+
             if (walkingSteps.length > 0) {
               // Remove passos de caminhada iniciais do Google Transit (se houver) para evitar duplicidade
               const originalSteps = firstLeg.steps || [];
-              const firstTransitIndex = originalSteps.findIndex(s => s.travelMode === "TRANSIT");
-              
-              const transitAndBeyond = firstTransitIndex !== -1 ? originalSteps.slice(firstTransitIndex) : originalSteps;
-              
+              const firstTransitIndex = originalSteps.findIndex(
+                (s) => s.travelMode === "TRANSIT",
+              );
+
+              const transitAndBeyond =
+                firstTransitIndex !== -1
+                  ? originalSteps.slice(firstTransitIndex)
+                  : originalSteps;
+
               // Injeta os passos detalhados da rota WALK dedicada
               firstLeg.steps = [...walkingSteps, ...transitAndBeyond];
-              
+
               if (process.env.NODE_ENV !== "production") {
-                console.log(`[Journeys] Rota enriquecida com ${walkingSteps.length} passos de caminhada detalhados.`);
+                console.log(
+                  `[Journeys] Rota enriquecida com ${walkingSteps.length} passos de caminhada detalhados.`,
+                );
               }
             }
           }
@@ -368,7 +519,10 @@ async function planJourney({
       }
     }
   } catch (enrichError) {
-    console.error("[Journeys] Erro ao enriquecer rota com caminhada:", enrichError.message);
+    console.error(
+      "[Journeys] Erro ao enriquecer rota com caminhada:",
+      enrichError.message,
+    );
     // Continua com a rota original se o enriquecimento falhar
   }
 
@@ -407,7 +561,10 @@ async function transcribeAudioService({ audioBase64, mimeType }) {
     throw error;
   }
 
-  const transcript = await googleSpeechProvider.transcribe(audioBase64, mimeType);
+  const transcript = await googleSpeechProvider.transcribe(
+    audioBase64,
+    mimeType,
+  );
 
   return {
     text: transcript,
