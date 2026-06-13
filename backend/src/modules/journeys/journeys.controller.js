@@ -10,9 +10,9 @@ async function planJourney(req, res, next) {
     const userId = req.user?.id || null;
     const sessionId = req.headers["x-session-id"] || req.body.sessionId || null;
 
-    let session = sessionManager.getSession({ userId, sessionId });
+    let session = await sessionManager.getSession({ userId, sessionId });
     if (!session) {
-      session = sessionManager.createSession({ userId });
+      session = await sessionManager.createSession({ userId });
     }
 
     // req.body já vem validado e normalizado pelo validateMiddleware
@@ -27,7 +27,7 @@ async function planJourney(req, res, next) {
     }
 
     const nextState = dialogManager.transition(session.currentState, event);
-    session = sessionManager.updateSession({ userId, sessionId: session.sessionId, patch: { currentState: nextState } });
+    session = await sessionManager.updateSession({ userId, sessionId: session.sessionId, patch: { currentState: nextState } });
 
     const enrichedResult = conversationalMapper.toConversationalPlan(result, session);
 
@@ -36,6 +36,7 @@ async function planJourney(req, res, next) {
     next(error);
   }
 }
+
 
 async function reverseGeocode(req, res, next) {
   try {
@@ -83,9 +84,9 @@ async function resolveDestination(req, res, next) {
     const userId = req.user?.id || null;
     const sessionId = req.headers["x-session-id"] || req.body.sessionId || null;
 
-    let session = sessionManager.getSession({ userId, sessionId });
+    let session = await sessionManager.getSession({ userId, sessionId });
     if (!session) {
-      session = sessionManager.createSession({ userId });
+      session = await sessionManager.createSession({ userId });
     }
 
     if (process.env.NODE_ENV !== "production") {
@@ -106,7 +107,7 @@ async function resolveDestination(req, res, next) {
     }
 
     const nextState = dialogManager.transition(session.currentState, event);
-    session = sessionManager.updateSession({ userId, sessionId: session.sessionId, patch: { currentState: nextState } });
+    session = await sessionManager.updateSession({ userId, sessionId: session.sessionId, patch: { currentState: nextState } });
 
     const enrichedResult = conversationalMapper.toConversationalResolve(result, session);
 
@@ -122,7 +123,7 @@ async function handleConversationCommand(req, res, next) {
     const userId = req.user?.id || null;
     const { sessionId, command, payload } = req.body;
 
-    const result = conversationCommandHandler.handleCommand({
+    const result = await conversationCommandHandler.handleCommand({
       userId,
       sessionId,
       command,

@@ -82,12 +82,13 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 *   **Prioridade:** Média.
 *   **Critério de Conclusão:** Sistema identificando intenções básicas sem necessidade de IA externa.
 
-### Fase 7: Dialog Manager Simples (Parcialmente Concluída no Backend)
+### Fase 7: Dialog Manager e Persistência Conversacional (Concluída no Backend)
 *   **Objetivo:** Gerenciar o estado da conversa e o contexto do usuário.
 *   **Tarefas Realizadas:**
     *   Implementar gerenciamento de sessão (`sessionId`) em memória com sliding TTL de 10 minutos.
     *   Controlar estados lógicos (Waiting, Confirming, etc.) por meio de uma FSM.
-*   **Status:** Parcialmente Concluída no Backend (Planejamento de persistência durável em PostgreSQL/Supabase concluído em [ADR-014](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/DECISIONS.md) e detalhado em [CONVERSATIONAL_SESSION_PERSISTENCE_PLAN.md](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/CONVERSATIONAL_SESSION_PERSISTENCE_PLAN.md)).
+    *   Migrar o armazenamento das sessões conversacionais para persistência durável no PostgreSQL (Supabase) via Prisma com driver híbrido intercambiável.
+*   **Status:** Concluída no Backend (Persistência durável no PostgreSQL implementada via Prisma. Detalhes em [ADR-014](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/DECISIONS.md) e [CONVERSATIONAL_SESSION_PERSISTENCE_PLAN.md](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/CONVERSATIONAL_SESSION_PERSISTENCE_PLAN.md)).
 *   **Critério de Conclusão:** Sessões conversacionais persistidas de forma durável no banco PostgreSQL com suporte a deploys e escalabilidade horizontal.
 
 ### Fase 8: Testes e Observabilidade (Contínua - Fase de Integração Concluída)

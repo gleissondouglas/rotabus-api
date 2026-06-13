@@ -20,8 +20,8 @@ O objetivo é evoluir o sistema de um "aplicativo com comandos de voz" para um *
 ### 2.2 Fase Inicial de Evolução (Foco em Persistência Distribuída)
 *   **Detecção de Intenção Determinística:** Implementada normalização, aliases locais (Uberaba) no módulo `LocalIntelligence` e classificação de queries. (Concluído)
 *   **Contrato de Resposta Estruturada:** Implementado e em produção nos endpoints de rotas. (Concluído)
-*   **Dialog Manager Simples:** FSM básica em memória para gerenciar estados e transições de rotas. (Concluído)
-*   **Persistência Conversacional no Banco:** Evolução para salvar o estado da sessão conversacional no PostgreSQL para resiliência distribuída. (Futuro)
+*   **Dialog Manager Simples:** FSM básica para gerenciar estados e transições de rotas. (Concluído)
+*   **Persistência Conversacional no Banco:** Persistência durável no PostgreSQL (Supabase) via Prisma. (Concluído)
 
 ### 2.3 Visão Futura (Longo Prazo)
 *   **Assistente Proativo:** Sugestões baseadas em contexto e histórico.
@@ -54,10 +54,10 @@ O processamento de uma interação segue o fluxo:
 
 ### 4.2 Session Manager (`session.manager.js`)
 *   **Papel:** Gerencia o ciclo de vida temporário das sessões ativas.
-*   **Armazenamento:** Estrutura simples de dicionário na memória RAM (`Map` nativo do Node.js).
-*   **Isolamento:** Chaves compostas formatadas como `userId:sessionId` (ou `anonymous:sessionId` para usuários deslogados), garantindo barreiras rígidas de segurança entre contextos.
-*   **Sliding TTL:** Janela deslizante de **10 minutos** (`DEFAULT_TTL_MS`). A validade expira caso nenhuma chamada ocorra no intervalo, renovando-se a cada acesso.
-*   **Limitação:** O estado conversacional **não é persistido de forma durável em banco de dados ou Redis**. A sessão é destruída caso o servidor backend seja reiniciado.
+*   **Armazenamento:** Híbrido, selecionado via variável `PERSISTENCE_DRIVER`. Em produção, utiliza banco de dados PostgreSQL (`postgres`), persistindo duravelmente na tabela `ConversationSession`. Em testes locais/offline, utiliza estrutura de `Map` em memória RAM (`memory`).
+*   **Isolamento:** Chave única indexada `sessionId` UUID no banco de dados e chave composta `${userId}:${sessionId}` na memória, garantindo isolamento rígido entre contextos.
+*   **Sliding TTL:** Janela deslizante de **10 minutos** (`DEFAULT_TTL_MS`), estendendo-se automaticamente a cada acesso de leitura (`getSession`) ou atualização (`updateSession`).
+*   **Limpeza de Expirados:** Job de Cron periódico executa a deleção física de sessões cujas datas de expiração sejam ultrapassadas.
 
 ### 4.3 Conversational Mapper (`conversational.mapper.js`)
 *   **Papel:** Camada de apresentação/decorator. Injeta as propriedades conversacionais (`speechText`, `displayData`, `options`, `expectedInput`, `actions`, `conversationState` e `metadata.sessionId`) na raiz das respostas JSON originais, garantindo total retrocompatibilidade e preservação dos campos legados.
