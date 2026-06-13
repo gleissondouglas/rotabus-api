@@ -174,8 +174,8 @@ O desenvolvimento da persistência durável será segmentado em tarefas incremen
 
 1. **Branch 1: `migration/model-prisma-sessao`**
    - Modificar o `schema.prisma`.
-   - Gerar a migration do Prisma (`prisma migrate dev`).
-   - Aplicar no banco de desenvolvimento e validar o schema no Supabase.
+   - Gerar a nova migration do Prisma localmente em ambiente de desenvolvimento usando `npx prisma migrate dev` (uso restrito a local/desenvolvimento).
+   - Aplicar no banco de homologação/produção e validar o schema no Supabase usando o comando de deploy `npx prisma migrate deploy` (nunca rodar `migrate dev` em ambiente de produção).
 2. **Branch 2: `feat/repository-sessao`**
    - Criar o arquivo `conversationSession.repository.js`.
    - Implementar métodos de CRUD no banco.
