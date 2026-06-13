@@ -65,15 +65,12 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 *   **Prioridade:** Média.
 *   **Critério de Conclusão:** Expansão para uma nova cidade possível apenas via configuração/banco.
 
-### Fase 5: Contrato de Resposta Estruturada (Médio Prazo)
+### Fase 5: Contrato de Resposta Estruturada (Concluída no Backend)
 *   **Objetivo:** Preparar a comunicação Backend-Frontend para o modelo voice-first.
-*   **Tarefas Principais:**
-    *   Implementar o payload contendo `speechText`, `displayData`, `options` e `expectedInput`.
-    *   Adaptar o frontend para reagir a este novo formato de resposta.
-*   **Módulos Afetados:** `controllers`, `services` (backend) e `services/ui` (frontend).
-*   **Risco:** Alto (mudança no contrato de comunicação principal).
-*   **Prioridade:** Alta (essencial para a visão futura).
-*   **Critério de Conclusão:** Frontend reproduzindo voz e tela baseado no JSON do backend.
+*   **Tarefas Realizadas:**
+    *   Implementar o payload conversacional contendo `speechText`, `displayData`, `options`, `expectedInput`, `actions` e `conversationState` integrado de forma retrocompatível à API atual.
+*   **Status:** Concluída no backend.
+*   **Critério de Conclusão:** Backend retornando payload híbrido enriquecido sem quebra técnica das propriedades clássicas.
 
 ### Fase 6: Intent Detection Determinístico (Médio Prazo)
 *   **Objetivo:** Implementar inteligência inicial de baixo custo e alta previsibilidade.
@@ -85,15 +82,13 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 *   **Prioridade:** Média.
 *   **Critério de Conclusão:** Sistema identificando intenções básicas sem necessidade de IA externa.
 
-### Fase 7: Dialog Manager Simples (Longo Prazo)
+### Fase 7: Dialog Manager Simples (Parcialmente Concluída no Backend)
 *   **Objetivo:** Gerenciar o estado da conversa e o contexto do usuário.
-*   **Tarefas Principais:**
-    *   Implementar gerenciamento de sessão (`sessionId`).
-    *   Controlar estados lógicos (Waiting, Confirming, etc.).
-*   **Módulos Afetados:** `modules/conversation` (novo).
-*   **Risco:** Alto (complexidade de gerenciamento de estado).
-*   **Prioridade:** Baixa/Média.
-*   **Critério de Conclusão:** Ciclo completo de pergunta-resposta mantendo contexto.
+*   **Tarefas Realizadas:**
+    *   Implementar gerenciamento de sessão (`sessionId`) em memória com sliding TTL de 10 minutos.
+    *   Controlar estados lógicos (Waiting, Confirming, etc.) por meio de uma FSM.
+*   **Status:** Parcialmente Concluída no Backend (Próximo passo: Persistência distribuída das sessões no PostgreSQL/Redis).
+*   **Critério de Conclusão:** Sessões conversacionais ativas e transições de FSM operantes.
 
 ### Fase 8: Testes e Observabilidade (Contínua - Fase de Integração Concluída)
 *   **Objetivo:** Garantir a resiliência e a saúde do sistema através de testes automatizados e monitoramento.

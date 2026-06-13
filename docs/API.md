@@ -91,11 +91,85 @@ Endpoints que consomem APIs externas do Google.
       "timePreference?": { "type": "DEPARTURE|ARRIVAL", "dateTime": "ISOString" }
     }
     ```
+*   **Sucesso (200):** Retorna o planejamento de rotas enriquecido.
+    ```json
+    {
+      "speechText": "Pegue o ônibus da linha 10 às 11:30.",
+      "screen": "JOURNEY_DISPLAY",
+      "displayData": {
+        "title": "Rota de Ônibus Encontrada",
+        "subtitle": "35 min • Linha 10",
+        "items": [
+          { "label": "Saída de casa", "value": "11:25" },
+          { "label": "Embarque no ponto", "value": "11:30" },
+          { "label": "Chegada ao destino", "value": "12:00" }
+        ]
+      },
+      "options": ["Opção 2"],
+      "expectedInput": "NONE",
+      "conversationState": "JOURNEY_DISPLAYED",
+      "actions": ["REPEAT", "CANCEL"],
+      "metadata": {
+        "sessionId": "UUID-da-conversa",
+        "selectedRouteIndex": 0,
+        "alternativesFound": 2
+      },
+      // --- Campos Legados Preservados (Compatibilidade) ---
+      "summary": { ... },
+      "voice": { ... },
+      "screen": { ... },
+      "firstStopGuide": { ... },
+      "alerts": [...],
+      "steps": [...],
+      "map": { ... },
+      "alternatives": [...]
+    }
+    ```
 
 ### POST `/journeys/resolve-destination`
 *   **Autenticação:** Sim.
 *   **Custo Externo:** Sim (Google Places).
-*   **Body:** `{ "text": "string", "origin": { "lat": number, "lng": number } }`
+*   **Body:** 
+    ```json
+    {
+      "text": "string", 
+      "origin": { "lat": number, "lng": number },
+      "sessionId?": "string"
+    }
+    ```
+    *Nota: Também aceita o ID da sessão enviado no cabeçalho HTTP `X-Session-ID`.*
+*   **Sucesso (200):** Retorna o local correspondente enriquecido.
+    ```json
+    {
+      "speechText": "Encontrei Shopping Uberaba. É esse o lugar?",
+      "screen": "DESTINATION_CONFIRMATION | SUGGESTIONS_LIST | DESTINATION_RESOLVE",
+      "displayData": {
+        "title": "Confirmar destino | Selecione uma opção",
+        "subtitle": "shopping uberaba",
+        "items": [
+          { "name": "Shopping Uberaba", "address": "Av. Santa Beatriz..." }
+        ]
+      },
+      "options": ["Shopping Uberaba"],
+      "expectedInput": "VOICE_OR_TOUCH",
+      "conversationState": "WAITING_CONFIRMATION | WAITING_DESTINATION_SELECTION",
+      "actions": ["CONFIRM", "CANCEL", "REPEAT" | "SELECT_OPTION"],
+      "metadata": {
+        "sessionId": "UUID-da-conversa",
+        "mode": "resolved | suggestions",
+        "queryType": "specific_place"
+      },
+      // --- Campos Legados Preservados (Compatibilidade) ---
+      "mode": "resolved | suggestions",
+      "queryType": "specific_place",
+      "message": "Destino encontrado.",
+      "resolvedDestination": { ... },
+      "candidates": [...],
+      "options": [...],
+      "interpretedDestination": "shopping uberaba",
+      "voice": { ... }
+    }
+    ```
 
 ### POST `/journeys/transcribe`
 *   **Autenticação:** Sim.
