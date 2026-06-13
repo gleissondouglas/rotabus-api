@@ -1,0 +1,88 @@
+/**
+ * Estados da conversa (FSM - Finite State Machine) do assistente.
+ */
+const STATES = {
+  IDLE: "IDLE",
+  WAITING_DESTINATION: "WAITING_DESTINATION",
+  WAITING_DESTINATION_SELECTION: "WAITING_DESTINATION_SELECTION",
+  WAITING_CONFIRMATION: "WAITING_CONFIRMATION",
+  JOURNEY_DISPLAYED: "JOURNEY_DISPLAYED",
+  ERROR: "ERROR",
+};
+
+/**
+ * Eventos/Ações que desencadeiam transições de estado.
+ */
+const EVENTS = {
+  START: "START",
+  DESTINATION_RESOLVED: "DESTINATION_RESOLVED",
+  DESTINATION_AMBIGUOUS: "DESTINATION_AMBIGUOUS",
+  DESTINATION_NEEDS_CONFIRMATION: "DESTINATION_NEEDS_CONFIRMATION",
+  OPTION_SELECTED: "OPTION_SELECTED",
+  CONFIRM: "CONFIRM",
+  REJECT: "REJECT",
+  CANCEL: "CANCEL",
+  JOURNEY_PLANNED: "JOURNEY_PLANNED",
+  ERROR: "ERROR",
+};
+
+/**
+ * Tabela de transições de estado (Máquina de Estados).
+ * Define para qual estado ir dado um estado atual e um evento.
+ */
+const TRANSITIONS = {
+  [STATES.IDLE]: {
+    [EVENTS.START]: STATES.WAITING_DESTINATION,
+    [EVENTS.DESTINATION_RESOLVED]: STATES.JOURNEY_DISPLAYED,
+    [EVENTS.DESTINATION_AMBIGUOUS]: STATES.WAITING_DESTINATION_SELECTION,
+    [EVENTS.DESTINATION_NEEDS_CONFIRMATION]: STATES.WAITING_CONFIRMATION,
+    [EVENTS.ERROR]: STATES.ERROR,
+  },
+  [STATES.WAITING_DESTINATION]: {
+    [EVENTS.DESTINATION_RESOLVED]: STATES.JOURNEY_DISPLAYED,
+    [EVENTS.DESTINATION_AMBIGUOUS]: STATES.WAITING_DESTINATION_SELECTION,
+    [EVENTS.DESTINATION_NEEDS_CONFIRMATION]: STATES.WAITING_CONFIRMATION,
+    [EVENTS.CANCEL]: STATES.IDLE,
+    [EVENTS.ERROR]: STATES.ERROR,
+  },
+  [STATES.WAITING_DESTINATION_SELECTION]: {
+    [EVENTS.OPTION_SELECTED]: STATES.JOURNEY_DISPLAYED,
+    [EVENTS.CANCEL]: STATES.IDLE,
+    [EVENTS.REJECT]: STATES.WAITING_DESTINATION,
+    [EVENTS.ERROR]: STATES.ERROR,
+  },
+  [STATES.WAITING_CONFIRMATION]: {
+    [EVENTS.CONFIRM]: STATES.JOURNEY_DISPLAYED,
+    [EVENTS.REJECT]: STATES.WAITING_DESTINATION,
+    [EVENTS.CANCEL]: STATES.IDLE,
+    [EVENTS.ERROR]: STATES.ERROR,
+  },
+  [STATES.JOURNEY_DISPLAYED]: {
+    [EVENTS.START]: STATES.WAITING_DESTINATION,
+    [EVENTS.CANCEL]: STATES.IDLE,
+  },
+  [STATES.ERROR]: {
+    [EVENTS.START]: STATES.WAITING_DESTINATION,
+    [EVENTS.CANCEL]: STATES.IDLE,
+  },
+};
+
+/**
+ * Transiciona a conversa para o próximo estado.
+ * @param {string} currentState - O estado atual da conversa.
+ * @param {string} event - O evento disparado.
+ * @returns {string} - O novo estado resultante da transição (ou o estado atual se inválido).
+ */
+function transition(currentState, event) {
+  const stateTransitions = TRANSITIONS[currentState];
+  if (!stateTransitions) return currentState;
+
+  const nextState = stateTransitions[event];
+  return nextState || currentState;
+}
+
+module.exports = {
+  STATES,
+  EVENTS,
+  transition,
+};
