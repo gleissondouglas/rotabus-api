@@ -56,6 +56,7 @@ const planJourneySchema = z.preprocess((data) => {
   }
   return data;
 }, z.object({
+  sessionId: z.string().optional(),
   origin: z.preprocess((val) => {
     if (val && typeof val === 'object' && !Array.isArray(val)) return val;
     throw createValidationError("A origem deve ser um objeto válido.");
@@ -144,6 +145,7 @@ const resolveDestinationSchema = z.preprocess((data) => {
   }
   return data;
 }, z.object({
+  sessionId: z.string().optional(),
   text: z.string()
     .trim()
     .transform(t => t.replace(/\s+/g, ' '))
