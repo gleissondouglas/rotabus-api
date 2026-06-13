@@ -75,8 +75,34 @@ export default function TypeDestinationScreen() {
         },
       });
 
+      // Extrai opções com coordenadas e dados de destino válidos de forma robusta e resiliente
+      const resolvedOptions: any[] = [];
+      if (response.resolvedDestination) {
+        resolvedOptions.push(response.resolvedDestination);
+      }
+      if (response.candidates && response.candidates.length > 0) {
+        resolvedOptions.push(...response.candidates);
+      }
+      if (resolvedOptions.length === 0 && response.options && response.options.length > 0) {
+        if (typeof response.options[0] === 'object' && response.options[0] !== null) {
+          resolvedOptions.push(...(response.options as any[]));
+        } else if (typeof response.options[0] === 'string') {
+          // Se for uma lista de strings, cria um esqueleto para compatibilidade
+          response.options.forEach((optStr: any, idx: number) => {
+            resolvedOptions.push({
+              id: String(idx),
+              name: String(optStr),
+              address: response.displayData?.items?.[idx]?.address || "",
+              lat: null,
+              lng: null,
+              source: "LEGACY_FALLBACK",
+            });
+          });
+        }
+      }
+
       if (response.mode === "resolved" || response.mode === "suggestions") {
-        const bestOption = response.options[0];
+        const bestOption = resolvedOptions[0];
         vibrationService.success();
         router.push({
           pathname: "/confirmar-destino",
@@ -86,7 +112,7 @@ export default function TypeDestinationScreen() {
             destination: bestOption?.name || response.interpretedDestination,
             address: bestOption?.address || "",
             confirmationQuestion: response.voice?.confirmationQuestion || response.message,
-            options: JSON.stringify(response.options),
+            options: JSON.stringify(resolvedOptions),
             mode: response.mode,
             message: response.message,
             // --- Novos campos conversacionais ---

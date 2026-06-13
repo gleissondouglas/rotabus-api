@@ -39,7 +39,16 @@ export default function ConfirmDestinationScreen() {
   const [actions, setActions] = useState<string[]>(params.actions ? JSON.parse(String(params.actions)) : []);
   const [conversationState, setConversationState] = useState(String(params.conversationState || ""));
 
-  const options = displayData?.items || parseJsonParam<any[]>(params.options, []);
+  const rawOptions = parseJsonParam<any[]>(params.options, []);
+  const options = (rawOptions.length > 0 ? rawOptions : (displayData?.items || [])).map((item: any, index: number) => {
+    const rawMatch = rawOptions[index] || {};
+    return {
+      ...item,
+      lat: item.lat ?? rawMatch.lat ?? null,
+      lng: item.lng ?? rawMatch.lng ?? null,
+      id: item.id ?? rawMatch.id ?? String(index),
+    };
+  });
   
   // Se o backend explicitamente retornou 'suggestions' ou se há heurísticas residuais (ex: versão antiga em cache local)
   const bestOption = options[0] || {};
@@ -78,6 +87,21 @@ export default function ConfirmDestinationScreen() {
     const selected = option || bestOption;
     const isOptionSelection = !!option;
     
+    // Validação defensiva de lat/lng
+    const destLat = Number(selected.lat);
+    const destLng = Number(selected.lng);
+
+    if (selected.lat === null || selected.lat === undefined || Number.isNaN(destLat) ||
+        selected.lng === null || selected.lng === undefined || Number.isNaN(destLng)) {
+      vibrationService.error();
+      Alert.alert(
+        "Localização não encontrada",
+        "Não consegui confirmar a localização desse destino. Tente escolher outra opção.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     setIsLoadingCommand(true);
     let sessionExpired = false;
 

@@ -87,12 +87,31 @@ export default function ProcessingScreen() {
         updateStep('2', 'completed');
 
         updateStep('3', 'loading');
+        let parsedDestLat: number | undefined = undefined;
+        let parsedDestLng: number | undefined = undefined;
+
+        if (destinationLat && destinationLat !== "null" && destinationLat !== "undefined" && destinationLat !== "") {
+          parsedDestLat = Number(destinationLat);
+        }
+        if (destinationLng && destinationLng !== "null" && destinationLng !== "undefined" && destinationLng !== "") {
+          parsedDestLng = Number(destinationLng);
+        }
+
+        // Validação defensiva: se coordenadas foram fornecidas de forma inválida, ou se
+        // precisamos de coordenadas numéricas válidas para planejar rota e elas estão ausentes ou inválidas
+        if (
+          (destinationLat && (destinationLat === "null" || destinationLat === "undefined" || Number.isNaN(parsedDestLat))) ||
+          (destinationLng && (destinationLng === "null" || destinationLng === "undefined" || Number.isNaN(parsedDestLng)))
+        ) {
+          throw new Error("Não consegui confirmar a localização desse destino. Tente escolher outra opção.");
+        }
+
         const requestBody = {
           origin: { lat: origin.latitude, lng: origin.longitude },
           destination: {
             text: destination,
-            lat: destinationLat ? Number(destinationLat) : undefined,
-            lng: destinationLng ? Number(destinationLng) : undefined,
+            lat: parsedDestLat,
+            lng: parsedDestLng,
           },
           timePreference: { type: timeType, dateTime },
         };
