@@ -33,4 +33,17 @@ describe("journey.mapper", () => {
     expect(result.summary.totalWalkTimeMin).toBe(10);
     expect(result.voice.shortMessage).toBe("Você pode ir caminhando até o destino.");
   });
+
+  test("deve respeitar APP_TIME_ZONE independentemente do fuso horário do servidor (Resiliência a UTC)", () => {
+    // Simulamos um ambiente onde o fuso do sistema é UTC, mas a APP_TIME_ZONE é America/Sao_Paulo
+    // O mapper deve converter os horários ISO do fixture para o horário de Brasília (GMT-3)
+    const result = mapGoogleRouteToJourney(transitSimpleFixture, origin, timePreference);
+    
+    // No fixture, o ônibus sai às 14:30:00Z.
+    // Em America/Sao_Paulo (GMT-3), isso deve ser 11:30.
+    expect(result.summary.beAtStopAt).toBe("11:30");
+    
+    // O mapper calcula 5 min antes para sair de casa -> 11:25.
+    expect(result.summary.leaveHomeAt).toBe("11:25");
+  });
 });
