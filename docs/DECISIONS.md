@@ -126,4 +126,15 @@ Este documento segue o formato ADR para registrar decisões arquiteturais import
 
 ---
 
+### [ADR-011] Validação Padronizada com Zod e Middleware
+*   **Status:** Aceita
+*   **Data:** 13/06/2026
+*   **Contexto:** A validação manual nos controllers causava duplicação de código e dificultava a manutenção de contratos consistentes.
+*   **Decisão:** Centralizar a validação de entrada na camada de roteamento usando `validateMiddleware` e schemas Zod para todos os módulos (`auth`, `users`, `journeys`).
+*   **Consequências positivas:** Controllers mais limpos e focados em orquestração; dados normalizados garantidos antes da execução da lógica de negócio; mensagens de erro padronizadas.
+*   **Riscos:** Necessidade de manter validadores legados nos Services temporariamente até que todas as camadas sejam desacopladas.
+*   **Impacto no roadmap:** Conclui a Fase 2 do ROADMAP.md.
+
+---
+
 *Nota: Estas decisões podem ser revisadas conforme a evolução do projeto. Qualquer mudança significativa deve gerar uma nova ADR ou a atualização do status das anteriores.*

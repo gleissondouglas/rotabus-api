@@ -30,10 +30,10 @@ Antes de sugerir qualquer alteração ou implementação, o agente **deve** ler 
 
 Para manter a consistência, o agente deve seguir esta distribuição de papéis:
 
-*   **Routes:** Registro e definição de endpoints.
-*   **Controllers:** Receber a requisição, extrair dados necessários e delegar para os services/use cases. Não devem conter lógica de negócio.
-*   **Validators/Schemas:** Concentrar as validações de entrada de dados.
-*   **Services / Use Cases:** Orquestrar as regras de negócio puras. Não devem conhecer detalhes HTTP (`req`, `res`).
+*   **Routes:** Registro e definição de endpoints, incluindo a aplicação de `validateMiddleware` para proteção e normalização de dados.
+*   **Controllers:** Receber a requisição já validada pelo middleware, extrair dados necessários e delegar para os services/use cases. Não devem conter lógica de negócio nem chamadas manuais de validação.
+*   **Validators/Schemas:** Concentrar as validações de entrada de dados usando Zod.
+*   **Services / Use Cases:** Orquestrar as regras de negócio puras. Não devem conhecer detalhes HTTP (`req`, `res`). Podem conter validações internas de domínio se necessário, mas a validação de contrato de entrada ocorre no middleware.
 *   **Repositories:** Abstração de acesso ao banco de dados (Prisma).
 *   **Providers / Adapters:** Isolar integrações com APIs externas.
 *   **Mappers:** Converter formatos externos para modelos internos do sistema.

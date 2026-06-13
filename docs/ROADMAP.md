@@ -33,16 +33,16 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 *   **Prioridade:** Alta.
 *   **Critério de Conclusão:** Mapper decomposto e validado por testes, com paridade total de comportamento.
 
-### Fase 2: Validação e Contratos (Curto Prazo)
+### Fase 2: Validação e Contratos (Concluída)
 *   **Objetivo:** Padronizar a entrada de dados e as respostas do sistema.
-*   **Tarefas Principais:**
-    *   Introduzir Zod para validação de esquemas de entrada.
-    *   Padronizar payloads de erro e respostas de sucesso.
-    *   Documentar os contratos internos que os providers devem seguir.
-*   **Módulos Afetados:** `controllers`, `validators` e `shared/middlewares`.
-*   **Risco:** Baixo.
-*   **Prioridade:** Alta.
-*   **Critério de Conclusão:** Todas as rotas principais utilizando validação estruturada.
+*   **Tarefas Realizadas:**
+    *   Introdução do Zod para validação de esquemas de entrada em `auth`, `users` e `journeys`.
+    *   Criação e aplicação do `validateMiddleware` genérico nas rotas principais.
+    *   Simplificação dos controllers com a remoção de chamadas manuais de validação.
+    *   Preservação de compatibilidade com campos legados (ex: `departureTime` em journeys).
+    *   Manutenção temporária de validadores legados para evitar quebra de Services e Testes.
+*   **Status:** Concluída.
+*   **Critério de Conclusão:** Todas as rotas principais utilizando validação estruturada via middleware.
 
 ### Fase 3: Abstração de Providers/Adapters (Médio Prazo)
 *   **Objetivo:** Impedir que o core do sistema dependa de formatos de resposta de APIs externas.
