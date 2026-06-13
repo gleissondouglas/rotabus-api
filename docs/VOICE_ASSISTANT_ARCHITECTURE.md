@@ -12,15 +12,16 @@ O objetivo é evoluir o sistema de um "aplicativo com comandos de voz" para um *
 
 ## 2. Estados de Evolução
 
-### 2.1 Estado Atual
-*   **Voz como Entrada:** Usada apenas para informar o destino.
-*   **Fluxo Híbrido:** Exige interações manuais (toque) em várias etapas do processo.
-*   **Inexistência de Contexto:** O backend não mantém o estado da conversa; cada requisição é tratada de forma isolada.
+### 2.1 Estado Atual (Camada Conversacional Inicial Implementada)
+*   **Voz como Entrada:** Transcrição de áudio ativa e resolução de destinos com classificação de queries no backend.
+*   **Dialog Manager & Session Manager em Memória:** O estado da conversa e FSM são mantidos temporariamente em memória com TTL deslizante de 10 minutos indexados por chave composta `userId:sessionId`.
+*   **Contrato de Resposta Conversacional Enriquecido:** O `conversational.mapper.js` decora as respostas de viagens de forma não quebrante na raiz do JSON, mantendo compatibilidade com clientes legados.
 
-### 2.2 Fase Inicial de Evolução (Curto Prazo)
-*   **Detecção de Intenção Determinística:** Uso de normalização de texto, regras, aliases locais (ex: Uberaba) e padrões de linguagem simples.
-*   **Contrato de Resposta Estruturada:** O backend passa a guiar o frontend sobre o que falar e o que mostrar.
-*   **Dialog Manager Simples:** Implementação de uma máquina de estados básica para controlar o fluxo de planejamento de rota.
+### 2.2 Fase Inicial de Evolução (Foco em Persistência Distribuída)
+*   **Detecção de Intenção Determinística:** Implementada normalização, aliases locais (Uberaba) no módulo `LocalIntelligence` e classificação de queries. (Concluído)
+*   **Contrato de Resposta Estruturada:** Implementado e em produção nos endpoints de rotas. (Concluído)
+*   **Dialog Manager Simples:** FSM básica em memória para gerenciar estados e transições de rotas. (Concluído)
+*   **Persistência Conversacional no Banco:** Evolução para salvar o estado da sessão conversacional no PostgreSQL para resiliência distribuída. (Futuro)
 
 ### 2.3 Visão Futura (Longo Prazo)
 *   **Assistente Proativo:** Sugestões baseadas em contexto e histórico.
@@ -80,6 +81,11 @@ O backend deve retornar um objeto que oriente completamente a experiência do us
   "actions": ["REPEAT", "CANCEL"]
 }
 ```
+
+### 5.1 Protocolo de Tráfego de Sessões
+*   **Geração e Retorno:** Se a requisição não fornecer um ID de sessão, o backend gera um UUID dinâmico e o retorna na chave `metadata.sessionId` no payload conversacional.
+*   **Reenvio pelo Cliente:** O frontend deve extrair e armazenar esse ID, reenviando-o nas chamadas subsequentes do mesmo diálogo conversacional por meio do cabeçalho HTTP `X-Session-ID` ou da propriedade de corpo da requisição `body.sessionId`.
+*   **Armazenamento In-Memory:** As sessões ativas e seus estados lógicos são mantidos temporariamente em memória (`Map`) no backend com sliding window TTL de 10 minutos (a sessão se renova a cada nova chamada). A persistência em banco relacional ainda não está ativa nesta fase.
 
 ---
 

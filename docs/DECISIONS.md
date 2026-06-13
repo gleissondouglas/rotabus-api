@@ -148,4 +148,28 @@ Este documento segue o formato ADR para registrar decisões arquiteturais import
 
 ---
 
+### [ADR-013] Sessões Conversacionais em Memória e Enriquecimento Retrocompatível
+*   **Status:** Aceita
+*   **Data:** 13/06/2026
+*   **Contexto:** O projeto Nuvem está evoluindo para um modelo voice-first, exigindo o controle de estado da conversa (Dialog Manager via FSM) e a identificação contínua do fluxo de diálogo por meio de sessões. É crucial fazer isso sem quebrar o frontend legado e a API pública atual, além de evitar custos extras e infraestrutura complexa na fase inicial.
+*   **Decisão:**
+    1. Implementar um `SessionManager` baseado em um `Map` em memória com TTL deslizante (sliding TTL) de 10 minutos para expirar sessões inativas.
+    2. Utilizar chave composta do tipo `userId:sessionId` no gerenciamento de sessão, garantindo isolamento de contexto e segurança para os usuários.
+    3. Tratar a passagem de `sessionId` de forma flexível pelo cliente através do cabeçalho `X-Session-ID` ou da propriedade `body.sessionId`.
+    4. Utilizar um `DialogManager` baseado em Máquina de Estados Finita (FSM) no backend para transicionar logicamente o estado da conversa a partir de eventos detectados.
+    5. Decorar e enriquecer os retornos JSON dos endpoints `/plan` e `/resolve-destination` usando um `conversational.mapper.js` que adiciona na raiz do payload os campos conversacionais (`speechText`, `displayData`, `expectedInput`, `conversationState`, `actions`, `options` e `metadata`), mantendo todos os campos legados intactos para compatibilidade com o frontend atual.
+*   **Alternativas consideradas:**
+    - Persistência direta no PostgreSQL/Redis desde o início (descartada temporariamente por introduzir complexidade de rede e schema prematuramente, sendo postergada para fases futuras no ROADMAP).
+    - Mudança radical de rotas ou criação de novos endpoints `/voice/plan` (descartada para evitar retrabalho no frontend e duplicidade de regras de negócio).
+*   **Consequências positivas:**
+    - Total retrocompatibilidade com o frontend existente, permitindo que a transição conversacional ocorra de maneira transparente.
+    - Baixa latência e simplicidade na gestão das sessões devido ao armazenamento direto em memória.
+    - Separação clara entre a lógica de roteamento (Controller), transição de estados de conversa (Dialog Manager), expiração temporal (Session Manager) e formatação de resposta (Mapper).
+*   **Riscos:**
+    - Perda de estado de conversas ativas em caso de reinicialização da instância do servidor backend (aceitável para a fase atual de desenvolvimento).
+    - Vazamento de memória se o TTL não for devidamente acionado (mitigado com testes rigorosos e método explícito para expiração).
+*   **Impacto no roadmap:** Conclui a Fase 5 (Contrato de Resposta Estruturada) e atinge o estado de Parcialmente Concluída para a Fase 7 (Dialog Manager Simples).
+
+---
+
 *Nota: Estas decisões podem ser revisadas conforme a evolução do projeto. Qualquer mudança significativa deve gerar uma nova ADR ou a atualização do status das anteriores.*
