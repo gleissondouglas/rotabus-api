@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { API_BASE_URL } from "../config/api.config";
 
 // Importação defensiva para evitar erro de NativeModule null durante avaliação
 let NetInfo: any = null;
@@ -28,7 +29,20 @@ export async function isConnected(): Promise<boolean> {
     }
     
     const state = await NetInfo.fetch();
-    return !!state.isConnected && !!state.isInternetReachable;
+    
+    // Identifica se estamos usando um backend local para desenvolvimento
+    const isLocalBackend = 
+      API_BASE_URL.includes("localhost") || 
+      API_BASE_URL.includes("127.0.0.1") || 
+      API_BASE_URL.includes("10.0.2.2") ||
+      API_BASE_URL.includes("192.168.");
+
+    if (__DEV__ || isLocalBackend) {
+      // Em dev/simulador local, basta o dispositivo estar conectado na rede local (Wi-Fi/Ethernet)
+      return !!state.isConnected;
+    }
+    
+    return !!state.isConnected && state.isInternetReachable !== false;
   } catch (error) {
     console.warn("[NetworkUtil] Erro ao verificar conexão:", error);
     return true; 
