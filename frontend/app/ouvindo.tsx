@@ -238,6 +238,9 @@ export default function ListeningScreen() {
   async function processTranscription(text: string) {
     setStatus("processing");
     try {
+      // Limpa a sessão conversacional anterior ao iniciar novo diálogo de busca
+      sessionService.clearSessionId();
+
       const response = await journeyService.resolveDestination({
         text,
         origin: { lat: Number(latitude), lng: Number(longitude) },
@@ -253,8 +256,18 @@ export default function ListeningScreen() {
             longitude,
             destination: response.options[0].name,
             address: response.options[0].address,
-            confirmationQuestion: response.voice.confirmationQuestion,
+            confirmationQuestion: response.voice?.confirmationQuestion || response.message,
             options: JSON.stringify(response.options),
+            mode: response.mode || "",
+            message: response.message || "",
+            // --- Novos campos conversacionais ---
+            speechText: response.speechText || "",
+            screen: response.screen || "",
+            displayData: response.displayData ? JSON.stringify(response.displayData) : "",
+            expectedInput: response.expectedInput || "",
+            conversationState: response.conversationState || "",
+            actions: response.actions ? JSON.stringify(response.actions) : "",
+            sessionId: response.metadata?.sessionId || "",
           },
         });
       } else {

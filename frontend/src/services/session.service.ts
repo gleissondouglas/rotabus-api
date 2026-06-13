@@ -106,6 +106,8 @@ async function clearSession() {
   }
 }
 
+let currentSessionId: string | null = null;
+
 export const sessionService = {
   saveAuthSession,
   updateUserSession,
@@ -114,4 +116,7 @@ export const sessionService = {
   setHasSeenPermissions,
   getHasSeenPermissions,
   clearSession,
+  setSessionId: (id: string | null) => { currentSessionId = id; },
+  getSessionId: () => currentSessionId,
+  clearSessionId: () => { currentSessionId = null; },
 };

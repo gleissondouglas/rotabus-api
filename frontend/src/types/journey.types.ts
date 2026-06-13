@@ -32,18 +32,6 @@ export type DestinationOption = {
   source: string;
 };
 
-export interface ResolveDestinationResponse {
-  mode?: "resolved" | "suggestions" | "not_found";
-  queryType?: "generic_category" | "specific_place" | "address" | "unknown";
-  message: string;
-  interpretedDestination: string;
-  options: DestinationOption[];
-  resolvedDestination?: DestinationOption | null;
-  candidates?: DestinationOption[];
-  voice: {
-    confirmationQuestion: string;
-  };
-}
 
 export type JourneyStep =
   | {
@@ -149,5 +137,76 @@ export type JourneyResponse = {
   metadata?: {
     selectedRouteIndex: number;
     alternativesFound: number;
+    sessionId?: string;
+  };
+  // --- Novos Campos Conversacionais Opcionais ---
+  speechText?: string;
+  screen?: string;
+  displayData?: {
+    title: string;
+    subtitle: string;
+    items?: { label?: string; value?: string; name?: string; address?: string }[];
+  };
+  options?: string[];
+  expectedInput?: "NONE" | "VOICE_OR_TOUCH";
+  conversationState?: string;
+  actions?: string[];
+};
+
+export interface ResolveDestinationResponse {
+  mode?: "resolved" | "suggestions" | "not_found";
+  queryType?: "generic_category" | "specific_place" | "address" | "unknown";
+  message: string;
+  interpretedDestination: string;
+  options: DestinationOption[];
+  resolvedDestination?: DestinationOption | null;
+  candidates?: DestinationOption[];
+  voice: {
+    confirmationQuestion: string;
+  };
+  // --- Novos Campos Conversacionais Opcionais ---
+  speechText?: string;
+  screen?: string;
+  displayData?: {
+    title: string;
+    subtitle: string;
+    items?: { name?: string; address?: string }[];
+  };
+  expectedInput?: "NONE" | "VOICE_OR_TOUCH";
+  conversationState?: string;
+  actions?: string[];
+  metadata?: {
+    sessionId?: string;
+    mode?: string;
+    queryType?: string;
+  };
+}
+
+export type ConversationalCommandRequest = {
+  sessionId: string;
+  command: "CONFIRM" | "CANCEL" | "REPEAT" | "SELECT_OPTION";
+  payload?: {
+    optionIndex?: number;
+    optionName?: string;
+  };
+};
+
+export type ConversationalCommandResponse = {
+  speechText: string;
+  screen: string;
+  displayData: {
+    title: string;
+    subtitle: string;
+    items?: { label?: string; value?: string; name?: string; address?: string }[];
+  };
+  options: string[];
+  expectedInput: "NONE" | "VOICE_OR_TOUCH";
+  conversationState: string;
+  actions: string[];
+  metadata: {
+    sessionId: string;
+    command: string;
+    previousState: string;
+    currentState: string;
   };
 };
