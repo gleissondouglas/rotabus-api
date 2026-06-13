@@ -1,4 +1,4 @@
-const prisma = require("../../config/prisma");
+const apiUsageRepository = require("../repositories/apiUsage.repository");
 
 /**
  * Middleware para impor o limite estrito de 5 buscas de rota por dia.
@@ -21,18 +21,11 @@ async function dailyJourneyLimit(req, res, next) {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    // Filtro para contar uso: por IP ou por ID (se autenticado)
-    const usageFilter = {
+    const usageCount = await apiUsageRepository.countUsage({
+      ipAddress: ip,
+      userId,
+      since: startOfToday,
       endpoint,
-      createdAt: { gte: startOfToday },
-      OR: [
-        { ipAddress: ip },
-        ...(userId ? [{ userId }] : []),
-      ],
-    };
-
-    const usageCount = await prisma.apiUsage.count({
-      where: usageFilter,
     });
 
     if (usageCount >= 10) {
@@ -44,12 +37,10 @@ async function dailyJourneyLimit(req, res, next) {
     }
 
     // Registra este novo uso
-    await prisma.apiUsage.create({
-      data: {
-        userId,
-        ipAddress: ip,
-        endpoint,
-      },
+    await apiUsageRepository.createUsage({
+      userId,
+      ipAddress: ip,
+      endpoint,
     });
 
     next();
