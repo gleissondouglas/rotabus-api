@@ -137,4 +137,15 @@ Este documento segue o formato ADR para registrar decisões arquiteturais import
 
 ---
 
+### [ADR-012] Estratégia de Testes de Integração com Supertest
+*   **Status:** Aceita
+*   **Data:** 13/06/2026
+*   **Contexto:** Necessidade de validar o fluxo completo entre a entrada HTTP, middlewares de segurança/validação e a lógica dos controllers.
+*   **Decisão:** Adotar `supertest` para testes de integração de rotas, importando a instância do `app` Express sem iniciar o servidor real. Mockar apenas a camada de `Services` e `Providers` externos para garantir isolamento de banco de dados e APIs de terceiros.
+*   **Consequências positivas:** Validação real dos middlewares de validação (Zod) e sanitização; testes rápidos que não dependem de infraestrutura externa; maior confiança na integridade dos contratos da API.
+*   **Riscos:** A necessidade de mockar `Services` e `authMiddleware` exige rigor para garantir que os mocks reflitam comportamentos realistas.
+*   **Impacto no roadmap:** Conclui a Fase de Integração da Fase 8.
+
+---
+
 *Nota: Estas decisões podem ser revisadas conforme a evolução do projeto. Qualquer mudança significativa deve gerar uma nova ADR ou a atualização do status das anteriores.*
