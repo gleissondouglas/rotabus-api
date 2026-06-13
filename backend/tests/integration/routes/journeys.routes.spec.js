@@ -213,4 +213,126 @@ describe('Journeys Routes (Integration)', () => {
       expect(secondResponse.body.conversationState).toBe("WAITING_DESTINATION_SELECTION");
     });
   });
+
+  describe('POST /journeys/command', () => {
+    let activeSessionId;
+    const testUserId = 1; // Corresponde ao mock de authMiddleware
+
+    beforeEach(() => {
+      const { clearAllSessions, createSession } = require('../../../src/modules/journeys/dialog/session.manager');
+      clearAllSessions();
+      // Criamos uma sessão de teste no estado WAITING_CONFIRMATION
+      const session = createSession({ userId: testUserId, initialState: 'WAITING_CONFIRMATION' });
+      activeSessionId = session.sessionId;
+    });
+
+    test('deve retornar 400 para body inválido (parâmetros ausentes)', async () => {
+      const response = await request(app)
+        .post('/journeys/command')
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe(true);
+      expect(response.body.message).toContain('obrigatório');
+    });
+
+    test('deve retornar 400 para ID de sessão inválido (não UUID)', async () => {
+      const response = await request(app)
+        .post('/journeys/command')
+        .send({
+          sessionId: 'not-a-uuid',
+          command: 'CONFIRM'
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('UUID');
+    });
+
+    test('deve retornar 400 para comando desconhecido', async () => {
+      const response = await request(app)
+        .post('/journeys/command')
+        .send({
+          sessionId: activeSessionId,
+          command: 'INVALID_COMMAND'
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('expected one of');
+    });
+
+    test('deve retornar 400 se a sessão conversacional não for encontrada', async () => {
+      const validUuid = '00000000-0000-0000-0000-000000000000';
+      const response = await request(app)
+        .post('/journeys/command')
+        .send({
+          sessionId: validUuid,
+          command: 'CANCEL'
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('não encontrada');
+    });
+
+    test('deve processar o comando CANCEL com sucesso', async () => {
+      const response = await request(app)
+        .post('/journeys/command')
+        .send({
+          sessionId: activeSessionId,
+          command: 'CANCEL'
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.speechText).toBe('Interação cancelada.');
+      expect(response.body.conversationState).toBe('IDLE');
+      expect(response.body.metadata.sessionId).toBe(''); // ID removido
+    });
+
+    test('deve processar o comando REPEAT com sucesso', async () => {
+      const response = await request(app)
+        .post('/journeys/command')
+        .send({
+          sessionId: activeSessionId,
+          command: 'REPEAT'
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.speechText).toBe('Repetindo: é esse o destino que você deseja?');
+      expect(response.body.conversationState).toBe('WAITING_CONFIRMATION');
+    });
+
+    test('deve processar o comando CONFIRM com sucesso', async () => {
+      const response = await request(app)
+        .post('/journeys/command')
+        .send({
+          sessionId: activeSessionId,
+          command: 'CONFIRM'
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.speechText).toBe('Destino confirmado. Exibindo a melhor rota.');
+      expect(response.body.conversationState).toBe('JOURNEY_DISPLAYED');
+    });
+
+    test('deve processar o comando SELECT_OPTION com sucesso', async () => {
+      // Ajustamos a sessão existente para WAITING_DESTINATION_SELECTION
+      const { updateSession } = require('../../../src/modules/journeys/dialog/session.manager');
+      updateSession({
+        userId: testUserId,
+        sessionId: activeSessionId,
+        patch: { currentState: 'WAITING_DESTINATION_SELECTION' }
+      });
+
+      const response = await request(app)
+        .post('/journeys/command')
+        .send({
+          sessionId: activeSessionId,
+          command: 'SELECT_OPTION',
+          payload: { optionIndex: 0, optionName: 'Uberaba' }
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.speechText).toBe('Opção selecionada. Exibindo a melhor rota.');
+      expect(response.body.conversationState).toBe('JOURNEY_DISPLAYED');
+    });
+  });
 });

@@ -99,7 +99,85 @@ function toConversationalResolve(resolveResult, session = null) {
   };
 }
 
+function toConversationalCommand(result, requestBody = {}) {
+  if (!result) return null;
+
+  const sessionId = requestBody.sessionId || "";
+  const command = result.command;
+  const currentState = result.currentState;
+
+  let speechText = "Comando processado.";
+  let screen = "DESTINATION_RESOLVE";
+  let displayData = { title: "Pesquisar destino", subtitle: "", items: [] };
+  let options = [];
+  let expectedInput = "VOICE_OR_TOUCH";
+  let actions = ["CANCEL"];
+
+  if (command === "CANCEL") {
+    speechText = "Interação cancelada.";
+    screen = "DESTINATION_RESOLVE";
+    displayData = { title: "Pesquisar destino", subtitle: "", items: [] };
+    options = [];
+    expectedInput = "VOICE_OR_TOUCH";
+    actions = ["CANCEL"];
+  } else if (command === "REPEAT") {
+    if (currentState === "WAITING_CONFIRMATION") {
+      speechText = "Repetindo: é esse o destino que você deseja?";
+      screen = "DESTINATION_CONFIRMATION";
+      displayData = { title: "Confirmar destino", subtitle: "", items: [] };
+      options = [];
+      expectedInput = "VOICE_OR_TOUCH";
+      actions = ["CONFIRM", "CANCEL", "REPEAT"];
+    } else if (currentState === "WAITING_DESTINATION_SELECTION") {
+      speechText = "Repetindo as opções: qual delas você prefere?";
+      screen = "SUGGESTIONS_LIST";
+      displayData = { title: "Selecione uma opção", subtitle: "", items: [] };
+      options = [];
+      expectedInput = "VOICE_OR_TOUCH";
+      actions = ["SELECT_OPTION", "CANCEL"];
+    } else {
+      speechText = "Repetindo o último passo.";
+      screen = "DESTINATION_RESOLVE";
+      displayData = { title: "Pesquisar destino", subtitle: "", items: [] };
+      options = [];
+      expectedInput = "VOICE_OR_TOUCH";
+      actions = ["CANCEL"];
+    }
+  } else if (command === "CONFIRM") {
+    speechText = "Destino confirmado. Exibindo a melhor rota.";
+    screen = "JOURNEY_DISPLAY";
+    displayData = { title: "Rota de Ônibus Encontrada", subtitle: "", items: [] };
+    options = [];
+    expectedInput = "NONE";
+    actions = ["REPEAT", "CANCEL"];
+  } else if (command === "SELECT_OPTION") {
+    speechText = "Opção selecionada. Exibindo a melhor rota.";
+    screen = "JOURNEY_DISPLAY";
+    displayData = { title: "Rota de Ônibus Encontrada", subtitle: "", items: [] };
+    options = [];
+    expectedInput = "NONE";
+    actions = ["REPEAT", "CANCEL"];
+  }
+
+  return {
+    speechText,
+    screen,
+    displayData,
+    options,
+    expectedInput,
+    conversationState: currentState,
+    actions,
+    metadata: {
+      sessionId: result.sessionDeleted ? "" : sessionId,
+      command,
+      previousState: result.previousState,
+      currentState,
+    }
+  };
+}
+
 module.exports = {
   toConversationalPlan,
   toConversationalResolve,
+  toConversationalCommand,
 };

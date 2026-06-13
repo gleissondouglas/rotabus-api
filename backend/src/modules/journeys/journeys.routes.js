@@ -1,7 +1,7 @@
 const { authMiddleware } = require("../auth/auth.middleware");
 const { dailyJourneyLimit } = require("../../shared/middlewares/dailyLimit.middleware");
 const { validate } = require("../../shared/middlewares/validate.middleware");
-const { planJourneySchema, resolveDestinationSchema } = require("./journeys.validator");
+const { planJourneySchema, resolveDestinationSchema, conversationCommandSchema } = require("./journeys.validator");
 const express = require("express");
 const journeysController = require("./journeys.controller");
 
@@ -11,5 +11,6 @@ router.post("/plan", authMiddleware, dailyJourneyLimit, validate(planJourneySche
 router.get("/reverse-geocode", authMiddleware, journeysController.reverseGeocode);
 router.post("/transcribe", authMiddleware, journeysController.transcribeAudio);
 router.post("/resolve-destination", authMiddleware, validate(resolveDestinationSchema), journeysController.resolveDestination);
+router.post("/command", authMiddleware, validate(conversationCommandSchema), journeysController.handleConversationCommand);
 
 module.exports = router;

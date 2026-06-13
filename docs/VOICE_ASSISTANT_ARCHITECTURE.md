@@ -45,47 +45,65 @@ O processamento de uma interação segue o fluxo:
 
 ---
 
-## 4. O Coração do Sistema: Dialog Manager & Session
+## 4. Componentes Conversacionais Implementados
 
-### 4.1 Dialog Manager
-Responsável por manter a coerência da conversa, interpretando respostas relativas (ex: "o primeiro", "pode ser", "não, cancela") e garantindo que o usuário saiba em qual etapa do fluxo se encontra.
+### 4.1 Dialog Manager (`dialog.manager.js`)
+*   **Papel:** Máquina de Estados Finita (FSM - Finite State Machine) de diálogo conversacional.
+*   **Estados:** Gerencia os estados lógicos da conversa (`IDLE`, `WAITING_DESTINATION`, `WAITING_DESTINATION_SELECTION`, `WAITING_CONFIRMATION`, `JOURNEY_DISPLAYED`, `ERROR`).
+*   **Transição:** Processa eventos de viagem/diálogo (ex: `START`, `DESTINATION_RESOLVED`, `DESTINATION_AMBIGUOUS`, `OPTION_SELECTED`, `CONFIRM`, `CANCEL`) para transicionar e manter a coerência das interações de múltiplos turnos.
 
-### 4.2 Conversation Session (Modelo Conceitual)
-Para manter o contexto, a sessão deve conter:
-*   `sessionId`: Identificador único da interação.
-*   `currentState`: Estado lógico (ex: `WAITING_DESTINATION_SELECTION`).
-*   `lastIntent`: Última intenção detectada.
-*   `presentedOptions`: Lista de opções que foram faladas para o usuário.
-*   `expectedInput`: Tipo de resposta aguardada (Voz, Toque ou Ambos).
+### 4.2 Session Manager (`session.manager.js`)
+*   **Papel:** Gerencia o ciclo de vida temporário das sessões ativas.
+*   **Armazenamento:** Estrutura simples de dicionário na memória RAM (`Map` nativo do Node.js).
+*   **Isolamento:** Chaves compostas formatadas como `userId:sessionId` (ou `anonymous:sessionId` para usuários deslogados), garantindo barreiras rígidas de segurança entre contextos.
+*   **Sliding TTL:** Janela deslizante de **10 minutos** (`DEFAULT_TTL_MS`). A validade expira caso nenhuma chamada ocorra no intervalo, renovando-se a cada acesso.
+*   **Limitação:** O estado conversacional **não é persistido de forma durável em banco de dados ou Redis**. A sessão é destruída caso o servidor backend seja reiniciado.
+
+### 4.3 Conversational Mapper (`conversational.mapper.js`)
+*   **Papel:** Camada de apresentação/decorator. Injeta as propriedades conversacionais (`speechText`, `displayData`, `options`, `expectedInput`, `actions`, `conversationState` e `metadata.sessionId`) na raiz das respostas JSON originais, garantindo total retrocompatibilidade e preservação dos campos legados.
 
 ---
 
-## 5. Contrato de Resposta Estruturada (Exemplo JSON)
+## 5. Contrato de Resposta Estruturada
 
-O backend deve retornar um objeto que oriente completamente a experiência do usuário:
+O backend retorna um objeto estruturado híbrido para guiar o frontend na reprodução de voz e renderização de telas:
 
 ```json
 {
   "speechText": "Encontrei dois hospitais: o Hospital Mário Palmério e o Hospital de Clínicas. Qual deles você prefere?",
-  "screen": "DESTINATION_SELECTION",
+  "screen": "DESTINATION_CONFIRMATION",
   "displayData": {
     "title": "Escolha o Hospital",
     "items": [
-      { "id": 1, "name": "Hospital Mário Palmério", "distance": "2km" },
-      { "id": 2, "name": "Hospital de Clínicas", "distance": "3.5km" }
+      { "name": "Hospital Mário Palmério", "address": "Av. Nenê Sabino" }
     ]
   },
-  "options": ["Primeiro", "Segundo", "Hospital Mário Palmério", "Hospital de Clínicas"],
+  "options": ["Hospital Mário Palmério"],
   "expectedInput": "VOICE_OR_TOUCH",
-  "conversationState": "WAITING_DESTINATION_SELECTION",
-  "actions": ["REPEAT", "CANCEL"]
+  "conversationState": "WAITING_CONFIRMATION",
+  "actions": ["CONFIRM", "CANCEL", "REPEAT"],
+  "metadata": {
+    "sessionId": "4e95091a-0278-4fa3-87ca-b2fd53a8316b"
+  }
 }
 ```
 
 ### 5.1 Protocolo de Tráfego de Sessões
-*   **Geração e Retorno:** Se a requisição não fornecer um ID de sessão, o backend gera um UUID dinâmico e o retorna na chave `metadata.sessionId` no payload conversacional.
-*   **Reenvio pelo Cliente:** O frontend deve extrair e armazenar esse ID, reenviando-o nas chamadas subsequentes do mesmo diálogo conversacional por meio do cabeçalho HTTP `X-Session-ID` ou da propriedade de corpo da requisição `body.sessionId`.
-*   **Armazenamento In-Memory:** As sessões ativas e seus estados lógicos são mantidos temporariamente em memória (`Map`) no backend com sliding window TTL de 10 minutos (a sessão se renova a cada nova chamada). A persistência em banco relacional ainda não está ativa nesta fase.
+*   **Geração:** Se a requisição não fornecer um `sessionId`, o backend gera um UUID dinâmico via `crypto.randomUUID` e o retorna em `metadata.sessionId`.
+*   **Reenvio pelo Cliente:** O frontend deve armazenar esse ID e reenviá-lo nas chamadas subsequentes. O backend aceita esse reenvio de duas formas:
+    1.  Pelo cabeçalho HTTP **`X-Session-ID`**.
+    2.  Pela propriedade **`sessionId`** no corpo JSON da requisição.
+*   **Persistência Futura (PostgreSQL/Redis):** A migração do Map em memória para um cache distribuído ou tabela do banco para suporte tolerante a falhas é postergada para evolução futura no roadmap.
+
+### 5.2 Fluxo de Comandos Conversacionais (`POST /journeys/command`)
+
+Este endpoint público expõe a habilidade do frontend de enviar comandos e ações diretas de áudio ou toque:
+*   **Contrato:** Aceita `sessionId` (obrigatório, UUID válido), `command` (obrigatório, um dos comandos definidos em `actions`) e `payload` (opcional).
+*   **Comandos Suportados:**
+    -   `CANCEL` -> Transiciona o estado FSM para `IDLE` e exclui a sessão temporária ativa.
+    -   `REPEAT` -> Mantém o mesmo estado conversacional ativo e retorna a mensagem anterior para repetição pelo TTS.
+    -   `CONFIRM` -> Avança de `WAITING_CONFIRMATION` para `JOURNEY_DISPLAYED`.
+    -   `SELECT_OPTION` -> Avança de `WAITING_DESTINATION_SELECTION` para `JOURNEY_DISPLAYED` atualizando os metadados da opção selecionada.
 
 ---
 
