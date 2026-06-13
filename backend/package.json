@@ -9,7 +9,8 @@
     "test": "jest",
     "admin:ensure": "node scripts/ensureAdmin.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy"
+    "prisma:migrate": "prisma migrate deploy",
+    "sessions:cleanup": "node scripts/cleanup-expired-conversation-sessions.js"
   },
   "keywords": [],
   "author": "",
