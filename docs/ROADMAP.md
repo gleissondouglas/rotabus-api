@@ -95,15 +95,14 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 *   **Prioridade:** Baixa/Média.
 *   **Critério de Conclusão:** Ciclo completo de pergunta-resposta mantendo contexto.
 
-### Fase 8: Testes e Observabilidade (Contínua/Longo Prazo)
-*   **Objetivo:** Garantir a resiliência e a saúde do sistema.
-*   **Tarefas Principais:**
-    *   Expandir testes de integração e mocks de providers.
-    *   Implementar logs estruturados e monitoramento via Sentry.
-    *   *Nota: Testes unitários devem acompanhar todas as fases desde a Fase 1.*
-*   **Módulos Afetados:** Todo o projeto.
-*   **Risco:** Baixo.
-*   **Prioridade:** Contínua.
+### Fase 8: Testes e Observabilidade (Contínua - Fase de Integração Concluída)
+*   **Objetivo:** Garantir a resiliência e a saúde do sistema através de testes automatizados e monitoramento.
+*   **Tarefas Realizadas (Integração):**
+    *   Implementação de testes de integração para as rotas principais de `auth`, `users` e `journeys`.
+    *   Utilização do `supertest` para validar o fluxo real: Rota → Middlewares → Controller.
+    *   Mocks estratégicos de Services e Providers para evitar chamadas a APIs externas (Google), Banco de Dados e e-mail.
+    *   Preservação e validação dos middlewares reais de `sanitizeMiddleware` e `validateMiddleware`.
+*   **Status:** Em progresso (Integração de rotas concluída).
 *   **Critério de Conclusão:** Cobertura de testes em áreas críticas e alertas configurados.
 
 ### Fase 9: Documentação de API e Segurança (Longo Prazo)
