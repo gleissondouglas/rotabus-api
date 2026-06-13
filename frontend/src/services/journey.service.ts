@@ -3,7 +3,9 @@ import {
   JourneyResponse, 
   PlanJourneyRequest, 
   ResolveDestinationRequest, 
-  ResolveDestinationResponse 
+  ResolveDestinationResponse,
+  ConversationalCommandRequest,
+  ConversationalCommandResponse
 } from "../types/journey.types";
 import { sessionService } from "./session.service";
 import { request } from "../utils/api";
@@ -25,9 +27,15 @@ const DESTINATION_CACHE_TTL = 1000 * 60 * 10; // 10 minutos para buscas de desti
  */
 async function planJourney(data: PlanJourneyRequest): Promise<JourneyResponse> {
   const token = await sessionService.getToken();
+  const sessionId = sessionService.getSessionId();
   
+  const requestBody = {
+    ...data,
+    ...(sessionId ? { sessionId } : {}),
+  };
+
   // Tenta recuperar do cache para evitar cobranças duplicadas na API do Google
-  const cacheKey = `plan:${JSON.stringify(data.origin)}-${JSON.stringify(data.destination)}`;
+  const cacheKey = `plan:${JSON.stringify(data.origin)}-${JSON.stringify(data.destination)}-${sessionId || ""}`;
   const cached = cache.get<JourneyResponse>(cacheKey, ROUTE_CACHE_TTL);
   
   if (cached) {
@@ -42,9 +50,14 @@ async function planJourney(data: PlanJourneyRequest): Promise<JourneyResponse> {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(requestBody),
       timeout: DEFAULT_TIMEOUT,
     });
+
+    // Salva o sessionId retornado pelo backend
+    if (result.metadata?.sessionId) {
+      sessionService.setSessionId(result.metadata.sessionId);
+    }
 
     // Salva no cache se a requisição for bem-sucedida
     cache.set(cacheKey, result);
@@ -58,8 +71,14 @@ async function planJourney(data: PlanJourneyRequest): Promise<JourneyResponse> {
  */
 async function resolveDestination(data: ResolveDestinationRequest): Promise<ResolveDestinationResponse> {
   const token = await sessionService.getToken();
+  const sessionId = sessionService.getSessionId();
 
-  const cacheKey = `resolve:${data.text}:${data.origin.lat},${data.origin.lng}`;
+  const requestBody = {
+    ...data,
+    ...(sessionId ? { sessionId } : {}),
+  };
+
+  const cacheKey = `resolve:${data.text}:${data.origin.lat},${data.origin.lng}-${sessionId || ""}`;
   const cached = cache.get<ResolveDestinationResponse>(cacheKey, DESTINATION_CACHE_TTL);
 
   if (cached) {
@@ -74,11 +93,44 @@ async function resolveDestination(data: ResolveDestinationRequest): Promise<Reso
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify(requestBody),
+      timeout: DEFAULT_TIMEOUT,
+    });
+
+    // Salva o sessionId retornado pelo backend
+    if (result.metadata?.sessionId) {
+      sessionService.setSessionId(result.metadata.sessionId);
+    }
+
+    cache.set(cacheKey, result);
+    return result;
+  });
+}
+
+/**
+ * Envia um comando conversacional (CONFIRM, CANCEL, REPEAT, SELECT_OPTION) para o backend.
+ */
+async function executeCommand(data: ConversationalCommandRequest): Promise<ConversationalCommandResponse> {
+  const token = await sessionService.getToken();
+
+  return withRetry(async () => {
+    const result = await request<ConversationalCommandResponse>(`${API_BASE_URL}/journeys/command`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(data),
       timeout: DEFAULT_TIMEOUT,
     });
 
-    cache.set(cacheKey, result);
+    // Trata atualização de sessão baseada no retorno
+    if (result.metadata?.sessionId) {
+      sessionService.setSessionId(result.metadata.sessionId);
+    } else if (data.command === "CANCEL" || result.conversationState === "IDLE") {
+      sessionService.clearSessionId();
+    }
+
     return result;
   });
 }
@@ -86,4 +138,5 @@ async function resolveDestination(data: ResolveDestinationRequest): Promise<Reso
 export const journeyService = {
   planJourney,
   resolveDestination,
+  executeCommand,
 };

@@ -18,6 +18,7 @@ import { TextField } from "../src/components/TextField";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { journeyService } from "../src/services/journey.service";
+import { sessionService } from "../src/services/session.service";
 import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
 import { vibrationService } from "../src/services/vibration.service";
 import { useThemeColors } from "../src/theme/colors";
@@ -63,6 +64,9 @@ export default function TypeDestinationScreen() {
     vibrationService.medium();
 
     try {
+      // Inicia um novo diálogo limpando qualquer ID de sessão pré-existente
+      sessionService.clearSessionId();
+
       const response = await journeyService.resolveDestination({
         text: address,
         origin: {
@@ -85,6 +89,14 @@ export default function TypeDestinationScreen() {
             options: JSON.stringify(response.options),
             mode: response.mode,
             message: response.message,
+            // --- Novos campos conversacionais ---
+            speechText: response.speechText || "",
+            screen: response.screen || "",
+            displayData: response.displayData ? JSON.stringify(response.displayData) : "",
+            expectedInput: response.expectedInput || "",
+            conversationState: response.conversationState || "",
+            actions: response.actions ? JSON.stringify(response.actions) : "",
+            sessionId: response.metadata?.sessionId || "",
           },
         });
       } else {

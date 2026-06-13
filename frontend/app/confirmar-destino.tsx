@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeIn } from "react-native-reanimated";
@@ -11,6 +12,8 @@ import { ScreenContainer } from "../src/components/ScreenContainer";
 import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
 import { useThemeColors } from "../src/theme/colors";
 import { speak } from "../src/services/speech.service";
+import { journeyService } from "../src/services/journey.service";
+import { sessionService } from "../src/services/session.service";
 import { parseJsonParam } from "../src/utils/helpers";
 import { layout } from "../src/theme/layout";
 
@@ -31,15 +34,21 @@ export default function ConfirmDestinationScreen() {
   const backendMode = String(params.mode || "");
   const backendMessage = String(params.message || "Encontrei algumas opções");
   
-  const options = parseJsonParam<any[]>(params.options, []);
+  const [sessionId, setSessionId] = useState(String(params.sessionId || ""));
+  const [speechText, setSpeechText] = useState(String(params.speechText || ""));
+  const [displayData, setDisplayData] = useState<any>(params.displayData ? JSON.parse(String(params.displayData)) : null);
+  const [actions, setActions] = useState<string[]>(params.actions ? JSON.parse(String(params.actions)) : []);
+  const [conversationState, setConversationState] = useState(String(params.conversationState || ""));
+
+  const options = displayData?.items || parseJsonParam<any[]>(params.options, []);
   
   // Se o backend explicitamente retornou 'suggestions' ou se há heurísticas residuais (ex: versão antiga em cache local)
   const bestOption = options[0] || {};
   const isGeneric = bestOption.isGenericCityResult;
   const confidence = bestOption.confidence || "high";
-  const showSuggestions = backendMode === "suggestions" || (isGeneric && options.length > 1) || confidence === "low";
+  const showSuggestions = conversationState === "WAITING_DESTINATION_SELECTION" || backendMode === "suggestions" || (isGeneric && options.length > 1) || confidence === "low";
 
-  const displayDestination = destination || bestOption.name || "Destino informado";
+  const displayDestination = displayData?.title || destination || bestOption.name || "Destino informado";
   
   // Heurística para ícone do destino
   const getDestinationIcon = (name: string, addr: string) => {
@@ -58,39 +67,102 @@ export default function ConfirmDestinationScreen() {
 
   const destIcon = getDestinationIcon(displayDestination, address);
 
-  const voiceText = showSuggestions 
+  const voiceText = speechText || (showSuggestions 
     ? "Encontrei algumas opções. Qual delas é o seu destino correto?"
-    : confirmationQuestion || `Destino encontrado: ${displayDestination}, ${address}. É para este lugar que você quer ir?`;
+    : confirmationQuestion || `Destino encontrado: ${displayDestination}, ${address}. É para este lugar que você quer ir?`);
 
   useAutoSpeak(voiceText);
 
-  function handleConfirmDestination(option?: any) {
+  const [isLoadingCommand, setIsLoadingCommand] = useState(false);
+
+  async function handleConfirmDestination(option?: any) {
     const selected = option || bestOption;
-    router.push({
-      pathname: "/escolher-horario",
-      params: {
-        latitude,
-        longitude,
-        destination: selected.name,
-        destinationLat: String(selected.lat),
-        destinationLng: String(selected.lng),
-      },
-    });
+    const isOptionSelection = !!option;
+    
+    setIsLoadingCommand(true);
+    try {
+      const activeSessionId = sessionId || sessionService.getSessionId();
+      if (activeSessionId) {
+        if (isOptionSelection) {
+          const optionIndex = options.indexOf(option);
+          const result = await journeyService.executeCommand({
+            sessionId: activeSessionId,
+            command: "SELECT_OPTION",
+            payload: {
+              optionIndex: optionIndex >= 0 ? optionIndex : 0,
+              optionName: selected.name,
+            }
+          });
+          if (result.speechText) setSpeechText(result.speechText);
+          if (result.displayData) setDisplayData(result.displayData);
+          if (result.conversationState) setConversationState(result.conversationState);
+          if (result.actions) setActions(result.actions);
+        } else {
+          const result = await journeyService.executeCommand({
+            sessionId: activeSessionId,
+            command: "CONFIRM"
+          });
+          if (result.speechText) setSpeechText(result.speechText);
+          if (result.displayData) setDisplayData(result.displayData);
+          if (result.conversationState) setConversationState(result.conversationState);
+          if (result.actions) setActions(result.actions);
+        }
+      }
+    } catch (err) {
+      console.log("[ConfirmDestination] Erro ao executar comando no backend:", err);
+    } finally {
+      setIsLoadingCommand(false);
+      router.push({
+        pathname: "/escolher-horario",
+        params: {
+          latitude,
+          longitude,
+          destination: selected.name,
+          destinationLat: String(selected.lat),
+          destinationLng: String(selected.lng),
+        },
+      });
+    }
   }
 
-  function handleChangeDestination() {
-    router.replace({
-      pathname: "/inicio",
-      params: {
-        latitude,
-        longitude,
-      },
-    });
+  async function handleChangeDestination() {
+    try {
+      const activeSessionId = sessionId || sessionService.getSessionId();
+      if (activeSessionId) {
+        await journeyService.executeCommand({
+          sessionId: activeSessionId,
+          command: "CANCEL"
+        });
+      }
+    } catch (err) {
+      console.log("[ConfirmDestination] Erro ao executar cancelamento no backend:", err);
+    } finally {
+      sessionService.clearSessionId();
+      router.replace({
+        pathname: "/inicio",
+        params: {
+          latitude,
+          longitude,
+        },
+      });
+    }
   }
 
-  const handleHearDestination = () => {
-    speak(voiceText);
-  };
+  async function handleHearDestination() {
+    try {
+      const activeSessionId = sessionId || sessionService.getSessionId();
+      if (activeSessionId) {
+        await journeyService.executeCommand({
+          sessionId: activeSessionId,
+          command: "REPEAT"
+        });
+      }
+    } catch (err) {
+      console.log("[ConfirmDestination] Erro ao executar repetição no backend:", err);
+    } finally {
+      speak(voiceText);
+    }
+  }
 
   const handleHelp = () => {
     router.push("/ajuda");

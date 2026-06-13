@@ -10,6 +10,9 @@ import { PrimaryButton } from "../src/components/PrimaryButton";
 import { RouteStep } from "../src/components/RouteStep";
 import { useAutoSpeakOnce } from "../src/hooks/useAutoSpeakOnce";
 import { useThemeColors } from "../src/theme/colors";
+import { speak } from "../src/services/speech.service";
+import { journeyService } from "../src/services/journey.service";
+import { sessionService } from "../src/services/session.service";
 import { JourneyStep, JourneySummary } from "../src/types/journey.types";
 import { formatMinutesToFriendlyText } from "../src/utils/date-time";
 import { parseJsonParam } from "../src/utils/helpers";
@@ -93,13 +96,47 @@ export default function BestRouteScreen() {
     beAtStopText,
   });
 
-  useAutoSpeakOnce(`melhor-rota-${destination}-${busLine}`, shortMessage);
+  const speechTextParam = String(params.speechText || "");
+  const sessionIdParam = String(params.sessionId || "");
 
-  function handleGoHome() {
-    router.replace({
-      pathname: "/inicio",
-      params: { latitude, longitude },
-    });
+  const voiceText = speechTextParam || shortMessage;
+
+  useAutoSpeakOnce(`melhor-rota-${destination}-${busLine}`, voiceText);
+
+  async function handleGoHome() {
+    try {
+      const activeSessionId = sessionIdParam || sessionService.getSessionId();
+      if (activeSessionId) {
+        await journeyService.executeCommand({
+          sessionId: activeSessionId,
+          command: "CANCEL"
+        });
+      }
+    } catch (err) {
+      console.log("[BestRoute] Erro ao executar CANCEL no backend:", err);
+    } finally {
+      sessionService.clearSessionId();
+      router.replace({
+        pathname: "/inicio",
+        params: { latitude, longitude },
+      });
+    }
+  }
+
+  async function handleHearRoute() {
+    try {
+      const activeSessionId = sessionIdParam || sessionService.getSessionId();
+      if (activeSessionId) {
+        await journeyService.executeCommand({
+          sessionId: activeSessionId,
+          command: "REPEAT"
+        });
+      }
+    } catch (err) {
+      console.log("[BestRoute] Erro ao executar REPEAT no backend:", err);
+    } finally {
+      speak(voiceText);
+    }
   }
 
   function handleStartNavigation() {
@@ -222,7 +259,7 @@ export default function BestRouteScreen() {
         <View style={styles.ttsWrapper}>
           <ListenOptionsButton 
             label="Ouvir resumo"
-            textToSpeak={shortMessage} 
+            onPress={handleHearRoute} 
             accessibilityLabel="Ouvir resumo da rota em voz alta"
           />
         </View>

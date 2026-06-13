@@ -115,6 +115,14 @@ export default function ProcessingScreen() {
             alerts: JSON.stringify(journey.alerts),
             steps: JSON.stringify(journey.steps),
             map: journey.map ? JSON.stringify(journey.map) : "",
+            // --- Novos campos conversacionais ---
+            speechText: journey.speechText || "",
+            screen: journey.screen || "",
+            displayData: journey.displayData ? JSON.stringify(journey.displayData) : "",
+            expectedInput: journey.expectedInput || "",
+            conversationState: journey.conversationState || "",
+            actions: journey.actions ? JSON.stringify(journey.actions) : "",
+            sessionId: journey.metadata?.sessionId || "",
           },
         });
       } catch (error) {

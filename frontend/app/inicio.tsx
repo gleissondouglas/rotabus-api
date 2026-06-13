@@ -350,7 +350,9 @@ export default function HomeScreen() {
   async function processTranscription(text: string) {
     setStatus("processing");
     try {
-      // Chama o serviço que se comunica com a nossa API Node.js
+      // Limpa a sessão conversacional anterior ao iniciar novo diálogo de busca
+      sessionService.clearSessionId();
+
       const response = await journeyService.resolveDestination({
         text,
         origin: {
@@ -376,6 +378,14 @@ export default function HomeScreen() {
               options: JSON.stringify(response.options),
               mode: response.mode,
               message: response.message,
+              // --- Novos campos conversacionais ---
+              speechText: response.speechText || "",
+              screen: response.screen || "",
+              displayData: response.displayData ? JSON.stringify(response.displayData) : "",
+              expectedInput: response.expectedInput || "",
+              conversationState: response.conversationState || "",
+              actions: response.actions ? JSON.stringify(response.actions) : "",
+              sessionId: response.metadata?.sessionId || "",
             },
           });
         } else {
