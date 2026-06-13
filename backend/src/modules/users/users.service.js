@@ -130,11 +130,8 @@ async function deleteOwnUserService(userId) {
   // LGPD: Anonimizar logs de acesso antes de excluir o usuário.
   // O schema.prisma define onDelete: SetNull para o userId em ApiUsage,
   // mas o ipAddress (dado pessoal) permaneceria intacto.
-  const { prisma } = require("../../config/prisma");
-  await prisma.apiUsage.updateMany({
-    where: { userId: userId },
-    data: { ipAddress: "0.0.0.0" }
-  });
+  const apiUsageRepository = require("../../shared/repositories/apiUsage.repository");
+  await apiUsageRepository.anonymizeUsageByUserId(userId);
 
   // Deleta o usuário. As relações PasswordResetToken (Cascade) 
   // são tratadas conforme definido no schema.prisma.
