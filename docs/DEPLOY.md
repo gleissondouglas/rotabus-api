@@ -48,7 +48,26 @@ npm run prisma:migrate
 
 ---
 
-## 3. Validações Pré-Deploy (Checkout Técnico)
+## 3. Limpeza e Manutenção Periódica
+
+Para evitar o crescimento indefinido da tabela `ConversationSession` no PostgreSQL, foi disponibilizado um script de manutenção que remove registros cujos prazos de Sliding TTL expiraram.
+
+### 3.1 Execução Manual
+Para executar a limpeza pontual e manual a partir do terminal do servidor:
+```bash
+cd backend
+npm run sessions:cleanup
+```
+
+### 3.2 Execução Agendada (Cron)
+Recomenda-se configurar uma tarefa agendada (Cron job) em sua plataforma de deploy ou via infraestrutura do SO para disparar a limpeza periodicamente (ex: a cada 10 ou 15 minutos):
+```cron
+*/15 * * * * cd /caminho/para/projeto/backend && npm run sessions:cleanup >> /var/log/rotabus-cleanup.log 2>&1
+```
+
+---
+
+## 4. Validações Pré-Deploy (Checkout Técnico)
 
 Antes de aprovar o deploy de uma branch, certifique-se de que os testes globais estejam verdes e o linter de estilos esteja sem erros.
 
@@ -69,9 +88,9 @@ npm run lint
 
 ---
 
-## 4. Estratégias de Fallback e Alertas
+## 5. Estratégias de Fallback e Alertas
 
-### 4.1 Retorno para Modo Memória
+### 5.1 Retorno para Modo Memória
 Caso o banco de dados PostgreSQL passe por instabilidade física ou falha de rede, é possível desativar temporariamente a persistência durável redefinindo a variável no ambiente de deploy:
 ```env
 PERSISTENCE_DRIVER=memory
