@@ -6,14 +6,13 @@ import Animated, { FadeInUp, FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "../src/components/BackButton";
-import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
-import { PrimaryButton } from "../src/components/PrimaryButton";
-import { ScreenContainer } from "../src/components/ScreenContainer";
-import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
+import { useAutoSpeakOnce } from "../src/hooks/useAutoSpeakOnce";
 import { useThemeColors } from "../src/theme/colors";
 import { speak } from "../src/services/speech.service";
 import { journeyService } from "../src/services/journey.service";
 import { sessionService } from "../src/services/session.service";
+import { vibrationService } from "../src/services/vibration.service";
+import { isConnected } from "../src/utils/network";
 import { parseJsonParam } from "../src/utils/helpers";
 import { layout } from "../src/theme/layout";
 
@@ -71,7 +70,7 @@ export default function ConfirmDestinationScreen() {
     ? "Encontrei algumas opções. Qual delas é o seu destino correto?"
     : confirmationQuestion || `Destino encontrado: ${displayDestination}, ${address}. É para este lugar que você quer ir?`);
 
-  useAutoSpeak(voiceText);
+  useAutoSpeakOnce(`confirmar-destino-${displayDestination}-${address}`, voiceText);
 
   const [isLoadingCommand, setIsLoadingCommand] = useState(false);
 
@@ -82,34 +81,50 @@ export default function ConfirmDestinationScreen() {
     setIsLoadingCommand(true);
     let sessionExpired = false;
 
+    // Feedback tátil ao tocar
+    if (isOptionSelection) {
+      vibrationService.selection();
+    } else {
+      vibrationService.success();
+    }
+
     try {
-      const activeSessionId = sessionId || sessionService.getSessionId();
-      if (activeSessionId) {
-        if (isOptionSelection) {
-          const optionIndex = options.indexOf(option);
-          const result = await journeyService.executeCommand({
-            sessionId: activeSessionId,
-            command: "SELECT_OPTION",
-            payload: {
-              optionIndex: optionIndex >= 0 ? optionIndex : 0,
-              optionName: selected.name,
-            }
-          });
-          if (result.speechText) setSpeechText(result.speechText);
-          if (result.displayData) setDisplayData(result.displayData);
-          if (result.conversationState) setConversationState(result.conversationState);
-          if (result.actions) setActions(result.actions);
-          if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
-        } else {
-          const result = await journeyService.executeCommand({
-            sessionId: activeSessionId,
-            command: "CONFIRM"
-          });
-          if (result.speechText) setSpeechText(result.speechText);
-          if (result.displayData) setDisplayData(result.displayData);
-          if (result.conversationState) setConversationState(result.conversationState);
-          if (result.actions) setActions(result.actions);
-          if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
+      const connected = await isConnected();
+      if (!connected) {
+        Alert.alert(
+          "Sem Conexão",
+          "Não conseguimos contatar o servidor de voz. Continuando pelo modo clássico.",
+          [{ text: "Continuar" }]
+        );
+      } else {
+        const activeSessionId = sessionId || sessionService.getSessionId();
+        if (activeSessionId) {
+          if (isOptionSelection) {
+            const optionIndex = options.indexOf(option);
+            const result = await journeyService.executeCommand({
+              sessionId: activeSessionId,
+              command: "SELECT_OPTION",
+              payload: {
+                optionIndex: optionIndex >= 0 ? optionIndex : 0,
+                optionName: selected.name,
+              }
+            });
+            if (result.speechText) setSpeechText(result.speechText);
+            if (result.displayData) setDisplayData(result.displayData);
+            if (result.conversationState) setConversationState(result.conversationState);
+            if (result.actions) setActions(result.actions);
+            if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
+          } else {
+            const result = await journeyService.executeCommand({
+              sessionId: activeSessionId,
+              command: "CONFIRM"
+            });
+            if (result.speechText) setSpeechText(result.speechText);
+            if (result.displayData) setDisplayData(result.displayData);
+            if (result.conversationState) setConversationState(result.conversationState);
+            if (result.actions) setActions(result.actions);
+            if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
+          }
         }
       }
     } catch (err: any) {
@@ -119,10 +134,17 @@ export default function ConfirmDestinationScreen() {
         err.message.includes("não encontrada ou expirada")
       )) {
         sessionExpired = true;
+        vibrationService.error();
         Alert.alert(
-          "Sessão Expirada",
-          "Sua sessão de diálogo expirou. Vamos reiniciar sua busca.",
+          "Conversa Expirada",
+          "Sua conversa expirou. Vamos começar de novo.",
           [{ text: "OK", onPress: () => router.replace("/inicio") }]
+        );
+      } else {
+        Alert.alert(
+          "Erro de Rede",
+          "Falha ao comunicar com o servidor. Continuando no modo clássico.",
+          [{ text: "OK" }]
         );
       }
     } finally {
@@ -147,9 +169,11 @@ export default function ConfirmDestinationScreen() {
 
   async function handleChangeDestination() {
     setIsLoadingCommand(true);
+    vibrationService.light();
     try {
+      const connected = await isConnected();
       const activeSessionId = sessionId || sessionService.getSessionId();
-      if (activeSessionId) {
+      if (connected && activeSessionId) {
         await journeyService.executeCommand({
           sessionId: activeSessionId,
           command: "CANCEL"
@@ -172,19 +196,33 @@ export default function ConfirmDestinationScreen() {
 
   async function handleHearDestination() {
     setIsLoadingCommand(true);
+    vibrationService.selection();
     try {
+      const connected = await isConnected();
       const activeSessionId = sessionId || sessionService.getSessionId();
-      if (activeSessionId) {
+      if (connected && activeSessionId) {
         await journeyService.executeCommand({
           sessionId: activeSessionId,
           command: "REPEAT"
         });
       }
-    } catch (err) {
+      speak(voiceText);
+    } catch (err: any) {
       console.log("[ConfirmDestination] Erro ao executar repetição no backend:", err);
+      if (err?.message && (
+        err.message.includes("Sessão conversacional não encontrada") ||
+        err.message.includes("não encontrada ou expirada")
+      )) {
+        Alert.alert(
+          "Conversa Expirada",
+          "Sua conversa expirou. Vamos começar de novo.",
+          [{ text: "OK", onPress: () => router.replace("/inicio") }]
+        );
+      } else {
+        speak(voiceText);
+      }
     } finally {
       setIsLoadingCommand(false);
-      speak(voiceText);
     }
   }
 
@@ -251,7 +289,7 @@ export default function ConfirmDestinationScreen() {
           {showSuggestions ? (
             /* SUGGESTIONS LIST */
             <View style={styles.suggestionsList}>
-              {options.slice(0, 4).map((option, index) => (
+              {options.slice(0, 4).map((option: any, index: number) => (
                 <Animated.View 
                   key={option.id || index}
                   entering={FadeInUp.delay(index * 100).duration(400)}
