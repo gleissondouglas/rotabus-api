@@ -32,6 +32,7 @@ O sistema está organizado em módulos funcionais (`auth`, `users`, `journeys`),
 
 ### 2.2 Arquitetura de Transição
 O estágio imediato de evolução foca em:
+*   **Validação Padronizada:** Implementação do `validateMiddleware` usando Zod para garantir que os dados cheguem aos controllers validados e normalizados.
 *   **Desacoplamento de Mappers:** Extrair a lógica do `journey.mapper.js` para utilitários independentes.
 *   **Definição de Contratos:** Padronizar como os Services chamam os Providers usando interfaces conceituais em JavaScript (CommonJS).
 *   **Exemplos de Contratos de Providers:**
