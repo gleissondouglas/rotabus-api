@@ -19,17 +19,6 @@ describe("journey.mapper", () => {
     jest.useRealTimers();
   });
 
-  test("debug timezone", () => {
-    const date = new Date("2026-06-13T14:30:00Z");
-    const formatted = new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(date);
-    console.log("FORMATTED DEBUG:", formatted);
-  });
-
   test("deve mapear corretamente uma rota de ônibus simples (Paridade de Contrato)", () => {
     const result = mapGoogleRouteToJourney(transitSimpleFixture, origin, timePreference);
     
