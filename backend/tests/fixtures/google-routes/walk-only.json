@@ -1,0 +1,31 @@
+{
+  "routes": [
+    {
+      "duration": "600s",
+      "distanceMeters": 1000,
+      "polyline": {
+        "encodedPolyline": "polyline_walk_only"
+      },
+      "legs": [
+        {
+          "steps": [
+            {
+              "travelMode": "WALK",
+              "distanceMeters": 1000,
+              "staticDuration": "600s",
+              "polyline": {
+                "encodedPolyline": "polyline_walk_1"
+              },
+              "navigationInstruction": {
+                "instructions": "Caminhe até o destino",
+                "maneuver": "STRAIGHT"
+              },
+              "startLocation": { "latLng": { "latitude": -19.7472, "longitude": -47.9392 } },
+              "endLocation": { "latLng": { "latitude": -19.7480, "longitude": -47.9400 } }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "routes": [
+    {
+      "duration": "1800s",
+      "distanceMeters": 5000,
+      "polyline": {
+        "encodedPolyline": "polyline_overview"
+      },
+      "legs": [
+        {
+          "steps": [
+            {
+              "travelMode": "WALK",
+              "distanceMeters": 300,
+              "staticDuration": "300s",
+              "polyline": {
+                "encodedPolyline": "polyline_walk_1"
+              },
+              "navigationInstruction": {
+                "instructions": "Caminhe até o ponto",
+                "maneuver": "TURN_LEFT"
+              },
+              "startLocation": { "latLng": { "latitude": -19.7472, "longitude": -47.9392 } },
+              "endLocation": { "latLng": { "latitude": -19.7480, "longitude": -47.9400 } }
+            },
+            {
+              "travelMode": "TRANSIT",
+              "distanceMeters": 4500,
+              "staticDuration": "1200s",
+              "polyline": {
+                "encodedPolyline": "polyline_transit_1"
+              },
+              "transitDetails": {
+                "stopDetails": {
+                  "departureStop": {
+                    "name": "Terminal Central",
+                    "location": { "latLng": { "latitude": -19.7480, "longitude": -47.9400 } }
+                  },
+                  "arrivalStop": {
+                    "name": "Ponto da Uniube",
+                    "location": { "latLng": { "latitude": -19.7550, "longitude": -47.9300 } }
+                  },
+                  "departureTime": "2026-06-13T14:30:00Z",
+                  "arrivalTime": "2026-06-13T14:50:00Z"
+                },
+                "transitLine": {
+                  "nameShort": "10",
+                  "name": "Circular 10"
+                },
+                "headsign": "Universidade",
+                "stopCount": 5
+              },
+              "startLocation": { "latLng": { "latitude": -19.7480, "longitude": -47.9400 } },
+              "endLocation": { "latLng": { "latitude": -19.7550, "longitude": -47.9300 } }
+            },
+            {
+              "travelMode": "WALK",
+              "distanceMeters": 200,
+              "staticDuration": "300s",
+              "polyline": {
+                "encodedPolyline": "polyline_walk_2"
+              },
+              "navigationInstruction": {
+                "instructions": "Caminhe até o destino final",
+                "maneuver": "STRAIGHT"
+              },
+              "startLocation": { "latLng": { "latitude": -19.7550, "longitude": -47.9300 } },
+              "endLocation": { "latLng": { "latitude": -19.7560, "longitude": -47.9290 } }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
