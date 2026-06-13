@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View, Alert } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +14,8 @@ import { useThemeColors } from "../src/theme/colors";
 import { speak } from "../src/services/speech.service";
 import { journeyService } from "../src/services/journey.service";
 import { sessionService } from "../src/services/session.service";
+import { vibrationService } from "../src/services/vibration.service";
+import { isConnected } from "../src/utils/network";
 import { JourneyStep, JourneySummary } from "../src/types/journey.types";
 import { formatMinutesToFriendlyText } from "../src/utils/date-time";
 import { parseJsonParam } from "../src/utils/helpers";
@@ -108,9 +110,11 @@ export default function BestRouteScreen() {
 
   async function handleGoHome() {
     setIsLoadingCommand(true);
+    vibrationService.light();
     try {
+      const connected = await isConnected();
       const activeSessionId = sessionIdParam || sessionService.getSessionId();
-      if (activeSessionId) {
+      if (connected && activeSessionId) {
         await journeyService.executeCommand({
           sessionId: activeSessionId,
           command: "CANCEL"
@@ -130,24 +134,40 @@ export default function BestRouteScreen() {
 
   async function handleHearRoute() {
     setIsLoadingCommand(true);
+    vibrationService.selection();
     try {
+      const connected = await isConnected();
       const activeSessionId = sessionIdParam || sessionService.getSessionId();
-      if (activeSessionId) {
+      if (connected && activeSessionId) {
         await journeyService.executeCommand({
           sessionId: activeSessionId,
           command: "REPEAT"
         });
       }
-    } catch (err) {
+      speak(voiceText);
+    } catch (err: any) {
       console.log("[BestRoute] Erro ao executar REPEAT no backend:", err);
+      if (err?.message && (
+        err.message.includes("Sessão conversacional não encontrada") ||
+        err.message.includes("não encontrada ou expirada")
+      )) {
+        vibrationService.error();
+        Alert.alert(
+          "Conversa Expirada",
+          "Sua conversa expirou. Vamos começar de novo.",
+          [{ text: "OK", onPress: () => router.replace("/inicio") }]
+        );
+      } else {
+        speak(voiceText);
+      }
     } finally {
       setIsLoadingCommand(false);
-      speak(voiceText);
     }
   }
 
   function handleStartNavigation() {
     setIsLoadingCommand(true);
+    vibrationService.success();
     router.push({
       pathname: "/navegando",
       params: {

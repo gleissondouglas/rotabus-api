@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
-import { stopSpeaking, startListening, stopListening, isSpeechRecognitionAvailable } from "../src/services/speech.service";
+import { startListening, stopListening, isSpeechRecognitionAvailable } from "../src/services/speech.service";
 import { useThemeColors } from "../src/theme/colors";
 import { journeyService } from "../src/services/journey.service";
 import { sessionService } from "../src/services/session.service";
@@ -143,6 +143,7 @@ export default function ListeningScreen() {
   const [transcript, setTranscript] = useState(initialManualText);
   const [userName, setUserName] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const micPulse = useSharedValue(1);
 
@@ -236,7 +237,9 @@ export default function ListeningScreen() {
   }
 
   async function processTranscription(text: string) {
+    if (isLoading) return;
     setStatus("processing");
+    setIsLoading(true);
     try {
       // Limpa a sessão conversacional anterior ao iniciar novo diálogo de busca
       sessionService.clearSessionId();
@@ -274,16 +277,20 @@ export default function ListeningScreen() {
         setStatus("error");
         setErrorMessage("Não encontrei esse destino.");
         vibrationService.error();
+        setIsLoading(false);
       }
     } catch (err) {
       console.error("Erro:", err);
       setStatus("error");
       setErrorMessage("Erro ao buscar destino.");
       vibrationService.error();
+      setIsLoading(false);
     }
   }
 
   function handleCancel() {
+    if (isLoading) return;
+    setIsLoading(true);
     vibrationService.light();
     stopListening();
     router.replace({
@@ -334,7 +341,8 @@ export default function ListeningScreen() {
           <Animated.View entering={FadeIn} style={styles.errorContainer}>
             <Text style={[styles.errorMessage, { color: theme.danger }]}>{errorMessage}</Text>
             <Pressable 
-              style={[styles.retryButton, { backgroundColor: theme.primaryLight }]}
+              style={[styles.retryButton, { backgroundColor: theme.primaryLight }, isLoading && { opacity: 0.6 }]}
+              disabled={isLoading}
               onPress={startListeningSession}
             >
               <Text style={[styles.retryButtonText, { color: theme.primary }]}>Tentar novamente</Text>
@@ -347,7 +355,8 @@ export default function ListeningScreen() {
           style={[styles.bottomBar, { backgroundColor: "white", marginBottom: Math.max(insets.bottom, 24) }]}
         >
           <Pressable 
-            style={[styles.cancelButton, { backgroundColor: "#F1F5F9" }]} 
+            style={[styles.cancelButton, { backgroundColor: "#F1F5F9" }, isLoading && { opacity: 0.6 }]} 
+            disabled={isLoading}
             onPress={handleCancel}
             accessibilityLabel="Cancelar"
           >
