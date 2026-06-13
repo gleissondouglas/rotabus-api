@@ -80,7 +80,36 @@ describe('Journeys Routes (Integration)', () => {
       expect(response.body.conversationState).toBe("JOURNEY_DISPLAYED");
       expect(response.body.actions).toEqual(["REPEAT", "CANCEL"]);
       expect(response.body.displayData).toBeDefined();
+      expect(response.body.metadata.sessionId).toBeDefined(); // sessionId gerado!
       expect(planJourney).toHaveBeenCalled();
+    });
+
+    test('deve reutilizar sessionId se fornecido no cabeçalho X-Session-ID', async () => {
+      const mockResponse = { summary: { busLines: ['10'] }, routes: [] };
+      planJourney.mockResolvedValue(mockResponse);
+
+      // 1. Faz a primeira requisição para gerar a sessão
+      const firstResponse = await request(app)
+        .post('/journeys/plan')
+        .send({
+          origin: validOrigin,
+          destination: validDestination
+        });
+
+      const generatedSessionId = firstResponse.body.metadata.sessionId;
+      expect(generatedSessionId).toBeDefined();
+
+      // 2. Faz a segunda requisição enviando o sessionId recebido
+      const secondResponse = await request(app)
+        .post('/journeys/plan')
+        .set('X-Session-ID', generatedSessionId)
+        .send({
+          origin: validOrigin,
+          destination: validDestination
+        });
+
+      expect(secondResponse.status).toBe(200);
+      expect(secondResponse.body.metadata.sessionId).toBe(generatedSessionId);
     });
 
     test('deve preservar suporte ao campo legado departureTime', async () => {
@@ -147,11 +176,41 @@ describe('Journeys Routes (Integration)', () => {
       expect(response.body.conversationState).toBe("WAITING_CONFIRMATION");
       expect(response.body.actions).toEqual(["CONFIRM", "CANCEL", "REPEAT"]);
       expect(response.body.displayData).toBeDefined();
+      expect(response.body.metadata.sessionId).toBeDefined(); // sessionId gerado!
       // Verifica normalização de texto (trim)
       expect(resolveDestinationService).toHaveBeenCalledWith({
         text: 'Shopping Uberaba',
         origin: validOrigin
       });
+    });
+
+    test('deve reutilizar sessionId se fornecido no corpo da requisição', async () => {
+      const mockResponse = { mode: 'suggestions', options: [{ name: 'Uniube' }] };
+      resolveDestinationService.mockResolvedValue(mockResponse);
+
+      // 1. Faz a primeira requisição para gerar a sessão
+      const firstResponse = await request(app)
+        .post('/journeys/resolve-destination')
+        .send({
+          text: 'Uniube',
+          origin: validOrigin
+        });
+
+      const generatedSessionId = firstResponse.body.metadata.sessionId;
+      expect(generatedSessionId).toBeDefined();
+
+      // 2. Faz a segunda requisição enviando o sessionId no corpo
+      const secondResponse = await request(app)
+        .post('/journeys/resolve-destination')
+        .send({
+          text: 'Uniube',
+          origin: validOrigin,
+          sessionId: generatedSessionId
+        });
+
+      expect(secondResponse.status).toBe(200);
+      expect(secondResponse.body.metadata.sessionId).toBe(generatedSessionId);
+      expect(secondResponse.body.conversationState).toBe("WAITING_DESTINATION_SELECTION");
     });
   });
 });
