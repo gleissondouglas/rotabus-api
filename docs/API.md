@@ -171,6 +171,46 @@ Endpoints que consomem APIs externas do Google.
     }
     ```
 
+### POST `/journeys/command`
+*   **Autenticação:** Sim.
+*   **Custo Externo:** Não (processado localmente pelo Dialog/Session Manager).
+*   **Body:**
+    ```json
+    {
+      "sessionId": "UUID-da-sessão",
+      "command": "CONFIRM | CANCEL | REPEAT | SELECT_OPTION",
+      "payload": {
+        "optionIndex": 0,
+        "optionName": "Shopping Uberaba"
+      }
+    }
+    ```
+*   **Sucesso (200):** Retorna o resultado conversacional estruturado após o processamento do comando.
+    ```json
+    {
+      "speechText": "Destino confirmado. Exibindo a melhor rota.",
+      "screen": "JOURNEY_DISPLAY",
+      "displayData": {
+        "title": "Rota de Ônibus Encontrada",
+        "subtitle": "",
+        "items": []
+      },
+      "options": [],
+      "expectedInput": "NONE",
+      "conversationState": "JOURNEY_DISPLAYED",
+      "actions": ["REPEAT", "CANCEL"],
+      "metadata": {
+        "sessionId": "UUID-da-sessão",
+        "command": "CONFIRM",
+        "previousState": "WAITING_CONFIRMATION",
+        "currentState": "JOURNEY_DISPLAYED"
+      }
+    }
+    ```
+*   **Erros Controlados (400):**
+    - Se a sessão não for encontrada ou tiver expirado: `{ "error": true, "message": "Sessão conversacional não encontrada ou expirada." }`
+    - Se um comando for inválido para o estado atual da FSM (ex: tentar CONFIRM em IDLE): `{ "error": true, "message": "Comando CONFIRM inválido para o estado atual: IDLE" }`
+
 ### POST `/journeys/transcribe`
 *   **Autenticação:** Sim.
 *   **Custo Externo:** Sim (Google Speech).
@@ -192,6 +232,7 @@ Endpoints que consomem APIs externas do Google.
 | `/users/me` (PATCH/GET/DEL) | Sim | Sim | - | Não |
 | `/journeys/plan` | Sim | Sim | `dailyLimit` | **Alto** |
 | `/journeys/resolve-destination`| Sim | Sim | - | **Médio** |
+| `/journeys/command` | Sim | Sim | - | Não |
 | `/journeys/transcribe` | Sim | Sim | - | **Baixo** |
 | `/journeys/reverse-geocode` | Sim | Sim | - | **Baixo** |
 

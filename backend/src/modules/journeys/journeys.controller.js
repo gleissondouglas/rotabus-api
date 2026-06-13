@@ -2,6 +2,8 @@ const journeysService = require("./journeys.service");
 const conversationalMapper = require("./conversational.mapper");
 const sessionManager = require("./dialog/session.manager");
 const dialogManager = require("./dialog/dialog.manager");
+const conversationCommandHandler = require("./dialog/conversation-command.handler");
+
 
 async function planJourney(req, res, next) {
   try {
@@ -115,9 +117,31 @@ async function resolveDestination(req, res, next) {
   }
 }
 
+async function handleConversationCommand(req, res, next) {
+  try {
+    const userId = req.user?.id || null;
+    const { sessionId, command, payload } = req.body;
+
+    const result = conversationCommandHandler.handleCommand({
+      userId,
+      sessionId,
+      command,
+      payload
+    });
+
+    const enrichedResult = conversationalMapper.toConversationalCommand(result, req.body);
+
+    return res.status(200).json(enrichedResult);
+  } catch (error) {
+    error.statusCode = error.statusCode || 400;
+    next(error);
+  }
+}
+
 module.exports = {
   planJourney,
   reverseGeocode,
   transcribeAudio,
   resolveDestination,
+  handleConversationCommand,
 };
