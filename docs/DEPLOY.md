@@ -67,8 +67,9 @@ Recomenda-se configurar uma tarefa agendada (Cron job) em sua plataforma de depl
 
 ---
 
-## 4. Validações Pré-Deploy (Checkout Técnico)
+## 4. Validações Pré-Deploy e Pós-Deploy
 
+### 4.1 Checkout Técnico (Pré-Deploy)
 Antes de aprovar o deploy de uma branch, certifique-se de que os testes globais estejam verdes e o linter de estilos esteja sem erros.
 
 No diretório do **Backend**:
@@ -85,6 +86,15 @@ cd frontend
 npm test
 npm run lint
 ```
+
+### 4.2 Smoke Test de Persistência (Pós-Deploy)
+Após subir a aplicação em produção e com as migrations aplicadas, execute o script de smoke test no servidor de aplicação para certificar-se de que a conexão assíncrona com a tabela `ConversationSession` via Prisma está íntegra:
+```bash
+cd backend
+npm run sessions:smoke:postgres
+```
+> [!NOTE]
+> Este script executará um fluxo completo e seguro de gravação, leitura, atualização e remoção de uma sessão conversacional de teste temporária no PostgreSQL real configurado no servidor.
 
 ---
 
