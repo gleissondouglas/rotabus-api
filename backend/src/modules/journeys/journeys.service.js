@@ -5,15 +5,15 @@ const {
 const {
   computeTransitRoute,
   computeWalkingRoute,
-} = require("./providers/googleRoutes.provider");
+} = require("./providers/routes.provider");
 const { mapGoogleRouteToJourney } = require("./journey.mapper");
 const { findCachedRoute, createRouteCache } = require("./journeys.repository");
 const {
   getAddressFromCoordinates,
   geocodeAddress,
 } = require("./providers/geocoding.provider");
-const googleSpeechProvider = require("./providers/googleSpeech.provider");
-const googlePlacesProvider = require("./providers/googlePlaces.provider");
+const speechProvider = require("./providers/speech.provider");
+const destinationProvider = require("./providers/destination.provider");
 
 /**
  * Limpa frases naturais para extrair apenas o destino.
@@ -300,7 +300,7 @@ async function resolveDestinationService({ text, origin }) {
     queryType === "generic_category" ||
     queryType === "unknown"
   ) {
-    const placeResults = await googlePlacesProvider.searchPlaces(
+    const placeResults = await destinationProvider.searchPlaces(
       aliasedDestination,
       validatedData.origin,
     );
@@ -561,7 +561,7 @@ async function transcribeAudioService({ audioBase64, mimeType }) {
     throw error;
   }
 
-  const transcript = await googleSpeechProvider.transcribe(
+  const transcript = await speechProvider.transcribe(
     audioBase64,
     mimeType,
   );
