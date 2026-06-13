@@ -18,7 +18,27 @@ model User {
 
   passwordResetTokens PasswordResetToken[]
   apiUsages           ApiUsage[]
+  conversationSessions ConversationSession[]
 }
+
+model ConversationSession {
+  id           String    @id @default(uuid())
+  sessionId    String    @unique
+  userId       Int?
+  currentState String    @default("IDLE")
+  context      Json
+  expiresAt    DateTime
+  endedAt      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([userId, sessionId])
+}
+
 
 model PasswordResetToken {
   id        Int       @id @default(autoincrement())

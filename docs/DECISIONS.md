@@ -173,7 +173,7 @@ Este documento segue o formato ADR para registrar decisões arquiteturais import
 ---
 
 ### [ADR-014] Estratégia de Persistência de Sessões Conversacionais
-*   **Status:** Aceita
+*   **Status:** Implementada
 *   **Data:** 13/06/2026
 *   **Contexto:** Com a consolidação da FSM e do fluxo conversacional, a persistência de sessões puramente em memória RAM apresenta riscos operacionais graves, como a perda do estado do diálogo ao reiniciar o backend (deploy) e a impossibilidade de escalonamento horizontal em ambientes multi-instâncias. Torna-se imperativo planejar e migrar para um armazenamento distribuído e durável.
 *   **Decisão:** Adotar o banco de dados relacional **PostgreSQL/Supabase via Prisma** para a persistência durável das sessões conversacionais, definindo a entidade `ConversationSession` no schema do banco de dados com chave de acesso `sessionId` indexada. O `SessionManager` será refatorado para operar assincronamente via driver intercambiável (`postgres` em produção e `memory` em testes e desenvolvimento offline).
@@ -188,7 +188,7 @@ Este documento segue o formato ADR para registrar decisões arquiteturais import
 *   **Riscos:**
     - Ligeiro aumento na latência média das requisições devido ao tráfego de rede com o banco de dados PostgreSQL (mitigado com indexação rígida de `sessionId` e `userId`).
     - Acúmulo de dados inativos no banco de dados (mitigado pelo desenvolvimento de uma rotina de cron para exclusão de sessões expiradas).
-*   **Impacto no roadmap:** Move o status da Fase 7 (Dialog Manager Simples) para o planejamento final de migração durável distribuída, abrindo caminho para a implementação nas próximas branches.
+*   **Impacto no roadmap:** Conclui a Fase 7 (Dialog Manager e Persistência Conversacional) do roadmap do backend, garantindo resiliência do estado da conversa contra falhas e suporte multi-instâncias.
 
 ---
 

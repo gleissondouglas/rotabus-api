@@ -218,11 +218,11 @@ describe('Journeys Routes (Integration)', () => {
     let activeSessionId;
     const testUserId = 1; // Corresponde ao mock de authMiddleware
 
-    beforeEach(() => {
+    beforeEach(async () => {
       const { clearAllSessions, createSession } = require('../../../src/modules/journeys/dialog/session.manager');
       clearAllSessions();
       // Criamos uma sessão de teste no estado WAITING_CONFIRMATION
-      const session = createSession({ userId: testUserId, initialState: 'WAITING_CONFIRMATION' });
+      const session = await createSession({ userId: testUserId, initialState: 'WAITING_CONFIRMATION' });
       activeSessionId = session.sessionId;
     });
 
@@ -316,7 +316,7 @@ describe('Journeys Routes (Integration)', () => {
     test('deve processar o comando SELECT_OPTION com sucesso', async () => {
       // Ajustamos a sessão existente para WAITING_DESTINATION_SELECTION
       const { updateSession } = require('../../../src/modules/journeys/dialog/session.manager');
-      updateSession({
+      await updateSession({
         userId: testUserId,
         sessionId: activeSessionId,
         patch: { currentState: 'WAITING_DESTINATION_SELECTION' }
