@@ -60,7 +60,7 @@ describe('Journeys Routes (Integration)', () => {
     });
 
     test('deve aceitar payload válido e chamar o service mockado', async () => {
-      const mockResponse = { summary: { busLines: [] }, routes: [] };
+      const mockResponse = { summary: { busLines: ['10'] }, routes: [] };
       planJourney.mockResolvedValue(mockResponse);
 
       const response = await request(app)
@@ -71,7 +71,15 @@ describe('Journeys Routes (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(mockResponse);
+      // Validando preservação do payload legado
+      expect(response.body.summary).toEqual(mockResponse.summary);
+      expect(response.body.routes).toEqual(mockResponse.routes);
+      // Validando novos campos conversacionais
+      expect(response.body.speechText).toBe("Rota calculada com sucesso.");
+      expect(response.body.expectedInput).toBe("NONE");
+      expect(response.body.conversationState).toBe("JOURNEY_DISPLAYED");
+      expect(response.body.actions).toEqual(["REPEAT", "CANCEL"]);
+      expect(response.body.displayData).toBeDefined();
       expect(planJourney).toHaveBeenCalled();
     });
 
@@ -122,7 +130,7 @@ describe('Journeys Routes (Integration)', () => {
     });
 
     test('deve aceitar payload válido e chamar o service mockado', async () => {
-      const mockResponse = { mode: 'resolved', candidates: [] };
+      const mockResponse = { mode: 'resolved', candidates: [], resolvedDestination: { name: 'Shopping' } };
       resolveDestinationService.mockResolvedValue(mockResponse);
 
       const response = await request(app)
@@ -130,7 +138,15 @@ describe('Journeys Routes (Integration)', () => {
         .send({ text: '  Shopping Uberaba  ', origin: validOrigin });
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(mockResponse);
+      // Validando preservação do payload legado
+      expect(response.body.mode).toBe('resolved');
+      expect(response.body.resolvedDestination).toEqual(mockResponse.resolvedDestination);
+      // Validando novos campos conversacionais
+      expect(response.body.speechText).toBeDefined();
+      expect(response.body.expectedInput).toBe("VOICE_OR_TOUCH");
+      expect(response.body.conversationState).toBe("WAITING_CONFIRMATION");
+      expect(response.body.actions).toEqual(["CONFIRM", "CANCEL", "REPEAT"]);
+      expect(response.body.displayData).toBeDefined();
       // Verifica normalização de texto (trim)
       expect(resolveDestinationService).toHaveBeenCalledWith({
         text: 'Shopping Uberaba',

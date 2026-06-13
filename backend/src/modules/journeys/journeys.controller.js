@@ -1,11 +1,13 @@
 const journeysService = require("./journeys.service");
+const conversationalMapper = require("./conversational.mapper");
 
 async function planJourney(req, res, next) {
   try {
     // req.body já vem validado e normalizado pelo validateMiddleware
     const result = await journeysService.planJourney(req.body);
+    const enrichedResult = conversationalMapper.toConversationalPlan(result);
 
-    return res.status(200).json(result);
+    return res.status(200).json(enrichedResult);
   } catch (error) {
     next(error);
   }
@@ -62,8 +64,9 @@ async function resolveDestination(req, res, next) {
 
     // req.body já vem validado e normalizado pelo validateMiddleware
     const result = await journeysService.resolveDestinationService(req.body);
+    const enrichedResult = conversationalMapper.toConversationalResolve(result);
 
-    return res.status(200).json(result);
+    return res.status(200).json(enrichedResult);
   } catch (error) {
     console.error(`[JourneysController] Erro na resolução de destino:`, error.message);
     next(error);
