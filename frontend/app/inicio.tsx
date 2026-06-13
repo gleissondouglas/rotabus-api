@@ -101,8 +101,13 @@ export default function HomeScreen() {
   const restartTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
-    // Carrega o nome do usuário salvo na sessão
+    // Carrega o nome do usuário salvo na sessão e restaura a sessão conversacional
     async function loadUser() {
+      try {
+        await sessionService.restoreSessionId();
+      } catch (error) {
+        console.log("[inicio] Erro ao recuperar sessionId:", error);
+      }
       const user = await sessionService.getUser();
       if (user?.name) {
         setUserName(user.name.split(" ")[0]); // Pega apenas o primeiro nome

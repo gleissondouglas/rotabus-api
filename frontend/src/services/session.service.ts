@@ -96,17 +96,30 @@ async function getHasSeenPermissions() {
   }
 }
 
+const SESSION_ID_KEY = "nuvem_session_id";
+let currentSessionId: string | null = null;
+
 async function clearSession() {
   try {
     await storage.deleteItem(TOKEN_KEY);
     await storage.deleteItem(USER_KEY);
     await storage.deleteItem(PERMISSIONS_SEEN_KEY);
+    await storage.deleteItem(SESSION_ID_KEY);
+    currentSessionId = null;
   } catch (error) {
     // ignore
   }
 }
 
-let currentSessionId: string | null = null;
+async function restoreSessionId(): Promise<string | null> {
+  try {
+    const id = await storage.getItem(SESSION_ID_KEY);
+    currentSessionId = id;
+    return id;
+  } catch (error) {
+    return null;
+  }
+}
 
 export const sessionService = {
   saveAuthSession,
@@ -116,7 +129,19 @@ export const sessionService = {
   setHasSeenPermissions,
   getHasSeenPermissions,
   clearSession,
-  setSessionId: (id: string | null) => { currentSessionId = id; },
+  setSessionId: (id: string | null) => {
+    currentSessionId = id;
+    if (id) {
+      storage.setItem(SESSION_ID_KEY, id).catch(() => {});
+    } else {
+      storage.deleteItem(SESSION_ID_KEY).catch(() => {});
+    }
+  },
   getSessionId: () => currentSessionId,
-  clearSessionId: () => { currentSessionId = null; },
+  clearSessionId: () => {
+    currentSessionId = null;
+    storage.deleteItem(SESSION_ID_KEY).catch(() => {});
+  },
+  restoreSessionId,
 };
+

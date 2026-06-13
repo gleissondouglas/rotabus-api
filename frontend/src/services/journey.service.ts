@@ -43,15 +43,17 @@ async function planJourney(data: PlanJourneyRequest): Promise<JourneyResponse> {
     return cached;
   }
 
-  return withRetry(async () => {
-    const result = await request<JourneyResponse>(`${API_BASE_URL}/journeys/plan`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(requestBody),
-      timeout: DEFAULT_TIMEOUT,
+  try {
+    const result = await withRetry(async () => {
+      return await request<JourneyResponse>(`${API_BASE_URL}/journeys/plan`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+        timeout: DEFAULT_TIMEOUT,
+      });
     });
 
     // Salva o sessionId retornado pelo backend
@@ -62,7 +64,17 @@ async function planJourney(data: PlanJourneyRequest): Promise<JourneyResponse> {
     // Salva no cache se a requisição for bem-sucedida
     cache.set(cacheKey, result);
     return result;
-  });
+  } catch (error: any) {
+    if (error?.message && (
+      error.message.includes("Sessão conversacional não encontrada") ||
+      error.message.includes("sessão expirada") ||
+      error.message.includes("Sessão expirada") ||
+      error.message.includes("não encontrada ou expirada")
+    )) {
+      sessionService.clearSessionId();
+    }
+    throw error;
+  }
 }
 
 /**
@@ -86,15 +98,17 @@ async function resolveDestination(data: ResolveDestinationRequest): Promise<Reso
     return cached;
   }
 
-  return withRetry(async () => {
-    const result = await request<ResolveDestinationResponse>(`${API_BASE_URL}/journeys/resolve-destination`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(requestBody),
-      timeout: DEFAULT_TIMEOUT,
+  try {
+    const result = await withRetry(async () => {
+      return await request<ResolveDestinationResponse>(`${API_BASE_URL}/journeys/resolve-destination`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+        timeout: DEFAULT_TIMEOUT,
+      });
     });
 
     // Salva o sessionId retornado pelo backend
@@ -104,7 +118,17 @@ async function resolveDestination(data: ResolveDestinationRequest): Promise<Reso
 
     cache.set(cacheKey, result);
     return result;
-  });
+  } catch (error: any) {
+    if (error?.message && (
+      error.message.includes("Sessão conversacional não encontrada") ||
+      error.message.includes("sessão expirada") ||
+      error.message.includes("Sessão expirada") ||
+      error.message.includes("não encontrada ou expirada")
+    )) {
+      sessionService.clearSessionId();
+    }
+    throw error;
+  }
 }
 
 /**
@@ -113,15 +137,17 @@ async function resolveDestination(data: ResolveDestinationRequest): Promise<Reso
 async function executeCommand(data: ConversationalCommandRequest): Promise<ConversationalCommandResponse> {
   const token = await sessionService.getToken();
 
-  return withRetry(async () => {
-    const result = await request<ConversationalCommandResponse>(`${API_BASE_URL}/journeys/command`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(data),
-      timeout: DEFAULT_TIMEOUT,
+  try {
+    const result = await withRetry(async () => {
+      return await request<ConversationalCommandResponse>(`${API_BASE_URL}/journeys/command`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+        timeout: DEFAULT_TIMEOUT,
+      });
     });
 
     // Trata atualização de sessão baseada no retorno
@@ -132,7 +158,17 @@ async function executeCommand(data: ConversationalCommandRequest): Promise<Conve
     }
 
     return result;
-  });
+  } catch (error: any) {
+    if (error?.message && (
+      error.message.includes("Sessão conversacional não encontrada") ||
+      error.message.includes("sessão expirada") ||
+      error.message.includes("Sessão expirada") ||
+      error.message.includes("não encontrada ou expirada")
+    )) {
+      sessionService.clearSessionId();
+    }
+    throw error;
+  }
 }
 
 export const journeyService = {

@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -71,6 +72,8 @@ export default function BestRouteScreen() {
   const alerts = parseJsonParam<string[]>(params.alerts, []);
   const steps = parseJsonParam<JourneyStep[]>(params.steps, []);
 
+  const [isLoadingCommand, setIsLoadingCommand] = useState(false);
+
   const transitSteps = getTransitSteps(steps);
   const firstTransitStep = transitSteps[0];
 
@@ -104,6 +107,7 @@ export default function BestRouteScreen() {
   useAutoSpeakOnce(`melhor-rota-${destination}-${busLine}`, voiceText);
 
   async function handleGoHome() {
+    setIsLoadingCommand(true);
     try {
       const activeSessionId = sessionIdParam || sessionService.getSessionId();
       if (activeSessionId) {
@@ -115,6 +119,7 @@ export default function BestRouteScreen() {
     } catch (err) {
       console.log("[BestRoute] Erro ao executar CANCEL no backend:", err);
     } finally {
+      setIsLoadingCommand(false);
       sessionService.clearSessionId();
       router.replace({
         pathname: "/inicio",
@@ -124,6 +129,7 @@ export default function BestRouteScreen() {
   }
 
   async function handleHearRoute() {
+    setIsLoadingCommand(true);
     try {
       const activeSessionId = sessionIdParam || sessionService.getSessionId();
       if (activeSessionId) {
@@ -135,11 +141,13 @@ export default function BestRouteScreen() {
     } catch (err) {
       console.log("[BestRoute] Erro ao executar REPEAT no backend:", err);
     } finally {
+      setIsLoadingCommand(false);
       speak(voiceText);
     }
   }
 
   function handleStartNavigation() {
+    setIsLoadingCommand(true);
     router.push({
       pathname: "/navegando",
       params: {
@@ -161,13 +169,16 @@ export default function BestRouteScreen() {
         walkTimeMinutes: String(initialWalkTimeMin),
       },
     });
+    setTimeout(() => {
+      setIsLoadingCommand(false);
+    }, 1000);
   }
 
   return (
     <View style={styles.screen}>
       {/* FIXED HEADER */}
       <View style={[styles.fixedHeader, { top: insets.top + 12 }]}>
-        <BackButton label="Início" onPress={handleGoHome} accessibilityLabel="Voltar para a tela inicial" />
+        <BackButton label="Início" onPress={isLoadingCommand ? undefined : handleGoHome} accessibilityLabel="Voltar para a tela inicial" />
       </View>
 
       <ScrollView
@@ -253,6 +264,8 @@ export default function BestRouteScreen() {
         <PrimaryButton
           title="Iniciar navegação"
           onPress={handleStartNavigation}
+          disabled={isLoadingCommand}
+          isLoading={isLoadingCommand}
           style={styles.mainButton}
           accessibilityLabel="Iniciar navegação para esta rota"
         />
