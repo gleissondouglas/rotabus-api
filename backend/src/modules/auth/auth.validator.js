@@ -1,3 +1,5 @@
+const { z } = require("zod");
+
 class ValidationError extends Error {
   constructor(message, statusCode = 400) {
     super(message);
@@ -6,54 +8,60 @@ class ValidationError extends Error {
   }
 }
 
-function validateEmail(email) {
-  if (!email || typeof email !== "string") return false;
+// Schemas base para reutilização
+const emailSchema = z
+  .string({
+    invalid_type_error: "Email deve ser um texto válido.",
+    required_error: "Email é obrigatório.",
+  })
+  .trim()
+  .toLowerCase()
+  .min(1, "Email não pode estar vazio.")
+  .max(254, "Email muito longo.")
+  .email("Informe um email válido.");
 
-  if (email.length > 254) return false;
+const passwordSchema = z
+  .string({
+    invalid_type_error: "Senha deve ser um texto válido.",
+    required_error: "Senha é obrigatória.",
+  })
+  .trim()
+  .min(6, "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.")
+  .max(128, "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.")
+  .regex(
+    /^(?=.*[A-Za-z])(?=.*\d).{6,}$/,
+    "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número."
+  );
 
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const loginSchema = z.object({
+  email: z.string().min(1, "Email e senha não podem estar vazios."),
+  password: z.string().min(1, "Email e senha não podem estar vazios."),
+});
 
-  return emailRegex.test(email);
-}
-
-function validatePassword(password) {
-  if (!password || typeof password !== "string") {
-    return false;
-  }
-
-  if (password.length < 6) {
-    return false;
-  }
-
-  if (password.length > 128) {
-    return false;
-  }
-
-  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
-
-  return passwordRegex.test(password);
-}
-
-function validateLoginInput({ email, password }) {
+function validateLoginInput(data) {
+  // 1. Verificação de tipos e presença (Contrato Original)
   if (
-    !email ||
-    !password ||
-    typeof email !== "string" ||
-    typeof password !== "string"
+    !data.email ||
+    !data.password ||
+    typeof data.email !== "string" ||
+    typeof data.password !== "string"
   ) {
     throw new ValidationError(
-      "Email e senha são obrigatórios e devem ser textos válidos.",
+      "Email e senha são obrigatórios e devem ser textos válidos."
     );
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
-  const normalizedPassword = password.trim();
+  // 2. Verificação de vazio (Contrato Original)
+  const normalizedEmail = data.email.trim().toLowerCase();
+  const normalizedPassword = data.password.trim();
 
   if (!normalizedEmail || !normalizedPassword) {
     throw new ValidationError("Email e senha não podem estar vazios.");
   }
 
-  if (!validateEmail(normalizedEmail)) {
+  // 3. Validação de formato de email (Contrato Original)
+  const emailResult = emailSchema.safeParse(normalizedEmail);
+  if (!emailResult.success) {
     throw new ValidationError("Informe um email válido.");
   }
 
@@ -63,20 +71,21 @@ function validateLoginInput({ email, password }) {
   };
 }
 
-function validateForgotPasswordInput({ email }) {
-  if (!email || typeof email !== "string") {
+function validateForgotPasswordInput(data) {
+  if (!data.email || typeof data.email !== "string") {
     throw new ValidationError(
-      "Email é obrigatório e deve ser um texto válido.",
+      "Email é obrigatório e deve ser um texto válido."
     );
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = data.email.trim().toLowerCase();
 
   if (!normalizedEmail) {
     throw new ValidationError("Email não pode estar vazio.");
   }
 
-  if (!validateEmail(normalizedEmail)) {
+  const result = emailSchema.safeParse(normalizedEmail);
+  if (!result.success) {
     throw new ValidationError("Informe um email válido.");
   }
 
@@ -85,20 +94,20 @@ function validateForgotPasswordInput({ email }) {
   };
 }
 
-function validateResetPasswordInput({ token, newPassword }) {
+function validateResetPasswordInput(data) {
   if (
-    !token ||
-    !newPassword ||
-    typeof token !== "string" ||
-    typeof newPassword !== "string"
+    !data.token ||
+    !data.newPassword ||
+    typeof data.token !== "string" ||
+    typeof data.newPassword !== "string"
   ) {
     throw new ValidationError(
-      "Token e nova senha são obrigatórios e devem ser textos válidos.",
+      "Token e nova senha são obrigatórios e devem ser textos válidos."
     );
   }
 
-  const normalizedToken = token.trim();
-  const normalizedNewPassword = newPassword.trim();
+  const normalizedToken = data.token.trim();
+  const normalizedNewPassword = data.newPassword.trim();
 
   if (!normalizedToken || !normalizedNewPassword) {
     throw new ValidationError("Token e nova senha não podem estar vazios.");
@@ -108,9 +117,10 @@ function validateResetPasswordInput({ token, newPassword }) {
     throw new ValidationError("Token de recuperação inválido.");
   }
 
-  if (!validatePassword(normalizedNewPassword)) {
+  const passwordResult = passwordSchema.safeParse(normalizedNewPassword);
+  if (!passwordResult.success) {
     throw new ValidationError(
-      "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.",
+      "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número."
     );
   }
 
