@@ -15,271 +15,14 @@ const {
 const speechProvider = require("./providers/speech.provider");
 const destinationProvider = require("./providers/destination.provider");
 
-/**
- * Limpa frases naturais para extrair apenas o destino.
- */
-function cleanDestinationText(text) {
-  if (!text) return "";
-
-  let cleaned = text.toLowerCase().trim();
-
-  // Remover prefixos comuns de fala
-  const prefixes = [
-    "me leva para o",
-    "me leva para a",
-    "me leva para",
-    "me leve para o",
-    "me leva para a",
-    "me leva para",
-    "me leve até o",
-    "me leve até a",
-    "me leve até",
-    "quero ir para o",
-    "quero ir para a",
-    "quero ir para",
-    "quero ir até o",
-    "quero ir até a",
-    "quero ir até",
-    "preciso ir para o",
-    "preciso ir para a",
-    "preciso ir para",
-    "ir para",
-    "ir até",
-    "levar para",
-    "levar até",
-    "vambora para",
-    "bora para",
-    "me leva pro",
-    "me leva pra",
-    "me leve pro",
-    "me leve pra",
-  ];
-
-  for (const prefix of prefixes) {
-    if (cleaned.startsWith(prefix)) {
-      cleaned = cleaned.replace(prefix, "").trim();
-      break;
-    }
-  }
-
-  // Remover pontuação final
-  cleaned = cleaned.replace(/[.!?]$/, "").trim();
-
-  return cleaned;
-}
-
-/**
- * Aplica aliases locais para termos comuns em Uberaba.
- */
-function applyLocalAliases(text) {
-  const aliases = {
-    centro: "Praça Rui Barbosa, Uberaba - MG",
-    "centro da cidade": "Praça Rui Barbosa, Uberaba - MG",
-    uniube: "UNIUBE - Universidade de Uberaba, Uberaba - MG",
-    "mario palmerio": "Hospital Mário Palmério Universitário, Uberaba - MG",
-    "hospital mario palmerio":
-      "Hospital Mário Palmério Universitário, Uberaba - MG",
-    "praça shopping": "Praça Shopping Uberaba, Uberaba - MG",
-    "shopping uberaba": "Shopping Uberaba, Uberaba - MG",
-    "terminal oeste": "Terminal Oeste - BRT Vetor, Uberaba - MG",
-    "terminal leste": "Terminal Leste - BRT Vetor, Uberaba - MG",
-    "terminal sudeste": "Terminal Sudeste - BRT Vetor, Uberaba - MG",
-    "terminal sudoeste": "Terminal Sudoeste - BRT Vetor, Uberaba - MG",
-    "terminal central": "Terminal Central - BRT Vetor, Uberaba - MG",
-    "upa são benedito": "UPA São Benedito, Uberaba - MG",
-    "upa sao benedito": "UPA São Benedito, Uberaba - MG",
-    "upa do mirante": "UPA Dr. José Marcus Cherém (UPA Mirante), Uberaba - MG",
-    "upa mirante": "UPA Dr. José Marcus Cherém (UPA Mirante), Uberaba - MG",
-    "postinho do beija-flor 3": "Unidade de Saúde Beija Flor III, Uberaba - MG",
-    "postinho do beija flor 3": "Unidade de Saúde Beija Flor III, Uberaba - MG",
-    "postinho do beija flor": "Unidade de Saúde Beija Flor III, Uberaba - MG",
-  };
-
-  return aliases[text.toLowerCase()] || text;
-}
-
-const GENERIC_PLACE_TYPES = {
-  hospital: ["hospital"],
-  hospitais: ["hospital"],
-  supermercado: ["supermarket"],
-  supermercados: ["supermarket"],
-  mercado: ["supermarket"],
-  mercados: ["supermarket"],
-  farmacia: ["pharmacy"],
-  farmácia: ["pharmacy"],
-  farmacias: ["pharmacy"],
-  farmácias: ["pharmacy"],
-  padaria: ["bakery"],
-  padarias: ["bakery"],
-  posto: ["gas_station"],
-  "posto de gasolina": ["gas_station"],
-  shopping: ["shopping_mall"],
-  shoppings: ["shopping_mall"],
-  forum: ["courthouse"],
-  fórum: ["courthouse"],
-  escola: ["school"],
-  escolas: ["school"],
-  faculdade: ["university"],
-  faculdades: ["university"],
-  universidade: ["university"],
-  universidades: ["university"],
-  terminal: ["bus_station", "transit_station"],
-  praça: ["park", "tourist_attraction"],
-  praca: ["park", "tourist_attraction"],
-};
-
-const TERMS_THAT_SHOULD_SHOW_OPTIONS = [
-  "uniube",
-  "universidade",
-  "faculdade",
-  "hospital",
-  "supermercado",
-  "mercado",
-  "farmacia",
-  "farmácia",
-  "restaurante",
-  "terminal",
-  "forum",
-  "fórum",
-  "clinica",
-  "clínica",
-  "posto de saúde",
-];
-
-/**
- * Remove acentos de uma string.
- */
-function removeAccents(str) {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function shouldShowOptionsForKnownTerm(text, candidates) {
-  const normalizedText = removeAccents(String(text || "").toLowerCase());
-
-  const hasKnownTerm = TERMS_THAT_SHOULD_SHOW_OPTIONS.some((term) =>
-    normalizedText.includes(removeAccents(term.toLowerCase())),
-  );
-
-  return hasKnownTerm && candidates.length > 1;
-}
-
-/**
- * Avalia se o texto possui heurísticas de endereço físico ou locais genéricos/específicos.
- */
-function guessQueryType(text) {
-  const lower = text.toLowerCase().trim();
-  const lowerNoAccents = removeAccents(lower);
-
-  if (GENERIC_PLACE_TYPES[lower] || GENERIC_PLACE_TYPES[lowerNoAccents]) {
-    return "generic_category";
-  }
-
-  const addressKeywords = [
-    "rua",
-    "avenida",
-    "av",
-    "av.",
-    "travessa",
-    "número",
-    "nº",
-    "n ",
-    "numero",
-    "bairro",
-    "parque dos",
-    "vila",
-    "alameda",
-    "estrada",
-    "rodovia",
-  ];
-  const placeKeywords = [
-    "hospital",
-    "upa",
-    "supermercado",
-    "shopping",
-    "terminal",
-    "escola",
-    "faculdade",
-    "igreja",
-    "uniube",
-    "uftm",
-    "prefeitura",
-    "forum",
-    "fórum",
-    "estádio",
-    "estadio",
-    "praça",
-    "parque",
-    "universidade",
-    "museu",
-    "teatro",
-    "rodoviária",
-    "aeroporto",
-  ];
-
-  const hasAddress = addressKeywords.some((kw) => lower.includes(kw));
-  const hasPlace = placeKeywords.some((kw) => lower.includes(kw));
-
-  if (hasAddress && !hasPlace) return "address";
-  if (hasPlace) return "specific_place";
-
-  if (/\d+/.test(lower)) return "address";
-
-  return "unknown";
-}
-
-/**
- * Verifica se um resultado é apenas a cidade de forma genérica.
- */
-function checkIfGenericCity(name, address) {
-  if (!name) return false;
-  const lowerName = name.toLowerCase();
-  const genericTerms = [
-    "uberaba",
-    "uberaba, mg",
-    "uberaba - mg",
-    "uberaba, minas gerais",
-  ];
-
-  const isNameGeneric = genericTerms.some((term) => lowerName === term);
-
-  return isNameGeneric;
-}
-
-/**
- * Avalia a confiança do resultado baseado na query original e no tipo da query.
- */
-function evaluateConfidence(query, result, queryType) {
-  if (queryType === "generic_category") {
-    return "low"; // Categorias genéricas SEMPRE exigem sugestões.
-  }
-
-  const lowerQuery = query.toLowerCase();
-  const lowerResultName = result.name.toLowerCase();
-
-  const isGeneric = checkIfGenericCity(result.name, result.address);
-
-  // Se o usuário buscou um POI específico mas o resultado é a cidade
-  if (queryType === "specific_place" && isGeneric) {
-    return "low";
-  }
-
-  // Se o nome do resultado contém palavras-chave da busca, confiança alta
-  const queryWords = lowerQuery.split(" ").filter((w) => w.length > 3);
-  const matchesAnyWord = queryWords.some((word) =>
-    lowerResultName.includes(word),
-  );
-
-  if (matchesAnyWord && !isGeneric) return "high";
-
-  return result.confidence || "medium";
-}
+const localIntelligenceService = require("./local-intelligence/local-intelligence.service");
 
 async function resolveDestinationService({ text, origin }) {
   const validatedData = validateResolveDestinationInput({ text, origin });
 
-  const interpretedDestination = cleanDestinationText(validatedData.text);
-  const aliasedDestination = applyLocalAliases(interpretedDestination);
-  const queryType = guessQueryType(aliasedDestination);
+  const interpretedDestination = localIntelligenceService.cleanDestinationText(validatedData.text);
+  const aliasedDestination = localIntelligenceService.applyLocalAliases(interpretedDestination);
+  const queryType = localIntelligenceService.guessQueryType(aliasedDestination);
 
   let candidates = [];
 
@@ -316,7 +59,7 @@ async function resolveDestinationService({ text, origin }) {
         source: "GOOGLE_PLACES",
         distanceMeters: p.distanceMeters || 0,
         isUberaba: p.address ? p.address.includes("Uberaba") : true,
-        isGenericCityResult: checkIfGenericCity(p.name, p.address),
+        isGenericCityResult: localIntelligenceService.checkIfGenericCity(p.name, p.address),
       }))
       .filter((p) => p.isUberaba);
   }
@@ -333,7 +76,7 @@ async function resolveDestinationService({ text, origin }) {
       .filter((r) => r.isUberaba)
       .map((r) => ({
         ...r,
-        isGenericCityResult: checkIfGenericCity(r.name, r.address),
+        isGenericCityResult: localIntelligenceService.checkIfGenericCity(r.name, r.address),
       }));
 
     if (queryType === "address") {
@@ -362,7 +105,7 @@ async function resolveDestinationService({ text, origin }) {
   // 4. Pós-processamento de Confiança
   candidates = candidates.map((c) => ({
     ...c,
-    confidence: evaluateConfidence(aliasedDestination, c, queryType),
+    confidence: localIntelligenceService.evaluateConfidence(aliasedDestination, c, queryType),
   }));
 
   // Ordena por confiança
@@ -376,7 +119,7 @@ async function resolveDestinationService({ text, origin }) {
   const confidence = bestOption.confidence;
 
   // Decide o Mode
-  const shouldAskForKnownTerm = shouldShowOptionsForKnownTerm(
+  const shouldAskForKnownTerm = localIntelligenceService.shouldShowOptionsForKnownTerm(
     interpretedDestination,
     candidates,
   );
