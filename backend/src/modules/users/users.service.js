@@ -160,7 +160,7 @@ async function changePasswordService({ userId, currentPassword, newPassword }) {
     throw error;
   }
 
-  const passwordMatches = await bcrypt.compare(
+  const passwordMatches = await hashProvider.compareHash(
     validatedData.currentPassword,
     user.passwordHash,
   );

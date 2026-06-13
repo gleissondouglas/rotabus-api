@@ -160,7 +160,7 @@ async function resetPasswordService(data) {
     throw error;
   }
 
-  const newPasswordHash = await bcrypt.hash(newPassword, 10);
+  const newPasswordHash = await hashProvider.generateHash(newPassword);
 
   await updateUserPasswordHash({
     id: passwordResetToken.userId,
