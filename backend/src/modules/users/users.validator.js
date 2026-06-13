@@ -1,3 +1,5 @@
+const { z } = require("zod");
+
 class ValidationError extends Error {
   constructor(message, statusCode = 400) {
     super(message);
@@ -6,85 +8,81 @@ class ValidationError extends Error {
   }
 }
 
-function validateEmail(email) {
-  if (!email || typeof email !== "string") return false;
-  if (email.length > 254) return false;
+// Schemas base para reutilização
+const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(254)
+  .email("Informe um email válido.");
 
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const nameSchema = z
+  .string({
+    required_error: "O nome é obrigatório e deve ser um texto válido.",
+    invalid_type_error: "O nome é obrigatório e deve ser um texto válido.",
+  })
+  .trim()
+  .min(1, "O nome não pode estar vazio.")
+  .min(3, "O nome deve ter pelo menos 3 caracteres.")
+  .max(100, "O nome deve ter no máximo 100 caracteres.")
+  .regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, "O nome contém caracteres inválidos.");
 
-  return emailRegex.test(email);
-}
+const passwordSchema = z
+  .string()
+  .trim()
+  .min(6, "A senha deve ter pelo menos 6 caracteres.")
+  .max(128, "A senha deve ter no máximo 128 caracteres.")
+  .regex(/^(?=.*[A-Za-z])(?=.*\d).{6,}$/, "A senha deve conter pelo menos uma letra e um número.");
+
+const changePasswordSchema = z
+  .string()
+  .trim()
+  .min(6, "A nova senha deve ter pelo menos 6 caracteres.")
+  .max(128, "A nova senha deve ter no máximo 128 caracteres.")
+  .regex(/^(?=.*[A-Za-z])(?=.*\d).{6,}$/, "A nova senha deve conter pelo menos uma letra e um número.");
 
 function validateName(name) {
-  if (!name || typeof name !== "string") {
-    throw new ValidationError(
-      "O nome é obrigatório e deve ser um texto válido.",
-    );
+  const result = nameSchema.safeParse(name);
+  if (!result.success) {
+    // Mantendo a compatibilidade de lançar o primeiro erro encontrado
+    const firstError = result.error.issues[0].message;
+    throw new ValidationError(firstError);
   }
-
-  const normalizedName = name.trim();
-
-  if (!normalizedName) {
-    throw new ValidationError("O nome não pode estar vazio.");
-  }
-
-  if (normalizedName.length < 3) {
-    throw new ValidationError("O nome deve ter pelo menos 3 caracteres.");
-  }
-
-  if (normalizedName.length > 100) {
-    throw new ValidationError("O nome deve ter no máximo 100 caracteres.");
-  }
-
-  const nameRegex = /^[a-zA-ZÀ-ÿ\s'-]+$/;
-
-  if (!nameRegex.test(normalizedName)) {
-    throw new ValidationError("O nome contém caracteres inválidos.");
-  }
-
-  return normalizedName;
+  return result.data;
 }
 
-function validateCreateUserInput({ name, email, password }) {
+function validateCreateUserInput(data) {
+  // 1. Verificação de tipos e presença (Contrato Original)
   if (
-    !name ||
-    !email ||
-    !password ||
-    typeof name !== "string" ||
-    typeof email !== "string" ||
-    typeof password !== "string"
+    !data.name ||
+    !data.email ||
+    !data.password ||
+    typeof data.name !== "string" ||
+    typeof data.email !== "string" ||
+    typeof data.password !== "string"
   ) {
     throw new ValidationError(
       "Nome, email e senha são obrigatórios e devem ser textos válidos.",
     );
   }
 
-  const normalizedName = validateName(name);
-  const normalizedEmail = email.trim().toLowerCase();
-  const normalizedPassword = password.trim();
+  // 2. Normalização e Validação Individual
+  const normalizedName = validateName(data.name);
+  const normalizedEmail = data.email.trim().toLowerCase();
+  const normalizedPassword = data.password.trim();
 
   if (!normalizedEmail || !normalizedPassword) {
     throw new ValidationError("Email e senha não podem estar vazios.");
   }
 
-  if (!validateEmail(normalizedEmail)) {
+  const emailResult = emailSchema.safeParse(normalizedEmail);
+  if (!emailResult.success) {
     throw new ValidationError("Informe um email válido.");
   }
 
-  if (normalizedPassword.length < 6) {
-    throw new ValidationError("A senha deve ter pelo menos 6 caracteres.");
-  }
-
-  if (normalizedPassword.length > 128) {
-    throw new ValidationError("A senha deve ter no máximo 128 caracteres.");
-  }
-
-  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
-
-  if (!passwordRegex.test(normalizedPassword)) {
-    throw new ValidationError(
-      "A senha deve conter pelo menos uma letra e um número.",
-    );
+  const passwordResult = passwordSchema.safeParse(normalizedPassword);
+  if (!passwordResult.success) {
+    throw new ValidationError(passwordResult.error.issues[0].message);
   }
 
   return {
@@ -94,41 +92,28 @@ function validateCreateUserInput({ name, email, password }) {
   };
 }
 
-function validateChangePasswordInput({ currentPassword, newPassword }) {
+function validateChangePasswordInput(data) {
   if (
-    !currentPassword ||
-    !newPassword ||
-    typeof currentPassword !== "string" ||
-    typeof newPassword !== "string"
+    !data.currentPassword ||
+    !data.newPassword ||
+    typeof data.currentPassword !== "string" ||
+    typeof data.newPassword !== "string"
   ) {
     throw new ValidationError(
       "Senha atual e nova senha são obrigatórias e devem ser textos válidos.",
     );
   }
 
-  const normalizedCurrentPassword = currentPassword.trim();
-  const normalizedNewPassword = newPassword.trim();
+  const normalizedCurrentPassword = data.currentPassword.trim();
+  const normalizedNewPassword = data.newPassword.trim();
 
   if (!normalizedCurrentPassword || !normalizedNewPassword) {
     throw new ValidationError("As senhas não podem estar vazias.");
   }
 
-  if (normalizedNewPassword.length < 6) {
-    throw new ValidationError("A nova senha deve ter pelo menos 6 caracteres.");
-  }
-
-  if (normalizedNewPassword.length > 128) {
-    throw new ValidationError(
-      "A nova senha deve ter no máximo 128 caracteres.",
-    );
-  }
-
-  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
-
-  if (!passwordRegex.test(normalizedNewPassword)) {
-    throw new ValidationError(
-      "A nova senha deve conter pelo menos uma letra e um número.",
-    );
+  const result = changePasswordSchema.safeParse(normalizedNewPassword);
+  if (!result.success) {
+    throw new ValidationError(result.error.issues[0].message);
   }
 
   if (normalizedCurrentPassword === normalizedNewPassword) {
@@ -143,9 +128,8 @@ function validateChangePasswordInput({ currentPassword, newPassword }) {
   };
 }
 
-function validateUpdateProfileInput({ name }) {
-  const normalizedName = validateName(name);
-
+function validateUpdateProfileInput(data) {
+  const normalizedName = validateName(data.name);
   return {
     name: normalizedName,
   };
