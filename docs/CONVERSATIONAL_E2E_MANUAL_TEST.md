@@ -106,3 +106,34 @@ Para validar que o `sessionId` está sendo salvo no frontend e reenviado ao back
 *   A sessão conversacional do backend expirar ou falhar e causar o travamento completo das telas do frontend (ausência de fallback tolerante).
 *   Mudanças de rotas alterarem e quebrarem o layout clássico de mapas ou listagem de passos.
 *   O frontend gerar um novo `sessionId` a cada clique ou chamada de comando em um mesmo diálogo, quebrando a consistência da FSM.
+
+---
+
+## 6. Persistência Local e Tratamento de Expiração de Sessão
+
+### 6.1 Onde o sessionId é salvo
+O `sessionId` é salvo em memória global e também no storage local persistente do dispositivo:
+*   **Web:** Gravado no `localStorage` sob a chave `nuvem_session_id`.
+*   **iOS/Android:** Gravado de forma segura e criptografada via `expo-secure-store` sob a chave `nuvem_session_id`.
+*   A lógica é abstraída pelo helper `storage` dentro de [session.service.ts](file:///Users/douglasoliveira/Desktop/RotaBus-API/frontend/src/services/session.service.ts).
+
+### 6.2 Quando o sessionId é restaurado
+Ao carregar a tela principal (`/inicio`), o método assíncrono `sessionService.restoreSessionId()` é disparado no `useEffect` de inicialização para resgatar qualquer sessão aberta anteriormente em background.
+
+### 6.3 Quando o sessionId é limpo
+A limpeza local do `sessionId` ocorre nos seguintes momentos:
+*   **Nova busca:** Ao iniciar uma nova busca digitada ou falada nas telas `/inicio`, `/ouvindo` ou `/digitar-destino`.
+*   **Comando CANCEL:** Ao clicar em "Escolher outro destino" (tela de confirmação) ou em voltar ao início (tela de melhor rota).
+*   **Sessão Expirada:** Ao receber uma resposta de erro `400` do backend contendo a mensagem de que a sessão não foi encontrada ou expirou.
+*   **Logout/Limpeza:** Ao fazer logout do usuário no aplicativo (`sessionService.clearSession()`).
+
+### 6.4 Como o app reage a uma sessão expirada
+*   Se o backend retornar o erro `"Sessão conversacional não encontrada ou expirada."`, o serviço [journey.service.ts](file:///Users/douglasoliveira/Desktop/RotaBus-API/frontend/src/services/journey.service.ts) intercepta o erro, limpa o `sessionId` local imediatamente e propaga o erro.
+*   A tela de confirmação (`/confirmar-destino`) captura este erro e exibe um alerta amigável (`Alert.alert`): *"Sua sessão de diálogo expirou. Vamos reiniciar sua busca."* redirecionando o usuário de volta à home de forma segura.
+
+### 6.5 Como testar a expiração manualmente
+1.  Inicie uma busca e chegue à tela `/confirmar-destino`.
+2.  Aguarde 10 minutos (tempo padrão do sliding TTL do backend) ou simule forçando uma chamada com um `sessionId` aleatório inválido.
+3.  Tente interagir clicando em "Buscar rota para este lugar".
+4.  O app deve disparar o `Alert.alert` de sessão expirada e redirecioná-lo para a tela `/inicio` limpando a sessão.
+

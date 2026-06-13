@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, Alert, ActivityIndicator } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -80,6 +80,8 @@ export default function ConfirmDestinationScreen() {
     const isOptionSelection = !!option;
     
     setIsLoadingCommand(true);
+    let sessionExpired = false;
+
     try {
       const activeSessionId = sessionId || sessionService.getSessionId();
       if (activeSessionId) {
@@ -97,6 +99,7 @@ export default function ConfirmDestinationScreen() {
           if (result.displayData) setDisplayData(result.displayData);
           if (result.conversationState) setConversationState(result.conversationState);
           if (result.actions) setActions(result.actions);
+          if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
         } else {
           const result = await journeyService.executeCommand({
             sessionId: activeSessionId,
@@ -106,26 +109,44 @@ export default function ConfirmDestinationScreen() {
           if (result.displayData) setDisplayData(result.displayData);
           if (result.conversationState) setConversationState(result.conversationState);
           if (result.actions) setActions(result.actions);
+          if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.log("[ConfirmDestination] Erro ao executar comando no backend:", err);
+      if (err?.message && (
+        err.message.includes("Sessão conversacional não encontrada") ||
+        err.message.includes("não encontrada ou expirada")
+      )) {
+        sessionExpired = true;
+        Alert.alert(
+          "Sessão Expirada",
+          "Sua sessão de diálogo expirou. Vamos reiniciar sua busca.",
+          [{ text: "OK", onPress: () => router.replace("/inicio") }]
+        );
+      }
     } finally {
       setIsLoadingCommand(false);
-      router.push({
-        pathname: "/escolher-horario",
-        params: {
-          latitude,
-          longitude,
-          destination: selected.name,
-          destinationLat: String(selected.lat),
-          destinationLng: String(selected.lng),
-        },
-      });
     }
+
+    if (sessionExpired) {
+      return;
+    }
+
+    router.push({
+      pathname: "/escolher-horario",
+      params: {
+        latitude,
+        longitude,
+        destination: selected.name,
+        destinationLat: String(selected.lat),
+        destinationLng: String(selected.lng),
+      },
+    });
   }
 
   async function handleChangeDestination() {
+    setIsLoadingCommand(true);
     try {
       const activeSessionId = sessionId || sessionService.getSessionId();
       if (activeSessionId) {
@@ -137,6 +158,7 @@ export default function ConfirmDestinationScreen() {
     } catch (err) {
       console.log("[ConfirmDestination] Erro ao executar cancelamento no backend:", err);
     } finally {
+      setIsLoadingCommand(false);
       sessionService.clearSessionId();
       router.replace({
         pathname: "/inicio",
@@ -149,6 +171,7 @@ export default function ConfirmDestinationScreen() {
   }
 
   async function handleHearDestination() {
+    setIsLoadingCommand(true);
     try {
       const activeSessionId = sessionId || sessionService.getSessionId();
       if (activeSessionId) {
@@ -160,6 +183,7 @@ export default function ConfirmDestinationScreen() {
     } catch (err) {
       console.log("[ConfirmDestination] Erro ao executar repetição no backend:", err);
     } finally {
+      setIsLoadingCommand(false);
       speak(voiceText);
     }
   }
@@ -236,8 +260,9 @@ export default function ConfirmDestinationScreen() {
                     style={({ pressed }) => [
                       styles.suggestionCard,
                       { padding: isSmallHeight ? layout.cardPaddingSmall : layout.cardPadding },
-                      pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }
+                      (pressed || isLoadingCommand) && { opacity: 0.6, transform: [{ scale: 0.98 }] }
                     ]}
+                    disabled={isLoadingCommand}
                     onPress={() => handleConfirmDestination(option)}
                     accessibilityRole="button"
                     accessibilityLabel={`Ir para ${option.name}, ${option.address}`}
@@ -333,16 +358,23 @@ export default function ConfirmDestinationScreen() {
             style={({ pressed }) => [
               styles.primaryButton,
               { backgroundColor: theme.primary, height: isSmallHeight ? layout.primaryButtonHeightSmall : layout.primaryButtonHeight },
-              pressed && { opacity: 0.8 }
+              (pressed || isLoadingCommand) && { opacity: 0.6 }
             ]}
+            disabled={isLoadingCommand}
             onPress={() => handleConfirmDestination()}
             accessibilityRole="button"
             accessibilityLabel="Confirmar destino e buscar rota"
           >
-            <MaterialCommunityIcons name="navigation-variant" size={24} color={theme.white} style={styles.buttonIconLeft} />
-            <Text style={[styles.primaryButtonText, { color: theme.white }]}>
-              Buscar rota para este lugar
-            </Text>
+            {isLoadingCommand ? (
+              <ActivityIndicator size="small" color={theme.white} />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="navigation-variant" size={24} color={theme.white} style={styles.buttonIconLeft} />
+                <Text style={[styles.primaryButtonText, { color: theme.white }]}>
+                  Buscar rota para este lugar
+                </Text>
+              </>
+            )}
           </Pressable>
         )}
 
@@ -350,8 +382,9 @@ export default function ConfirmDestinationScreen() {
           style={({ pressed }) => [
             styles.secondaryButton,
             { backgroundColor: "white", borderColor: "#EEE", height: isSmallHeight ? layout.primaryButtonHeightSmall : layout.primaryButtonHeight },
-            pressed && { opacity: 0.8 }
+            (pressed || isLoadingCommand) && { opacity: 0.6 }
           ]}
+          disabled={isLoadingCommand}
           onPress={handleChangeDestination}
           accessibilityRole="button"
           accessibilityLabel={showSuggestions ? "Escolher outro destino" : "Alterar destino. Digitar outro endereço."}
@@ -367,8 +400,9 @@ export default function ConfirmDestinationScreen() {
             style={({ pressed }) => [
               styles.listenButton,
               { backgroundColor: "rgba(59, 130, 246, 0.08)" },
-              pressed && { opacity: 0.8 }
+              (pressed || isLoadingCommand) && { opacity: 0.6 }
             ]}
+            disabled={isLoadingCommand}
             onPress={handleHearDestination}
             accessibilityRole="button"
             accessibilityLabel="Ouvir opções ou destino encontrado em voz alta"
