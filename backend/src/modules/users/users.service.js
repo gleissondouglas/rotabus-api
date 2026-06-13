@@ -1,4 +1,4 @@
-const bcrypt = require("bcrypt");
+const hashProvider = require("../../shared/providers/hash.provider");
 
 const {
   validateCreateUserInput,
@@ -29,7 +29,7 @@ async function createUserService(userData) {
     throw error;
   }
 
-  const passwordHash = await bcrypt.hash(validatedData.password, 10);
+  const passwordHash = await hashProvider.generateHash(validatedData.password);
 
   const newUser = await createUser({
     name: validatedData.name,
@@ -171,7 +171,7 @@ async function changePasswordService({ userId, currentPassword, newPassword }) {
     throw error;
   }
 
-  const newPasswordHash = await bcrypt.hash(validatedData.newPassword, 10);
+  const newPasswordHash = await hashProvider.generateHash(validatedData.newPassword);
 
   const updatedUser = await updateUserPasswordHash({
     id: userId,
