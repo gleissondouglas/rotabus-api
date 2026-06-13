@@ -97,6 +97,7 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
     *   Utilização do `supertest` para validar o fluxo real: Rota → Middlewares → Controller.
     *   Mocks estratégicos de Services e Providers para evitar chamadas a APIs externas (Google), Banco de Dados e e-mail.
     *   Preservação e validação dos middlewares reais de `sanitizeMiddleware` e `validateMiddleware`.
+    *   **Validação Manual E2E:** Criação de roteiro estruturado para validação manual ponta a ponta (`docs/CONVERSATIONAL_E2E_MANUAL_TEST.md`) integrando o fluxo conversacional entre frontend e backend.
 *   **Status:** Em progresso (Integração de rotas concluída).
 *   **Critério de Conclusão:** Cobertura de testes em áreas críticas e alertas configurados.
 
