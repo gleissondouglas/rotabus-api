@@ -34,12 +34,40 @@ const passwordSchema = z
   .max(128, "A senha deve ter no máximo 128 caracteres.")
   .regex(/^(?=.*[A-Za-z])(?=.*\d).{6,}$/, "A senha deve conter pelo menos uma letra e um número.");
 
-const changePasswordSchema = z
+const changePasswordBaseSchema = z
   .string()
   .trim()
   .min(6, "A nova senha deve ter pelo menos 6 caracteres.")
   .max(128, "A nova senha deve ter no máximo 128 caracteres.")
   .regex(/^(?=.*[A-Za-z])(?=.*\d).{6,}$/, "A nova senha deve conter pelo menos uma letra e um número.");
+
+const createUserSchema = z.object({
+  name: z.string({
+    message: "Nome, email e senha são obrigatórios e devem ser textos válidos.",
+  }).trim().min(1, "O nome não pode estar vazio.").min(3, "O nome deve ter pelo menos 3 caracteres.").max(100, "O nome deve ter no máximo 100 caracteres.").regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, "O nome contém caracteres inválidos."),
+  email: z.string({
+    message: "Nome, email e senha são obrigatórios e devem ser textos válidos.",
+  }).trim().toLowerCase().min(1, "Email e senha não podem estar vazios.").max(254).email("Informe um email válido."),
+  password: z.string({
+    message: "Nome, email e senha são obrigatórios e devem ser textos válidos.",
+  }).trim().min(1, "Email e senha não podem estar vazios.").min(6, "A senha deve ter pelo menos 6 caracteres.").max(128, "A senha deve ter no máximo 128 caracteres.").regex(/^(?=.*[A-Za-z])(?=.*\d).{6,}$/, "A senha deve conter pelo menos uma letra e um número."),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string({
+    message: "Senha atual e nova senha são obrigatórias e devem ser textos válidos.",
+  }).trim().min(1, "As senhas não podem estar vazias."),
+  newPassword: z.string({
+    message: "Senha atual e nova senha são obrigatórias e devem ser textos válidos.",
+  }).trim().min(1, "As senhas não podem estar vazias.").min(6, "A nova senha deve ter pelo menos 6 caracteres.").max(128, "A nova senha deve ter no máximo 128 caracteres.").regex(/^(?=.*[A-Za-z])(?=.*\d).{6,}$/, "A nova senha deve conter pelo menos uma letra e um número."),
+}).refine(data => data.currentPassword !== data.newPassword, {
+  message: "A nova senha deve ser diferente da senha atual.",
+  path: ["newPassword"]
+});
+
+const updateProfileSchema = z.object({
+  name: nameSchema
+});
 
 function validateName(name) {
   const result = nameSchema.safeParse(name);
@@ -52,87 +80,27 @@ function validateName(name) {
 }
 
 function validateCreateUserInput(data) {
-  // 1. Verificação de tipos e presença (Contrato Original)
-  if (
-    !data.name ||
-    !data.email ||
-    !data.password ||
-    typeof data.name !== "string" ||
-    typeof data.email !== "string" ||
-    typeof data.password !== "string"
-  ) {
-    throw new ValidationError(
-      "Nome, email e senha são obrigatórios e devem ser textos válidos.",
-    );
-  }
-
-  // 2. Normalização e Validação Individual
-  const normalizedName = validateName(data.name);
-  const normalizedEmail = data.email.trim().toLowerCase();
-  const normalizedPassword = data.password.trim();
-
-  if (!normalizedEmail || !normalizedPassword) {
-    throw new ValidationError("Email e senha não podem estar vazios.");
-  }
-
-  const emailResult = emailSchema.safeParse(normalizedEmail);
-  if (!emailResult.success) {
-    throw new ValidationError("Informe um email válido.");
-  }
-
-  const passwordResult = passwordSchema.safeParse(normalizedPassword);
-  if (!passwordResult.success) {
-    throw new ValidationError(passwordResult.error.issues[0].message);
-  }
-
-  return {
-    name: normalizedName,
-    email: normalizedEmail,
-    password: normalizedPassword,
-  };
-}
-
-function validateChangePasswordInput(data) {
-  if (
-    !data.currentPassword ||
-    !data.newPassword ||
-    typeof data.currentPassword !== "string" ||
-    typeof data.newPassword !== "string"
-  ) {
-    throw new ValidationError(
-      "Senha atual e nova senha são obrigatórias e devem ser textos válidos.",
-    );
-  }
-
-  const normalizedCurrentPassword = data.currentPassword.trim();
-  const normalizedNewPassword = data.newPassword.trim();
-
-  if (!normalizedCurrentPassword || !normalizedNewPassword) {
-    throw new ValidationError("As senhas não podem estar vazias.");
-  }
-
-  const result = changePasswordSchema.safeParse(normalizedNewPassword);
+  const result = createUserSchema.safeParse(data);
   if (!result.success) {
     throw new ValidationError(result.error.issues[0].message);
   }
+  return result.data;
+}
 
-  if (normalizedCurrentPassword === normalizedNewPassword) {
-    throw new ValidationError(
-      "A nova senha deve ser diferente da senha atual.",
-    );
+function validateChangePasswordInput(data) {
+  const result = changePasswordSchema.safeParse(data);
+  if (!result.success) {
+    throw new ValidationError(result.error.issues[0].message);
   }
-
-  return {
-    currentPassword: normalizedCurrentPassword,
-    newPassword: normalizedNewPassword,
-  };
+  return result.data;
 }
 
 function validateUpdateProfileInput(data) {
-  const normalizedName = validateName(data.name);
-  return {
-    name: normalizedName,
-  };
+  const result = updateProfileSchema.safeParse(data);
+  if (!result.success) {
+    throw new ValidationError(result.error.issues[0].message);
+  }
+  return result.data;
 }
 
 module.exports = {
@@ -140,4 +108,7 @@ module.exports = {
   validateCreateUserInput,
   validateChangePasswordInput,
   validateUpdateProfileInput,
+  createUserSchema,
+  changePasswordSchema,
+  updateProfileSchema,
 };

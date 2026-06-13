@@ -8,17 +8,9 @@ const {
   updateProfileService,
 } = require("./users.service");
 
-const {
-  validateCreateUserInput,
-  validateChangePasswordInput,
-  validateUpdateProfileInput,
-} = require("./users.validator");
-
 async function createUser(req, res, next) {
   try {
-    const validatedData = validateCreateUserInput(req.body);
-
-    const result = await createUserService(validatedData);
+    const result = await createUserService(req.body);
 
     return res.status(201).json(result);
   } catch (error) {
@@ -48,11 +40,9 @@ async function getProfile(req, res, next) {
 
 async function updateProfile(req, res, next) {
   try {
-    const validatedData = validateUpdateProfileInput(req.body);
-
     const result = await updateProfileService({
       userId: req.user.id,
-      name: validatedData.name,
+      name: req.body.name,
     });
 
     return res.status(200).json(result);
@@ -86,12 +76,10 @@ async function deleteMe(req, res, next) {
 
 async function changePassword(req, res, next) {
   try {
-    const validatedData = validateChangePasswordInput(req.body);
-
     const result = await changePasswordService({
       userId: req.user.id,
-      currentPassword: validatedData.currentPassword,
-      newPassword: validatedData.newPassword,
+      currentPassword: req.body.currentPassword,
+      newPassword: req.body.newPassword,
     });
 
     return res.status(200).json(result);
