@@ -1,15 +1,9 @@
 const journeysService = require("./journeys.service");
-const { 
-  validatePlanJourneyInput, 
-  validateResolveDestinationInput 
-} = require("./journeys.validator");
 
 async function planJourney(req, res, next) {
   try {
-    // Valida os dados de entrada antes de passar para o serviço
-    const validatedData = validatePlanJourneyInput(req.body);
-
-    const result = await journeysService.planJourney(validatedData);
+    // req.body já vem validado e normalizado pelo validateMiddleware
+    const result = await journeysService.planJourney(req.body);
 
     return res.status(200).json(result);
   } catch (error) {
@@ -60,17 +54,14 @@ async function transcribeAudio(req, res, next) {
 
 async function resolveDestination(req, res, next) {
   try {
-    const { text, origin } = req.body || {};
     const userId = req.user?.id || "Deslogado";
 
     if (process.env.NODE_ENV !== "production") {
       console.log(`[JourneysController] POST /resolve-destination solicitado pelo userId: ${userId}`);
     }
 
-    // Valida os dados de entrada (texto e origem)
-    const validatedData = validateResolveDestinationInput({ text, origin });
-
-    const result = await journeysService.resolveDestinationService(validatedData);
+    // req.body já vem validado e normalizado pelo validateMiddleware
+    const result = await journeysService.resolveDestinationService(req.body);
 
     return res.status(200).json(result);
   } catch (error) {

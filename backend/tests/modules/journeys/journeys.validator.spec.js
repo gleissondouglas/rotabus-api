@@ -37,6 +37,28 @@ describe('Journeys Validator (Baseline)', () => {
       expect(result.timePreference.type).toBe('DEPARTURE');
       expect(result.timePreference.dateTime).toBeDefined();
     });
+
+    test('deve suportar campo legado departureTime', () => {
+      const departureTime = "2026-06-13T14:20:00Z";
+      const input = { 
+        origin: validOrigin, 
+        destination: validDestination,
+        departureTime
+      };
+      const result = validatePlanJourneyInput(input);
+      expect(result.timePreference.type).toBe('DEPARTURE');
+      expect(result.timePreference.dateTime).toBe(departureTime);
+    });
+
+    test('deve normalizar routingPreference para UPPERCASE', () => {
+      const input = { 
+        origin: validOrigin, 
+        destination: validDestination,
+        routingPreference: 'less_walking'
+      };
+      const result = validatePlanJourneyInput(input);
+      expect(result.routingPreference).toBe('LESS_WALKING');
+    });
   });
 
   describe('validateResolveDestinationInput', () => {
