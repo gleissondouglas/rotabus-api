@@ -1,6 +1,5 @@
-const jwt = require("jsonwebtoken");
+const tokenProvider = require("../../shared/providers/token.provider");
 const { findUserById } = require("../users/users.repository");
-const env = require("../../config/env");
 
 async function authMiddleware(req, res, next) {
   try {
@@ -20,13 +19,7 @@ async function authMiddleware(req, res, next) {
       throw error;
     }
 
-    if (!env.jwtSecret) {
-      const error = new Error("JWT_SECRET não configurado.");
-      error.statusCode = 500;
-      throw error;
-    }
-
-    const decoded = jwt.verify(token, env.jwtSecret);
+    const decoded = tokenProvider.verifyToken(token);
 
     const user = await findUserById(decoded.sub);
 
@@ -45,16 +38,7 @@ async function authMiddleware(req, res, next) {
 
     return next();
   } catch (error) {
-    if (error.name === "JsonWebTokenError") {
-      error.message = "Token inválido.";
-      error.statusCode = 401;
-    }
-
-    if (error.name === "TokenExpiredError") {
-      error.message = "Token expirado.";
-      error.statusCode = 401;
-    }
-
+    // Erros do tokenProvider já vêm com statusCode e message corretos
     return next(error);
   }
 }

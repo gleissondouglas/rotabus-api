@@ -1,6 +1,6 @@
 const crypto = require("crypto");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+const hashProvider = require("../../shared/providers/hash.provider");
+const tokenProvider = require("../../shared/providers/token.provider");
 const env = require("../../config/env");
 
 const {
@@ -46,7 +46,7 @@ async function loginService(loginData) {
     throw error;
   }
 
-  const passwordMatches = await bcrypt.compare(
+  const passwordMatches = await hashProvider.compareHash(
     validatedData.password,
     user.passwordHash,
   );
@@ -57,23 +57,11 @@ async function loginService(loginData) {
     throw error;
   }
 
-  if (!env.jwtSecret) {
-    const error = new Error("JWT_SECRET não configurado.");
-    error.statusCode = 500;
-    throw error;
-  }
-
-  const token = jwt.sign(
-    {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    },
-    env.jwtSecret,
-    {
-      expiresIn: "7d",
-    },
-  );
+  const token = tokenProvider.generateToken({
+    sub: user.id,
+    email: user.email,
+    role: user.role,
+  });
 
   return {
     message: "Login realizado com sucesso.",
