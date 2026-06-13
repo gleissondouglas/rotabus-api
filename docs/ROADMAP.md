@@ -87,8 +87,8 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 *   **Tarefas Realizadas:**
     *   Implementar gerenciamento de sessão (`sessionId`) em memória com sliding TTL de 10 minutos.
     *   Controlar estados lógicos (Waiting, Confirming, etc.) por meio de uma FSM.
-*   **Status:** Parcialmente Concluída no Backend (Próximo passo: Persistência distribuída das sessões no PostgreSQL/Redis).
-*   **Critério de Conclusão:** Sessões conversacionais ativas e transições de FSM operantes.
+*   **Status:** Parcialmente Concluída no Backend (Planejamento de persistência durável em PostgreSQL/Supabase concluído em [ADR-014](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/DECISIONS.md) e detalhado em [CONVERSATIONAL_SESSION_PERSISTENCE_PLAN.md](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/CONVERSATIONAL_SESSION_PERSISTENCE_PLAN.md)).
+*   **Critério de Conclusão:** Sessões conversacionais persistidas de forma durável no banco PostgreSQL com suporte a deploys e escalabilidade horizontal.
 
 ### Fase 8: Testes e Observabilidade (Contínua - Fase de Integração Concluída)
 *   **Objetivo:** Garantir a resiliência e a saúde do sistema através de testes automatizados e monitoramento.
