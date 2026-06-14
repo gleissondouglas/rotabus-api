@@ -101,6 +101,30 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 *   **Status:** Planejamento concluído em `docs/VOICE_CONVERSATION_LOOP_PLAN.md`; implementação futura dividida em branches incrementais.
 *   **Critério de Conclusão:** Usuário consegue conduzir o fluxo principal por voz sem quebrar o fallback por toque, sem ativar microfone durante TTS e sem alterar contratos legados do backend.
 
+### Fase 7.2: Design System Voice-First (Planejada)
+*   **Objetivo:** Criar uma identidade visual unificada e componentes reutilizáveis que expressem o princípio "app conversacional com apoio visual", aplicando gradualmente a todas as telas do frontend.
+*   **Documento de Referência:** [VOICE_FIRST_DESIGN_SYSTEM.md](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/VOICE_FIRST_DESIGN_SYSTEM.md)
+*   **Tarefas Planejadas (divididas em 9 branches incrementais):**
+    *   **Etapa 1** (`feat/design-system-voice-layout-foundation`): Criar componentes base (`VoiceScreenLayout`, `BottomActionBar`, `AssistantOrb`, `GlassResultCard`) e atualizar paleta de cores.
+    *   **Etapa 2** (`feat/design-system-home-voice-first`): Aplicar novo layout na tela inicial, preservando voz e digitação.
+    *   **Etapa 3** (`feat/design-system-confirmar-destino`): Novo layout em confirmação de destino com card translúcido e paridade voz/toque.
+    *   **Etapa 4** (`feat/design-system-destination-carousel`): Carrossel horizontal de múltiplas opções com paralaxe e seleção por voz/toque.
+    *   **Etapa 5** (`feat/design-system-escolher-horario`): Layout voice-first na escolha de horário, mantendo chips e `voiceTimeParser`.
+    *   **Etapa 6** (`feat/design-system-melhor-rota`): Redesign da tela de melhor rota com resumo curto e detalhes colapsados.
+    *   **Etapa 7** (`feat/design-system-navegacao`): Adaptar navegação sem prejudicar mapa, com voz opcional.
+    *   **Etapa 8** (`feat/design-system-auth-settings-help`): Redesign de login, cadastro, ajuda, configurações, termos e privacidade.
+    *   **Etapa 9** (`docs/voice-first-design-system-final`): Documentação final, checklist E2E e registro de decisões.
+*   **Princípios Obrigatórios:**
+    *   Voz e toque acionam os mesmos handlers (paridade total).
+    *   Microfone nunca abre antes do TTS terminar.
+    *   Erros de STT não aparecem como "Erro de Rede".
+    *   Nenhum overlay de voz bloqueia o fluxo manual por toque.
+*   **Status:** Documentação concluída na branch `arquitetura/voice-first-design-system`. Implementação futura.
+*   **Módulos Afetados:** `frontend/src/components/`, `frontend/src/theme/`, `frontend/app/`.
+*   **Risco:** Moderado (regressão visual durante migração de telas — mitigada por branches incrementais).
+*   **Prioridade:** Alta.
+*   **Critério de Conclusão:** Todas as telas conversacionais usando `VoiceScreenLayout` com `BottomActionBar` e `AssistantOrb`, telas utilitárias redesenhadas, e checklist E2E de design aprovado.
+
 ### Fase 8: Testes e Observabilidade (Contínua - Fase de Integração Concluída)
 *   **Objetivo:** Garantir a resiliência e a saúde do sistema através de testes automatizados e monitoramento.
 *   **Tarefas Realizadas (Integração):**
@@ -140,7 +164,7 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 | :--- | :--- | :--- |
 | **Curto Prazo** | 0, 1, 2 | Estabilização, Documentação e Limpeza de Código. |
 | **Médio Prazo** | 3, 4, 5, 6 | Desacoplamento, Inteligência Local e Base Conversacional. |
-| **Longo Prazo** | 7, 7.1, 8, 9 | Gerenciamento de Diálogo, Loop de Voz, Robustez e Maturidade. |
+| **Longo Prazo** | 7, 7.1, 7.2, 8, 9 | Diálogo, Loop de Voz, Design System Voice-First, Robustez. |
 | **Futuro** | 10 | Expansão com Inteligência Artificial Opcional. |
 
 ---

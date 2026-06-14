@@ -153,4 +153,102 @@ Este checklist deve ser validado após a aplicação das melhorias de UX de temp
 - [ ] **Fallback de Linha:** Se o backend não retornar `lineName`/`headsign`, o app deve renderizar somente o número da linha (ex: `"Linha 26"`), sem quebrar o layout e sem exibir campos vazios.
 - [ ] **Validação de 7 dias:** Ao submeter um horário customizado no frontend ou no backend, datas anteriores a hoje ou posteriores aos próximos 7 dias devem ser barradas, emitindo vibração de erro no app.
 
+---
+
+## 8. Checklist de Validação do Design System Voice-First
+
+> **Referência:** [VOICE_FIRST_DESIGN_SYSTEM.md](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/VOICE_FIRST_DESIGN_SYSTEM.md)
+> Este checklist deve ser validado após cada etapa de implementação do design system. Marcar somente após teste em dispositivo real ou simulador.
+
+### 8.1 Layout e Estrutura (`VoiceScreenLayout`)
+- [ ] Tela inicial usa `VoiceScreenLayout` com estrutura de 5 camadas (header, orb, conteúdo, bottom bar).
+- [ ] Confirmação de destino usa `VoiceScreenLayout`.
+- [ ] Escolha de horário usa `VoiceScreenLayout`.
+- [ ] Melhor rota usa `VoiceScreenLayout` em modo resultado.
+- [ ] Navegação usa `VoiceScreenLayout` adaptado (sem prejudicar mapa).
+- [ ] Transição entre Modo Conversa e Modo Resultado é suave e sem janks visuais.
+- [ ] Safe areas são respeitadas em todos os dispositivos testados.
+
+### 8.2 Animação do Assistente (`AssistantOrb`)
+- [ ] Estado `idle`: pulso lento e suave, tamanho grande.
+- [ ] Estado `speaking`: ondulação rítmica enquanto a assistente fala.
+- [ ] Estado `listening`: pulso expansivo com anéis pulsantes.
+- [ ] Estado `processing`: rotação suave com shimmer.
+- [ ] Estado `showing_result`: orb sobe para o topo, diminui de tamanho, pulso sutil.
+- [ ] Estado `awaiting_confirmation`: pulso médio com glow.
+- [ ] Estado `error`: tremor curto em vermelho.
+- [ ] Estado `manual_mode`: estático ou pulso mínimo, cor atenuada.
+- [ ] Transição entre estados é animada com `withSpring`, sem cortes bruscos.
+
+### 8.3 Cards Translúcidos (`GlassResultCard`)
+- [ ] Cards têm transparência, blur/glassmorphism e borda sutil no tema escuro.
+- [ ] Cards têm fallback visual aceitável em Android (sem `backdropFilter`).
+- [ ] Texto dentro dos cards é legível em ambos os temas (claro e escuro).
+- [ ] Cards não ficam pesados ou destoam do fundo da tela.
+- [ ] Card de destino único exibe nome completo, endereço completo, lat/lng preservados.
+
+### 8.4 Carrossel de Destinos (`DestinationCarousel`)
+- [ ] Carrossel exibe múltiplas opções em scroll horizontal.
+- [ ] Card central tem escala 1.0 e opacidade 1.0.
+- [ ] Cards laterais têm escala reduzida (~0.85) e opacidade reduzida (~0.6).
+- [ ] Swipe navega entre opções com snap suave.
+- [ ] Indicador de paginação (dots) é visível abaixo do carrossel.
+- [ ] Toque no card seleciona a opção.
+- [ ] Dizer "primeira", "segunda", "terceira" seleciona a opção correspondente.
+- [ ] Dizer "não" ou "outro destino" cancela e pede novo destino.
+- [ ] Após seleção, card expande e assistente pergunta confirmação.
+
+### 8.5 Botões Fixos (`BottomActionBar`)
+- [ ] Tela inicial: "Falar agora" / "Digitar destino" / "Ajuda".
+- [ ] Confirmação: "Confirmar destino" / "Escolher outro destino" / "Ouvir destino".
+- [ ] Escolha de horário: "Ir agora" / "Escolher horário" / "Ouvir opções".
+- [ ] Melhor rota: "Iniciar navegação" / "Ver detalhes" / "Ouvir resumo".
+- [ ] Navegação: "Cheguei ao ponto" / "Parar navegação" / "Ouvir caminho".
+- [ ] Botões estão fixos na parte inferior, acima do safe area.
+- [ ] Botão primário tem `minHeight: 64px`.
+- [ ] Todos os botões têm `accessibilityRole="button"` e labels descritivos.
+
+### 8.6 Paridade Voz ↔ Toque
+- [ ] Dizer "sim" na confirmação executa o mesmo handler do botão "Confirmar destino".
+- [ ] Dizer "não" executa o mesmo handler de "Escolher outro destino".
+- [ ] Dizer "repetir" executa o mesmo handler de "Ouvir destino" / "Ouvir resumo".
+- [ ] Dizer "primeira"/"segunda"/"terceira" seleciona o mesmo card que o toque.
+- [ ] Microfone NUNCA abre antes do TTS terminar de falar.
+- [ ] Fluxo manual por toque NUNCA é bloqueado por overlay de voz.
+- [ ] Nenhum card/overlay fica vazio bloqueando a tela.
+
+### 8.7 Tema Visual
+- [ ] Tema escuro (padrão): fundo `#0A0A0F`, texto `#F5F5F7`, destaque azul `#3B82F6`.
+- [ ] Tema claro (alternativo): fundo `#F8FAFF`, texto `#1C1C1E`, destaque azul `#2563EB`.
+- [ ] Alternância automática via `useColorScheme()` funciona corretamente.
+- [ ] Alto contraste está disponível e funcional em ambos os temas.
+- [ ] Contraste mínimo WCAG AA (4.5:1) é atendido para textos normais.
+- [ ] `maxFontSizeMultiplier` está aplicado em todos os textos.
+
+### 8.8 Tratamento de Erros
+- [ ] Erro de STT (transcrição falhou) exibe "Não consegui entender. Pode repetir?", NÃO "Erro de Rede".
+- [ ] Erro de rede real (HTTP 5xx, timeout) exibe "Erro de Rede" ou mensagem equivalente.
+- [ ] Erro de permissão de microfone exibe alerta amigável e permite continuar por toque.
+- [ ] Sessão expirada redireciona para `/inicio` com mensagem amigável.
+
+### 8.9 Telas de Autenticação e Utilitárias
+- [ ] Login exibe: email, senha, "Entrar", "Continuar com Google", "Criar conta", "Esqueci minha senha", rodapé com Termos e Privacidade.
+- [ ] Criar conta exibe: nome, email, senha, confirmar senha, "Criar conta", "Continuar com Google", "Já tenho uma conta".
+- [ ] Configurações usa `SettingsList` com itens navegáveis.
+- [ ] Ajuda exibe FAQ expansível.
+- [ ] Termos de Uso e Política de Privacidade usam `LegalTextScreen` com scroll.
+
+### 8.10 Responsividade e Telas Pequenas
+- [ ] Layout funciona em telas de 320px de largura (iPhone SE).
+- [ ] Orb não ultrapassa os limites da tela em dispositivos pequenos.
+- [ ] Cards do carrossel são navegáveis em telas estreitas.
+- [ ] Botões inferiores são alcançáveis e clicáveis em todas as resoluções.
+- [ ] Texto da assistente não transborda o container.
+
+### 8.11 Acessibilidade
+- [ ] Leitor de tela anuncia mudanças de estado do orb (ex: "Assistente ouvindo").
+- [ ] `VoiceListeningHint` usa `accessibilityLiveRegion="assertive"`.
+- [ ] `ConversationText` expõe texto completo mesmo durante animação.
+- [ ] Cards do carrossel anunciam "opção X de Y".
+- [ ] Navegação por tab funciona em formulários de login/cadastro.
 
