@@ -21,6 +21,8 @@ let sound: Audio.Sound | null = null;
 let currentAbortController: AbortController | null = null;
 let pendingSpeechCompletion: (() => void) | null = null;
 
+const SPEECH_RECOGNITION_LANGUAGE = "pt-BR";
+
 // Armazenamento de inscrições de eventos para limpeza
 let resultSubscription: any = null;
 let errorSubscription: any = null;
@@ -220,7 +222,7 @@ export async function startListening(options: {
   onStart?: () => void;
   onEnd?: () => void;
 }) {
-  console.log("[SpeechService] Iniciando escuta (lang: pt-BR)...");
+  console.log(`[SpeechService] Iniciando escuta (lang: ${SPEECH_RECOGNITION_LANGUAGE})...`);
 
   if (!SpeechRecognitionModule) {
     console.warn("[SpeechService] SpeechRecognitionModule indisponível.");
@@ -288,10 +290,10 @@ export async function startListening(options: {
     // REGISTRO CORRETO DOS LISTENERS NATIVOS (API REAL DA LIB)
     resultSubscription = SpeechRecognitionModule.addListener("result", (event: any) => {
       // Tenta obter a transcrição de múltiplos formatos possíveis para maior compatibilidade
-      const transcript = event.results?.[0]?.transcript || event.transcript || "";
-      const isFinal = event.isFinal;
+      const transcript = String(event.results?.[0]?.transcript || event.transcript || "").trim();
+      const isFinal = event.isFinal === true || event.results?.[0]?.isFinal === true;
       
-      if (transcript) {
+      if (transcript.length > 0) {
         if (process.env.NODE_ENV !== "production") {
           console.log(`[SpeechService] onResult: ${isFinal ? "FINAL" : "PARCIAL"} | Texto: "${transcript}"`);
         }
@@ -336,7 +338,7 @@ export async function startListening(options: {
 
     // Inicia o motor nativo com as opções de idioma e resultados parciais
     SpeechRecognitionModule.start({
-      lang: "pt-BR",
+      lang: SPEECH_RECOGNITION_LANGUAGE,
       interimResults: true,
       continuous: Platform.OS === 'android', // No iOS, continuous pode causar timeouts rápidos no simulador
       volumeChangeEventOptions: { enabled: true, intervalMillis: 300 },

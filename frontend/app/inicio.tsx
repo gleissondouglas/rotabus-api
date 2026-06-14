@@ -36,6 +36,10 @@ import {
 } from "../src/services/speech.service";
 import { useThemeColors } from "../src/theme/colors";
 import { cleanVoiceTranscript } from "../src/utils/helpers";
+import {
+  markHomeVoiceAutoStarted,
+  shouldAutoStartHomeVoice,
+} from "../src/state/homeVoiceSession";
 import type { VoiceIntent } from "../src/utils/voiceIntentParser";
 import type { DestinationOption, ResolveDestinationResponse } from "../src/types/journey.types";
 
@@ -132,6 +136,7 @@ export default function HomeScreen() {
   const [transcript, setTranscript] = useState(""); // Texto que aparece enquanto o usuário fala
   const [userName, setUserName] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isTranscriptFinal, setIsTranscriptFinal] = useState(false);
   const lastHandledSearchTextRef = useRef<string | null>(null);
 
   // Valores de animação para o "pulsar" do microfone e a expansão do painel
@@ -228,6 +233,7 @@ export default function HomeScreen() {
     if (intent.type === "DESTINATION_TEXT") {
       const cleanedText = cleanVoiceTranscript(intent.text);
       setTranscript(cleanedText || intent.text);
+      setIsTranscriptFinal(true);
       void processTranscription(cleanedText || intent.text);
       return;
     }
@@ -235,6 +241,7 @@ export default function HomeScreen() {
     if (intent.type === "CANCEL") {
       setStatus("idle");
       setTranscript("");
+      setIsTranscriptFinal(false);
       setErrorMessage("");
     }
   }, [processTranscription]);
@@ -269,8 +276,9 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const handleLoopTranscript = useCallback((text: string) => {
+  const handleLoopTranscript = useCallback((text: string, isFinal: boolean) => {
     setTranscript(text);
+    setIsTranscriptFinal(isFinal);
   }, []);
 
   const { startLoop, stopAll } = useVoiceConversationLoop({
@@ -358,24 +366,26 @@ export default function HomeScreen() {
 
     lastHandledSearchTextRef.current = text;
     setTranscript(text);
+    setIsTranscriptFinal(true);
     setErrorMessage("");
     void processTranscription(text);
   }, [params.searchText, processTranscription]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!params.searchText && userName) {
-        setTranscript("");
-        setErrorMessage("");
+      setStatus("idle");
+      setTranscript("");
+      setIsTranscriptFinal(false);
+      setErrorMessage("");
+
+      if (!params.searchText && userName && shouldAutoStartHomeVoice()) {
+        markHomeVoiceAutoStarted();
         void startLoop(`Olá, ${userName}. Para onde você quer ir hoje?`);
       }
 
       return () => {
         void stopAll();
         lastHandledSearchTextRef.current = null;
-        setStatus("idle");
-        setTranscript("");
-        setErrorMessage("");
       };
     }, [params.searchText, startLoop, stopAll, userName]),
   );
@@ -450,6 +460,7 @@ export default function HomeScreen() {
     vibrationService.light();
     if (status === "idle" || status === "error" || status === "speaking") {
       setTranscript("");
+      setIsTranscriptFinal(false);
       setErrorMessage("");
       void startLoop();
     } else if (status === "listening") {
@@ -621,13 +632,20 @@ export default function HomeScreen() {
                   }
                   accessibilityLiveRegion="polite"
                 >
-                  <Text style={styles.transcriptText}>
-                    {transcript ||
-                      (status === "listening"
-                        ? "Estou ouvindo..."
-                        : "Entendendo...")}
-                  </Text>
-                  {status === "listening" && <BlinkingCursor />}
+                  {!!transcript && (
+                    <Text style={styles.transcriptLabel}>
+                      {isTranscriptFinal ? "Entendi:" : "Estou ouvindo:"}
+                    </Text>
+                  )}
+                  <View style={styles.transcriptTextRow}>
+                    <Text style={styles.transcriptText}>
+                      {transcript ||
+                        (status === "listening"
+                          ? "Estou ouvindo..."
+                          : "Entendendo...")}
+                    </Text>
+                    {status === "listening" && <BlinkingCursor />}
+                  </View>
                 </View>
               </ScrollView>
             </View>
@@ -639,6 +657,7 @@ export default function HomeScreen() {
                   stopAll();
                   setStatus("idle");
                   setTranscript("");
+                  setIsTranscriptFinal(false);
                   setErrorMessage("");
                 }}
                 style={styles.closeIcon}
@@ -865,8 +884,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   transcriptContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  transcriptLabel: {
+    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#2563EB",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  transcriptTextRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    alignItems: "center",
     justifyContent: "center",
   },
   transcriptText: {

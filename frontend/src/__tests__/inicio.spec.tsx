@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import HomeScreen from "../../app/inicio";
 import type { VoiceLoopStatus } from "../hooks/useVoiceConversationLoop";
 import { vibrationService } from "../services/vibration.service";
+import { resetHomeVoiceSessionForTests } from "../state/homeVoiceSession";
 
 const mockStartLoop = jest.fn().mockResolvedValue(undefined);
 const mockStopAll = jest.fn().mockResolvedValue(undefined);
@@ -52,7 +53,7 @@ jest.mock("expo-router", () => {
     },
     useLocalSearchParams: () => ({}),
     useFocusEffect: (callback: () => void | (() => void)) => {
-      ReactModule.useEffect(() => callback(), [callback]);
+      ReactModule.useLayoutEffect(() => callback(), [callback]);
     },
   };
 });
@@ -137,6 +138,7 @@ describe("HomeScreen voice-first flow", () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     mockVoiceLoopCallbacks = {};
+    resetHomeVoiceSessionForTests();
   });
 
   afterEach(() => {
@@ -151,6 +153,29 @@ describe("HomeScreen voice-first flow", () => {
         "Olá, Douglas. Para onde você quer ir hoje?",
       );
     });
+  });
+
+  it("não repete a saudação automática ao voltar para a tela na mesma sessão", async () => {
+    const firstRender = render(<HomeScreen />);
+
+    await waitFor(() => {
+      expect(mockStartLoop).toHaveBeenCalledWith(
+        "Olá, Douglas. Para onde você quer ir hoje?",
+      );
+    });
+
+    await act(async () => {
+      firstRender.unmount();
+    });
+    mockStartLoop.mockClear();
+
+    const secondRender = render(<HomeScreen />);
+
+    await waitFor(() => {
+      expect(secondRender.queryByText("Para onde você quer ir hoje?")).toBeTruthy();
+    });
+
+    expect(mockStartLoop).not.toHaveBeenCalled();
   });
 
   it("só mostra o card de escuta quando o status é listening", async () => {

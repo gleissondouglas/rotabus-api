@@ -11,6 +11,14 @@ import { parseVoiceIntent } from "../utils/voiceIntentParser";
 import type { VoiceIntent } from "../utils/voiceIntentParser";
 import { vibrationService } from "../services/vibration.service";
 
+const LISTEN_AFTER_SPEECH_DELAY_MS = 250;
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 /**
  * Estados do Loop de Voz
  * - idle: Aguardando ação do usuário ou início automático.
@@ -90,14 +98,21 @@ export function useVoiceConversationLoop({
   }, []);
 
   const handleFinalTranscript = useCallback(async (transcript: string) => {
-    if (!transcript.trim()) {
+    const finalTranscript = transcript.trim();
+
+    if (!finalTranscript) {
       updateStatus("error");
       return;
     }
 
     retryCountRef.current = 0;
     updateStatus("processing");
-    const intent = parseVoiceIntent(transcript);
+    const intent = parseVoiceIntent(finalTranscript);
+
+    if (intent.type === "EMPTY") {
+      updateStatus("error");
+      return;
+    }
 
     if (intent.type === "REPEAT") {
       vibrationService.light();
@@ -151,6 +166,8 @@ export function useVoiceConversationLoop({
           updateStatus("speaking");
           await speakAndWait("Não consegui te ouvir. Pode repetir?");
 
+          await wait(LISTEN_AFTER_SPEECH_DELAY_MS);
+
           if (isRunActive(runId)) {
             await openMicrophoneRef.current(runId);
           }
@@ -198,6 +215,7 @@ export function useVoiceConversationLoop({
       if (speechText) {
         updateStatus("speaking");
         await speakAndWait(speechText);
+        await wait(LISTEN_AFTER_SPEECH_DELAY_MS);
       }
 
       if (!isRunActive(runId)) {

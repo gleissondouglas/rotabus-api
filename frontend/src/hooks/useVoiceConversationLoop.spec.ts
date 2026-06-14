@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react-native";
+import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useVoiceConversationLoop } from "./useVoiceConversationLoop";
 import * as SpeechService from "../services/speech.service";
@@ -91,6 +91,27 @@ describe("useVoiceConversationLoop", () => {
     expect(vibrationService.selection).toHaveBeenCalled();
   });
 
+  it("não processa transcrição parcial como intenção final", async () => {
+    const onIntent = jest.fn();
+    const onTranscript = jest.fn();
+    const { result } = renderHook(() => (
+      useVoiceConversationLoop({ onIntent, onTranscript })
+    ));
+
+    (SpeechService.startListening as jest.Mock).mockImplementation(({ onResult }) => {
+      onResult("sim", false);
+    });
+
+    await act(async () => {
+      await result.current.startLoop();
+    });
+
+    expect(onTranscript).toHaveBeenCalledWith("sim", false);
+    expect(onIntent).not.toHaveBeenCalled();
+    expect(vibrationService.selection).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("listening");
+  });
+
   it("limita o retry de silêncio a uma tentativa e termina em erro", async () => {
     const onIntent = jest.fn();
     const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
@@ -107,11 +128,14 @@ describe("useVoiceConversationLoop", () => {
       await result.current.startLoop();
     });
 
+    await waitFor(() => {
+      expect(SpeechService.startListening).toHaveBeenCalledTimes(2);
+    });
+
     expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(1);
     expect(SpeechService.speakAndWait).toHaveBeenCalledWith(
       "Não consegui te ouvir. Pode repetir?",
     );
-    expect(SpeechService.startListening).toHaveBeenCalledTimes(2);
     expect(result.current.status).toBe("error");
     expect(vibrationService.error).toHaveBeenCalledTimes(1);
   });
@@ -128,6 +152,10 @@ describe("useVoiceConversationLoop", () => {
 
     await act(async () => {
       await result.current.startLoop("Pergunta original");
+    });
+
+    await waitFor(() => {
+      expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(2);
     });
 
     expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(2);
