@@ -98,9 +98,41 @@ npm run sessions:smoke:postgres
 
 ---
 
-## 5. Estratégias de Fallback e Alertas
+## 6. Frontend (Android)
 
-### 5.1 Retorno para Modo Memória
+### 6.1 Build Local do APK
+Devido às limitações de memória do plano gratuito do EAS (Expo Application Services), recomenda-se realizar o build do Android localmente utilizando o seu próprio hardware.
+
+**Pré-requisitos:**
+- Ter o ambiente de desenvolvimento Android configurado (Android Studio, SDK, etc).
+- Variáveis de ambiente configuradas no arquivo `.env` do frontend.
+
+**Comando para gerar o APK:**
+```bash
+cd frontend
+# Carregar variáveis de ambiente (macOS/Linux)
+set -a && source .env && set +a
+# Iniciar build local
+eas build -p android --profile preview --local
+```
+
+### 6.2 Configuração do Sentry
+Atualmente, o upload automático de sourcemaps do Sentry está desativado no arquivo `frontend/app.config.js` (`disableOnRelease: true`) para permitir que o build seja concluído sem a necessidade de tokens de autenticação imediatos ou falhas de rede durante a compilação.
+
+**Para ativar logs de erro reais em produção futuramente:**
+1. Altere `disableOnRelease: false` no arquivo `frontend/app.config.js`.
+2. Obtenha um **Auth Token** no painel do Sentry (**User Settings > Auth Tokens**).
+3. Configure o token no EAS como um segredo do projeto:
+   ```bash
+   eas env:create project SENTRY_AUTH_TOKEN
+   ```
+4. Certifique-se de que a organização e o projeto no `app.config.js` correspondem aos do seu painel Sentry.
+
+---
+
+## 7. Estratégias de Fallback e Alertas
+
+### 7.1 Retorno para Modo Memória
 Caso o banco de dados PostgreSQL passe por instabilidade física ou falha de rede, é possível desativar temporariamente a persistência durável redefinindo a variável no ambiente de deploy:
 ```env
 PERSISTENCE_DRIVER=memory
