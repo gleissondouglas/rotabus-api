@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, Alert, ActivityIndicator } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeIn } from "react-native-reanimated";
@@ -15,6 +15,20 @@ import { vibrationService } from "../src/services/vibration.service";
 import { isConnected } from "../src/utils/network";
 import { parseJsonParam } from "../src/utils/helpers";
 import { layout } from "../src/theme/layout";
+import type { VoiceLoopStatus } from "../src/hooks/useVoiceConversationLoop";
+
+function getSingleParam(value: string | string[] | undefined, fallback = "") {
+  return Array.isArray(value) ? String(value[0] || fallback) : String(value || fallback);
+}
+
+function parseRequiredCoordinate(value: string) {
+  if (!value || value === "null" || value === "undefined") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export default function ConfirmDestinationScreen() {
   const params = useLocalSearchParams();
@@ -24,19 +38,21 @@ export default function ConfirmDestinationScreen() {
 
   const isSmallHeight = height < 740;
 
-  const latitude = String(params.latitude || "");
-  const longitude = String(params.longitude || "");
-  const destination = String(params.destination || "");
-  const address = String(params.address || "");
-  const city = String(params.city || "Uberaba - MG");
-  const confirmationQuestion = String(params.confirmationQuestion || "");
-  const backendMode = String(params.mode || "");
-  const backendMessage = String(params.message || "Encontrei algumas opções");
+  const latitude = getSingleParam(params.latitude);
+  const longitude = getSingleParam(params.longitude);
+  const destination = getSingleParam(params.destination);
+  const address = getSingleParam(params.address);
+  const city = getSingleParam(params.city, "Uberaba - MG");
+  const confirmationQuestion = getSingleParam(params.confirmationQuestion);
+  const backendMode = getSingleParam(params.mode);
+  const backendMessage = getSingleParam(params.message, "Encontrei algumas opções");
+  const voiceMode = getSingleParam(params.voiceMode) === "true";
   
-  const [sessionId, setSessionId] = useState(String(params.sessionId || ""));
-  const [speechText, setSpeechText] = useState(String(params.speechText || ""));
-  const [displayData, setDisplayData] = useState<any>(params.displayData ? JSON.parse(String(params.displayData)) : null);
-  const [conversationState, setConversationState] = useState(String(params.conversationState || ""));
+  const [sessionId] = useState(getSingleParam(params.sessionId));
+  const [speechText] = useState(getSingleParam(params.speechText));
+  const [displayData] = useState<any>(params.displayData ? JSON.parse(String(params.displayData)) : null);
+  const [conversationState] = useState(getSingleParam(params.conversationState));
+  const [voiceStatus, setVoiceStatus] = useState<VoiceLoopStatus>("idle");
 
   const rawOptions = parseJsonParam<any[]>(params.options, []);
   const options = (rawOptions.length > 0 ? rawOptions : (displayData?.items || [])).map((item: any, index: number) => {
@@ -50,7 +66,7 @@ export default function ConfirmDestinationScreen() {
   });
   
   // Se o backend explicitamente retornou 'suggestions' ou se há heurísticas residuais (ex: versão antiga em cache local)
-  const bestOption = options[0] || {};
+  const bestOption = useMemo(() => options[0] || {}, [options]);
   const isGeneric = bestOption.isGenericCityResult;
   const confidence = bestOption.confidence || "high";
   const showSuggestions = conversationState === "WAITING_DESTINATION_SELECTION" || backendMode === "suggestions" || (isGeneric && options.length > 1) || confidence === "low";
@@ -90,69 +106,30 @@ export default function ConfirmDestinationScreen() {
     ? getSuggestionsSpeech(options)
     : confirmationQuestion || `Destino encontrado: ${displayDestination}, ${address}. É para este lugar que você quer ir?`);
 
-  /**
-   * Loop de voz orquestrado para confirmação ou seleção de opções.
-   */
-  const { startLoop, stopAll } = useVoiceConversationLoop({
-    onIntent: async (intent) => {
-      switch (intent.type) {
-        case "CONFIRM":
-          handleConfirmDestination();
-          break;
-        case "CANCEL_THEN_ASK_DESTINATION":
-          handleChangeDestination();
-          break;
-        case "REPEAT":
-          handleHearDestination();
-          break;
-        case "SELECT_OPTION":
-          if (options[intent.optionIndex]) {
-            handleConfirmDestination(options[intent.optionIndex]);
-          } else {
-            vibrationService.light();
-            startLoop("Não encontrei essa opção. Qual você deseja?");
-          }
-          break;
-        case "CANCEL":
-          router.replace("/inicio");
-          break;
-        case "DESTINATION_TEXT":
-          // Se o usuário falar um novo destino diretamente, tratamos como uma nova busca
-          // Paramos o loop e voltamos para o início com o texto para processar a busca
-          stopAll();
-          router.replace({
-            pathname: "/inicio",
-            params: { 
-              latitude, 
-              longitude,
-              searchText: intent.text 
-            }
-          });
-          break;
-      }
-    },
-  });
+  const navigateWithSelectedDestination = useCallback((selected: any) => {
+    const originLat = parseRequiredCoordinate(latitude);
+    const originLng = parseRequiredCoordinate(longitude);
+    const destLat = parseRequiredCoordinate(String(selected.lat ?? ""));
+    const destLng = parseRequiredCoordinate(String(selected.lng ?? ""));
 
-  useEffect(() => {
-    // Inicia o loop assim que a tela carrega ou o texto de voz muda
-    startLoop(voiceText);
-    return () => {
-      stopAll();
-    };
-  }, [voiceText, startLoop, stopAll]);
+    if (originLat === null || originLng === null) {
+      console.warn("[ConfirmDestination] Origem ausente antes de escolher horário", {
+        latitude,
+        longitude,
+      });
+      vibrationService.error();
+      Alert.alert(
+        "Localização de origem ausente",
+        "Não consegui identificar sua localização atual. Volte ao início e tente novamente.",
+        [{ text: "OK", onPress: () => router.replace("/inicio") }]
+      );
+      return;
+    }
 
-  const [isLoadingCommand, setIsLoadingCommand] = useState(false);
-
-  async function handleConfirmDestination(option?: any) {
-    const selected = option || bestOption;
-    const isOptionSelection = !!option;
-    
-    // Validação defensiva de lat/lng
-    const destLat = Number(selected.lat);
-    const destLng = Number(selected.lng);
-
-    if (selected.lat === null || selected.lat === undefined || Number.isNaN(destLat) ||
-        selected.lng === null || selected.lng === undefined || Number.isNaN(destLng)) {
+    if (destLat === null || destLng === null) {
+      console.warn("[ConfirmDestination] Destino sem coordenadas antes de escolher horário", {
+        selected,
+      });
       vibrationService.error();
       Alert.alert(
         "Localização não encontrada",
@@ -162,94 +139,49 @@ export default function ConfirmDestinationScreen() {
       return;
     }
 
-    setIsLoadingCommand(true);
-    let sessionExpired = false;
+    router.push({
+      pathname: "/escolher-horario",
+      params: {
+        latitude: String(originLat),
+        longitude: String(originLng),
+        destination: selected.name || displayDestination,
+        destinationLat: String(destLat),
+        destinationLng: String(destLng),
+        selectedDestination: JSON.stringify(selected),
+        sessionId,
+        voiceMode: voiceMode ? "true" : "false",
+      },
+    });
+  }, [displayDestination, latitude, longitude, sessionId, voiceMode]);
 
-    // Feedback tátil ao tocar
-    if (isOptionSelection) {
+  const handleConfirmDestination = useCallback(async (option?: any) => {
+    const selected = option || bestOption;
+
+    if (!selected || Object.keys(selected).length === 0) {
+      vibrationService.error();
+      Alert.alert(
+        "Destino não encontrado",
+        "Não recebi os dados do destino. Escolha outro destino e tente novamente.",
+      );
+      return;
+    }
+
+    setIsLoadingCommand(true);
+
+    if (option) {
       vibrationService.selection();
     } else {
       vibrationService.success();
     }
 
     try {
-      const connected = await isConnected();
-      if (!connected) {
-        Alert.alert(
-          "Sem Conexão",
-          "Não conseguimos contatar o servidor de voz. Continuando pelo modo clássico.",
-          [{ text: "Continuar" }]
-        );
-      } else {
-        const activeSessionId = sessionId || sessionService.getSessionId();
-        if (activeSessionId) {
-          if (isOptionSelection) {
-            const optionIndex = options.indexOf(option);
-            const result = await journeyService.executeCommand({
-              sessionId: activeSessionId,
-              command: "SELECT_OPTION",
-              payload: {
-                optionIndex: optionIndex >= 0 ? optionIndex : 0,
-                optionName: selected.name,
-              }
-            });
-            if (result.speechText) setSpeechText(result.speechText);
-            if (result.displayData) setDisplayData(result.displayData);
-            if (result.conversationState) setConversationState(result.conversationState);
-            if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
-          } else {
-            const result = await journeyService.executeCommand({
-              sessionId: activeSessionId,
-              command: "CONFIRM"
-            });
-            if (result.speechText) setSpeechText(result.speechText);
-            if (result.displayData) setDisplayData(result.displayData);
-            if (result.conversationState) setConversationState(result.conversationState);
-            if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
-          }
-        }
-      }
-    } catch (err: any) {
-      console.log("[ConfirmDestination] Erro ao executar comando no backend:", err);
-      if (err?.message && (
-        err.message.includes("Sessão conversacional não encontrada") ||
-        err.message.includes("não encontrada ou expirada")
-      )) {
-        sessionExpired = true;
-        vibrationService.error();
-        Alert.alert(
-          "Conversa Expirada",
-          "Sua conversa expirou. Vamos começar de novo.",
-          [{ text: "OK", onPress: () => router.replace("/inicio") }]
-        );
-      } else {
-        Alert.alert(
-          "Erro de Rede",
-          "Falha ao comunicar com o servidor. Continuando no modo clássico.",
-          [{ text: "OK" }]
-        );
-      }
+      navigateWithSelectedDestination(selected);
     } finally {
       setIsLoadingCommand(false);
     }
+  }, [bestOption, navigateWithSelectedDestination]);
 
-    if (sessionExpired) {
-      return;
-    }
-
-    router.push({
-      pathname: "/escolher-horario",
-      params: {
-        latitude,
-        longitude,
-        destination: selected.name,
-        destinationLat: String(selected.lat),
-        destinationLng: String(selected.lng),
-      },
-    });
-  }
-
-  async function handleChangeDestination() {
+  const handleChangeDestination = useCallback(async () => {
     setIsLoadingCommand(true);
     vibrationService.light();
     try {
@@ -274,9 +206,9 @@ export default function ConfirmDestinationScreen() {
         },
       });
     }
-  }
+  }, [latitude, longitude, sessionId]);
 
-  async function handleHearDestination() {
+  const handleHearDestination = useCallback(async () => {
     setIsLoadingCommand(true);
     vibrationService.selection();
     try {
@@ -306,7 +238,62 @@ export default function ConfirmDestinationScreen() {
     } finally {
       setIsLoadingCommand(false);
     }
-  }
+  }, [sessionId, voiceText]);
+
+  /**
+   * Loop de voz orquestrado para confirmação ou seleção de opções.
+   */
+  const { startLoop, stopAll } = useVoiceConversationLoop({
+    onIntent: async (intent) => {
+      switch (intent.type) {
+        case "CONFIRM":
+          await handleConfirmDestination();
+          break;
+        case "CANCEL_THEN_ASK_DESTINATION":
+          await handleChangeDestination();
+          break;
+        case "SELECT_OPTION":
+          if (options[intent.optionIndex]) {
+            await handleConfirmDestination(options[intent.optionIndex]);
+          } else {
+            vibrationService.light();
+            void startLoop("Não encontrei essa opção. Qual você deseja?");
+          }
+          break;
+        case "CANCEL":
+          router.replace("/inicio");
+          break;
+        case "DESTINATION_TEXT":
+          // Se o usuário falar um novo destino diretamente, tratamos como uma nova busca
+          // Paramos o loop e voltamos para o início com o texto para processar a busca
+          void stopAll();
+          router.replace({
+            pathname: "/inicio",
+            params: { 
+              latitude, 
+              longitude,
+              searchText: intent.text,
+              voiceMode: voiceMode ? "true" : "false",
+            }
+          });
+          break;
+      }
+    },
+    onStatusChange: setVoiceStatus,
+  });
+
+  useEffect(() => {
+    if (!voiceMode) {
+      return;
+    }
+
+    void startLoop(voiceText);
+    return () => {
+      void stopAll();
+    };
+  }, [voiceMode, voiceText, startLoop, stopAll]);
+
+  const [isLoadingCommand, setIsLoadingCommand] = useState(false);
 
   const handleHelp = () => {
     router.push("/ajuda");
@@ -465,6 +452,36 @@ export default function ConfirmDestinationScreen() {
               <Text style={[styles.questionTitle, { color: "#000" }]} maxFontSizeMultiplier={1.2}>
                 Este é o destino correto?
               </Text>
+            </View>
+          )}
+
+          {voiceMode && (
+            <View
+              style={styles.voiceReplyCard}
+              accessible={true}
+              accessibilityLabel={
+                showSuggestions
+                  ? "Responda por voz. Diga primeira, segunda ou terceira opção."
+                  : "Responda por voz. Diga sim para buscar a rota ou não para escolher outro destino."
+              }
+            >
+              <View style={[styles.voiceReplyIcon, { backgroundColor: theme.primaryLight }]}>
+                <Ionicons
+                  name={voiceStatus === "listening" ? "mic" : "volume-high"}
+                  size={20}
+                  color={theme.primary}
+                />
+              </View>
+              <View style={styles.voiceReplyTextContainer}>
+                <Text style={styles.voiceReplyTitle}>
+                  {voiceStatus === "listening" ? "Estou ouvindo sua resposta" : "Responda por voz"}
+                </Text>
+                <Text style={styles.voiceReplyText}>
+                  {showSuggestions
+                    ? "Diga 'primeira', 'segunda' ou 'terceira' para escolher."
+                    : "Diga 'sim' para buscar a rota ou 'não' para escolher outro destino."}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -677,6 +694,39 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     textAlign: "center",
+  },
+  voiceReplyCard: {
+    backgroundColor: "white",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E0ECFF",
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 24,
+  },
+  voiceReplyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  voiceReplyTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  voiceReplyTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#011030",
+  },
+  voiceReplyText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
+    lineHeight: 19,
   },
   fixedBottomActions: {
     position: "absolute",

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState, useEffect, useCallback } from "react";
-import { ScrollView, StyleSheet, Text, View, Alert, Pressable } from "react-native";
+import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,10 +10,12 @@ import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { RouteStep } from "../src/components/RouteStep";
 import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
+import type { VoiceLoopStatus } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
 import { journeyService } from "../src/services/journey.service";
 import { sessionService } from "../src/services/session.service";
 import { vibrationService } from "../src/services/vibration.service";
+import { speak } from "../src/services/speech.service";
 import { isConnected } from "../src/utils/network";
 import { JourneyStep, JourneySummary } from "../src/types/journey.types";
 import { formatMinutesToFriendlyText } from "../src/utils/date-time";
@@ -83,7 +85,12 @@ export default function BestRouteScreen() {
   const longitude = String(params.longitude || "");
   const mapParam = String(params.map || "");
   const destination = String(params.destination || "seu destino");
+  const destinationLat = String(params.destinationLat || "");
+  const destinationLng = String(params.destinationLng || "");
+  const selectedDestination = String(params.selectedDestination || "");
   const fullBackendMessage = String(params.message || "");
+  const expectedInput = String(params.expectedInput || "");
+  const voiceMode = String(params.voiceMode || "") === "true";
 
   const summary = parseJsonParam<JourneySummary | null>(params.summary, null);
   const alerts = parseJsonParam<string[]>(params.alerts, []);
@@ -91,6 +98,7 @@ export default function BestRouteScreen() {
 
   const [isLoadingCommand, setIsLoadingCommand] = useState(false);
   const [showSteps, setShowSteps] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceLoopStatus>("idle");
 
   const transitSteps = getTransitSteps(steps);
   const firstTransitStep = transitSteps[0];
@@ -127,6 +135,7 @@ export default function BestRouteScreen() {
   });
 
   const voiceText = speechTextParam || voiceSummary;
+  const shouldAutoListen = voiceMode && (expectedInput === "VOICE_OR_TOUCH" || voiceText.includes("?"));
 
   const { startLoop, stopAll } = useVoiceConversationLoop({
     onIntent: async (intent) => {
@@ -141,26 +150,35 @@ export default function BestRouteScreen() {
         case "SHOW_DETAILS":
           vibrationService.light();
           setShowSteps(true);
-          startLoop("Detalhes da rota abertos. Quer iniciar a navegação?");
+          if (voiceMode) {
+            void startLoop("Detalhes da rota abertos. Quer iniciar a navegação?");
+          }
           break;
         case "HIDE_DETAILS":
           vibrationService.light();
           setShowSteps(false);
-          startLoop("Detalhes da rota fechados. Vamos começar?");
+          if (voiceMode) {
+            void startLoop("Detalhes da rota fechados. Vamos começar?");
+          }
           break;
         case "CANCEL":
           handleGoHome();
           break;
       }
     },
+    onStatusChange: setVoiceStatus,
   });
 
   useEffect(() => {
-    startLoop(voiceText);
+    if (!shouldAutoListen) {
+      return;
+    }
+
+    void startLoop(voiceText);
     return () => {
-      stopAll();
+      void stopAll();
     };
-  }, [voiceText, startLoop, stopAll]);
+  }, [shouldAutoListen, voiceText, startLoop, stopAll]);
 
   async function handleGoHome() {
     setIsLoadingCommand(true);
@@ -188,8 +206,13 @@ export default function BestRouteScreen() {
 
   const handleHearRoute = useCallback(() => {
     vibrationService.selection();
-    startLoop(voiceText);
-  }, [voiceText, startLoop]);
+    if (voiceMode) {
+      void startLoop(voiceText);
+      return;
+    }
+
+    speak(voiceText);
+  }, [voiceMode, voiceText, startLoop]);
 
   function handleStartNavigation() {
     setIsLoadingCommand(true);
@@ -200,6 +223,10 @@ export default function BestRouteScreen() {
         latitude,
         longitude,
         destination,
+        destinationLat,
+        destinationLng,
+        selectedDestination,
+        voiceMode: voiceMode ? "true" : "false",
         message: fullBackendMessage,
         shortMessage,
         summary: JSON.stringify(summary),
@@ -242,6 +269,19 @@ export default function BestRouteScreen() {
             <Text style={[styles.title, { color: "#000" }]} maxFontSizeMultiplier={1.2}>Sua melhor rota</Text>
             <Text style={[styles.subtitle, { color: "#666" }]} maxFontSizeMultiplier={1.1}>Para {destination}</Text>
           </View>
+
+          {voiceMode && voiceStatus === "listening" && (
+            <View
+              style={styles.voiceHintCard}
+              accessible={true}
+              accessibilityLabel="Você pode dizer iniciar, repetir ou ver detalhes."
+            >
+              <Ionicons name="mic" size={18} color={theme.primary} />
+              <Text style={styles.voiceHintText}>
+                Você pode dizer: iniciar, repetir ou ver detalhes.
+              </Text>
+            </View>
+          )}
 
           {/* COMPACT SUMMARY */}
           <View style={styles.compactSummary}>
@@ -386,6 +426,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.01)",
     gap: 16,
+  },
+  voiceHintCard: {
+    backgroundColor: "white",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E0ECFF",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  voiceHintText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "700",
+    color: "#475569",
   },
   summaryTop: {
     flexDirection: "row",

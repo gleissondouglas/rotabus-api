@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useFocusEffect } from "expo-router";
 import { 
   speakAndWait, 
@@ -7,7 +7,8 @@ import {
   stopListening, 
   isSpeechRecognitionAvailable 
 } from "../services/speech.service";
-import { parseVoiceIntent, VoiceIntent } from "../utils/voiceIntentParser";
+import { parseVoiceIntent } from "../utils/voiceIntentParser";
+import type { VoiceIntent } from "../utils/voiceIntentParser";
 import { vibrationService } from "../services/vibration.service";
 
 /**
@@ -46,130 +47,174 @@ export function useVoiceConversationLoop({
   onTranscript,
 }: VoiceConversationLoopOptions) {
   const [status, setStatus] = useState<VoiceLoopStatus>("idle");
-  const isFocusedRef = useRef(false);
+  const isFocusedRef = useRef(true);
   const retryCountRef = useRef(0);
   const lastSpeechTextRef = useRef<string | null>(null);
+  const activeRunIdRef = useRef(0);
+  const onIntentRef = useRef(onIntent);
+  const onStatusChangeRef = useRef(onStatusChange);
+  const onTranscriptRef = useRef(onTranscript);
+  const startLoopRef = useRef<(speechText?: string) => Promise<void>>(async () => {});
+  const openMicrophoneRef = useRef<(runId: number) => Promise<void>>(async () => {});
   const MAX_RETRIES = 1;
+
+  useEffect(() => {
+    onIntentRef.current = onIntent;
+  }, [onIntent]);
+
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
+  }, [onStatusChange]);
+
+  useEffect(() => {
+    onTranscriptRef.current = onTranscript;
+  }, [onTranscript]);
 
   // Atualiza o estado interno e notifica o componente
   const updateStatus = useCallback((newStatus: VoiceLoopStatus) => {
     setStatus(newStatus);
-    onStatusChange?.(newStatus);
-  }, [onStatusChange]);
+    onStatusChangeRef.current?.(newStatus);
+  }, []);
+
+  const isRunActive = useCallback((runId: number) => {
+    return isFocusedRef.current && activeRunIdRef.current === runId;
+  }, []);
 
   /**
    * Para qualquer atividade de áudio (fala ou escuta).
    */
   const stopAll = useCallback(async () => {
+    activeRunIdRef.current += 1;
     await stopSpeaking();
     stopListening();
   }, []);
+
+  const handleFinalTranscript = useCallback(async (transcript: string) => {
+    if (!transcript.trim()) {
+      updateStatus("error");
+      return;
+    }
+
+    retryCountRef.current = 0;
+    updateStatus("processing");
+    const intent = parseVoiceIntent(transcript);
+
+    if (intent.type === "REPEAT") {
+      vibrationService.light();
+      await startLoopRef.current(lastSpeechTextRef.current || undefined);
+      return;
+    }
+
+    await onIntentRef.current(intent);
+  }, [updateStatus]);
+
+  openMicrophoneRef.current = async (runId: number) => {
+    if (!isRunActive(runId)) {
+      return;
+    }
+
+    if (!isSpeechRecognitionAvailable()) {
+      updateStatus("error");
+      return;
+    }
+
+    updateStatus("listening");
+
+    await startListening({
+      onStart: () => {
+        if (isRunActive(runId)) {
+          vibrationService.medium();
+        }
+      },
+      onResult: (text, isFinal) => {
+        if (!isRunActive(runId)) {
+          return;
+        }
+
+        onTranscriptRef.current?.(text, isFinal);
+
+        if (isFinal) {
+          vibrationService.selection();
+          void handleFinalTranscript(text);
+        }
+      },
+      onError: async (err: any) => {
+        if (!isRunActive(runId)) {
+          return;
+        }
+
+        const isSilent = err?.isSilentError || err?.error === "no-speech";
+
+        if (isSilent && retryCountRef.current < MAX_RETRIES) {
+          retryCountRef.current += 1;
+          vibrationService.light();
+          updateStatus("speaking");
+          await speakAndWait("Não consegui te ouvir. Pode repetir?");
+
+          if (isRunActive(runId)) {
+            await openMicrophoneRef.current(runId);
+          }
+          return;
+        }
+
+        retryCountRef.current = 0;
+        if (isRunActive(runId)) {
+          updateStatus("error");
+          vibrationService.error();
+        }
+      },
+      onEnd: () => {
+        if (isRunActive(runId)) {
+          setStatus((prev) => {
+            if (prev === "listening") {
+              onStatusChangeRef.current?.("idle");
+              return "idle";
+            }
+            return prev;
+          });
+        }
+      },
+    });
+  };
 
   /**
    * Inicia o ciclo de conversa.
    * Se speechText for fornecido, a assistente fala antes de abrir o microfone.
    */
   const startLoop = useCallback(async (speechText?: string) => {
-    if (!isFocusedRef.current) return;
+    if (!isFocusedRef.current) {
+      return;
+    }
 
-    // Salva o texto para suporte ao comando "repetir"
     if (speechText) {
       lastSpeechTextRef.current = speechText;
     }
 
     try {
       await stopAll();
+      retryCountRef.current = 0;
+      const runId = activeRunIdRef.current;
 
-      // 1. FALA (TTS)
       if (speechText) {
         updateStatus("speaking");
         await speakAndWait(speechText);
       }
 
-      if (!isFocusedRef.current) return;
-
-      // 2. VERIFICAÇÃO DE HARDWARE
-      if (!isSpeechRecognitionAvailable()) {
-        updateStatus("error");
+      if (!isRunActive(runId)) {
         return;
       }
 
-      // 3. ESCUTA (STT)
-      updateStatus("listening");
-
-      await startListening({
-        onStart: () => {
-          // Pequeno feedback tátil ao abrir o microfone
-          vibrationService.medium();
-        },
-        onResult: (text, isFinal) => {
-          onTranscript?.(text, isFinal);
-          if (isFinal) {
-            vibrationService.selection();
-            handleFinalTranscript(text);
-          }
-        },
-        onError: async (err: any) => {
-          const isSilent = err.isSilentError || err.error === "no-speech";
-          
-          // Tratamento de silêncio com retry automático
-          if (isSilent && isFocusedRef.current) {
-            if (retryCountRef.current < MAX_RETRIES) {
-              retryCountRef.current++;
-              vibrationService.light();
-              
-              // Incentiva o usuário a falar
-              updateStatus("speaking");
-              await speakAndWait("Não consegui te ouvir. Pode repetir?");
-              
-              if (isFocusedRef.current) {
-                // Tenta ouvir novamente
-                startLoop();
-              }
-              return;
-            }
-          }
-          
-          if (isFocusedRef.current) {
-            updateStatus("error");
-            vibrationService.error();
-          }
-        },
-        onEnd: () => {
-          if (isFocusedRef.current) {
-            // Se parou de ouvir sem disparar um resultado final ou erro, volta ao idle
-            setStatus((prev) => (prev === "listening" ? "idle" : prev));
-          }
-        }
-      });
+      await openMicrophoneRef.current(runId);
     } catch (err) {
       console.error("[useVoiceConversationLoop] Erro no loop:", err);
       if (isFocusedRef.current) {
+        retryCountRef.current = 0;
         updateStatus("error");
       }
     }
-  }, [onTranscript, stopAll, updateStatus]);
+  }, [isRunActive, stopAll, updateStatus]);
 
-  /**
-   * Processa a transcrição final e identifica a intenção.
-   */
-  const handleFinalTranscript = useCallback(async (transcript: string) => {
-    if (!transcript.trim()) return;
-    
-    updateStatus("processing");
-    const intent = parseVoiceIntent(transcript);
-    
-    // Comando global: REPETIR
-    if (intent.type === "REPEAT") {
-      vibrationService.light();
-      // Reinicia o loop falando o último texto
-      startLoop(lastSpeechTextRef.current || undefined);
-      return;
-    }
-
-    // Passa a intenção para o handler da tela
-    await onIntent(intent);
-  }, [onIntent, startLoop, updateStatus]);
+  startLoopRef.current = startLoop;
 
   /**
    * Cleanup e gerenciamento de foco.
@@ -181,7 +226,8 @@ export function useVoiceConversationLoop({
       
       return () => {
         isFocusedRef.current = false;
-        stopAll();
+        retryCountRef.current = 0;
+        void stopAll();
         updateStatus("stopped");
       };
     }, [stopAll, updateStatus])
