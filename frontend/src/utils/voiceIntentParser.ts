@@ -21,6 +21,8 @@ const CANCEL_THEN_ASK_PATTERNS = [
   "errado",
   "outro destino",
   "mudar",
+  "nenhuma",
+  "nenhum",
 ];
 
 const REPEAT_PATTERNS = [

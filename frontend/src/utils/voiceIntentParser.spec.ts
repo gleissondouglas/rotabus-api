@@ -40,6 +40,14 @@ describe("voiceIntentParser", () => {
         type: "CANCEL_THEN_ASK_DESTINATION",
         transcript: "mudar",
       });
+      expect(parseVoiceIntent("nenhuma")).toEqual({
+        type: "CANCEL_THEN_ASK_DESTINATION",
+        transcript: "nenhuma",
+      });
+      expect(parseVoiceIntent("nenhum")).toEqual({
+        type: "CANCEL_THEN_ASK_DESTINATION",
+        transcript: "nenhum",
+      });
     });
 
     it("mapeia repetição", () => {

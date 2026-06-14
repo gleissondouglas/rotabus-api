@@ -89,6 +89,68 @@ export default function HomeScreen() {
   const panelTransition = useSharedValue(0);
 
   /**
+   * Envia o texto para o Backend para geocodificação e busca de rotas.
+   */
+  const processTranscription = useCallback(async (text: string) => {
+    setStatus("processing");
+    try {
+      // Limpa a sessão conversacional anterior ao iniciar novo diálogo de busca
+      sessionService.clearSessionId();
+
+      const response = await journeyService.resolveDestination({
+        text,
+        origin: {
+          lat: Number(latitude),
+          lng: Number(longitude),
+        },
+      });
+
+      if (response.options.length > 0) {
+        setStatus("success");
+        // Se encontrou opções, navega para a tela de confirmação de destino
+        if (response.mode === "resolved" || response.mode === "suggestions") {
+          const bestOption = response.options[0];
+          vibrationService.success();
+          router.push({
+            pathname: "/confirmar-destino",
+            params: {
+              latitude,
+              longitude,
+              destination: bestOption?.name || response.interpretedDestination,
+              address: bestOption?.address || "",
+              confirmationQuestion: response.voice?.confirmationQuestion || response.message,
+              options: JSON.stringify(response.options),
+              mode: response.mode,
+              message: response.message,
+              // --- Novos campos conversacionais ---
+              speechText: response.speechText || "",
+              screen: response.screen || "",
+              displayData: response.displayData ? JSON.stringify(response.displayData) : "",
+              expectedInput: response.expectedInput || "",
+              conversationState: response.conversationState || "",
+              actions: response.actions ? JSON.stringify(response.actions) : "",
+              sessionId: response.metadata?.sessionId || "",
+            },
+          });
+        } else {
+          setStatus("error");
+          setErrorMessage(response.message || "Não encontrei esse lugar. Tente falar de forma diferente.");
+          vibrationService.error();
+        }
+      } else {
+        setStatus("error");
+        setErrorMessage("Não encontrei esse lugar. Tente falar de forma diferente.");
+        vibrationService.error();
+      }
+    } catch (err) {
+      console.error("Erro ao processar destino:", err);
+      setStatus("error");
+      setErrorMessage("Erro ao buscar destino. Verifique sua conexão.");
+      vibrationService.error();
+    }
+  }, [latitude, longitude]);
+
+  /**
    * Loop de voz orquestrado.
    * Substitui a lógica manual anterior para garantir o fluxo Fala -> Escuta.
    */
@@ -139,10 +201,15 @@ export default function HomeScreen() {
         console.log("[inicio] Erro ao recuperar sessionId:", error);
       }
       const user = await sessionService.getUser();
-      if (user?.name) {
-        const first = user.name.split(" ")[0];
-        setUserName(first);
+      const first = user?.name ? user.name.split(" ")[0] : "";
+      if (first) setUserName(first);
 
+      // Se houver um texto de busca vindo de outra tela, processa direto
+      if (params.searchText) {
+        const text = String(params.searchText);
+        setTranscript(text);
+        processTranscription(text);
+      } else if (first) {
         // Inicia a saudação automática apenas na primeira vez que carrega o usuário
         const welcome = `Olá, ${first}. Para onde você quer ir hoje? Me diga o endereço ou o lugar para onde você quer ir.`;
         startLoop(welcome);
@@ -153,7 +220,7 @@ export default function HomeScreen() {
     return () => {
       stopAll();
     };
-  }, []);
+  }, [params.searchText, startLoop, stopAll, processTranscription]);
 
   /**
    * useFocusEffect: Garante que toda vez que a tela ganhar foco (voltar para ela),
@@ -245,68 +312,6 @@ export default function HomeScreen() {
     } else if (status === "listening") {
       // Para a escuta e o hook processará o que foi ouvido até agora
       stopListening();
-    }
-  }
-
-  /**
-   * Envia o texto para o Backend para geocodificação e busca de rotas.
-   */
-  async function processTranscription(text: string) {
-    setStatus("processing");
-    try {
-      // Limpa a sessão conversacional anterior ao iniciar novo diálogo de busca
-      sessionService.clearSessionId();
-
-      const response = await journeyService.resolveDestination({
-        text,
-        origin: {
-          lat: Number(latitude),
-          lng: Number(longitude),
-        },
-      });
-
-      if (response.options.length > 0) {
-        setStatus("success");
-        // Se encontrou opções, navega para a tela de confirmação de destino
-        if (response.mode === "resolved" || response.mode === "suggestions") {
-          const bestOption = response.options[0];
-          vibrationService.success();
-          router.push({
-            pathname: "/confirmar-destino",
-            params: {
-              latitude,
-              longitude,
-              destination: bestOption?.name || response.interpretedDestination,
-              address: bestOption?.address || "",
-              confirmationQuestion: response.voice?.confirmationQuestion || response.message,
-              options: JSON.stringify(response.options),
-              mode: response.mode,
-              message: response.message,
-              // --- Novos campos conversacionais ---
-              speechText: response.speechText || "",
-              screen: response.screen || "",
-              displayData: response.displayData ? JSON.stringify(response.displayData) : "",
-              expectedInput: response.expectedInput || "",
-              conversationState: response.conversationState || "",
-              actions: response.actions ? JSON.stringify(response.actions) : "",
-              sessionId: response.metadata?.sessionId || "",
-            },
-          });
-        } else {
-          setStatus("error");
-          setErrorMessage(response.message || "Não encontrei esse lugar. Tente falar de forma diferente.");
-          vibrationService.error();
-        }
-      } else {
-        setStatus("error");
-        setErrorMessage("Não encontrei esse lugar. Tente falar de forma diferente.");
-        vibrationService.error();
-      }
-    } catch (err) {
-      console.error("Erro ao processar destino:", err);
-      setStatus("error");
-      setErrorMessage("Erro ao buscar destino. Verifique sua conexão.");
-      vibrationService.error();
     }
   }
 

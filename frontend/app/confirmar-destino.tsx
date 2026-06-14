@@ -74,8 +74,20 @@ export default function ConfirmDestinationScreen() {
 
   const destIcon = getDestinationIcon(displayDestination, address);
 
+  const getSuggestionsSpeech = (items: any[]) => {
+    if (!items || items.length === 0) return "Encontrei algumas opções. Qual delas você quer?";
+    const maxOptions = 3;
+    const ordinals = ["Primeira", "Segunda", "Terceira"];
+    let speech = "Encontrei algumas opções. ";
+    items.slice(0, maxOptions).forEach((item, index) => {
+      speech += `${ordinals[index]}: ${item.name}. `;
+    });
+    speech += "Qual você quer?";
+    return speech;
+  };
+
   const voiceText = speechText || (showSuggestions 
-    ? "Encontrei algumas opções. Qual delas é o seu destino correto?"
+    ? getSuggestionsSpeech(options)
     : confirmationQuestion || `Destino encontrado: ${displayDestination}, ${address}. É para este lugar que você quer ir?`);
 
   /**
@@ -97,6 +109,7 @@ export default function ConfirmDestinationScreen() {
           if (options[intent.optionIndex]) {
             handleConfirmDestination(options[intent.optionIndex]);
           } else {
+            vibrationService.light();
             startLoop("Não encontrei essa opção. Qual você deseja?");
           }
           break;
@@ -104,10 +117,17 @@ export default function ConfirmDestinationScreen() {
           router.replace("/inicio");
           break;
         case "DESTINATION_TEXT":
-          // Se o usuário falar algo que não é um comando, mas estamos esperando seleção
-          if (showSuggestions) {
-            startLoop("Desculpe, não entendi. Escolha a primeira, segunda ou terceira opção.");
-          }
+          // Se o usuário falar um novo destino diretamente, tratamos como uma nova busca
+          // Paramos o loop e voltamos para o início com o texto para processar a busca
+          stopAll();
+          router.replace({
+            pathname: "/inicio",
+            params: { 
+              latitude, 
+              longitude,
+              searchText: intent.text 
+            }
+          });
           break;
       }
     },
