@@ -120,7 +120,7 @@ async function speakInternal(text: string, mode: SpeakMode) {
         // Cria o som a partir do Base64 retornado pelo Google
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: `data:audio/mp3;base64,${result.audioContent}` },
-          { shouldPlay: true }
+          { shouldPlay: false }
         );
         
         if (signal.aborted) {
@@ -138,6 +138,8 @@ async function speakInternal(text: string, mode: SpeakMode) {
             settlePendingSpeechCompletion();
           }
         });
+
+        await sound.playAsync();
 
         if (mode.waitForCompletion) {
           await new Promise<void>((resolve) => {

@@ -19,6 +19,7 @@ import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { TextField } from "../src/components/TextField";
 import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
+import type { VoiceLoopStatus } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
 import { layout } from "../src/theme/layout";
 import { vibrationService } from "../src/services/vibration.service";
@@ -33,6 +34,15 @@ import { parseVoiceTimeIntent } from "../src/utils/voiceTimeParser";
 
 type TimeMode = "NOW" | "DEPARTURE" | "ARRIVAL";
 
+function parseRequiredCoordinate(value: string) {
+  if (!value || value === "null" || value === "undefined") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export default function ChooseTimeScreen() {
   const params = useLocalSearchParams();
   const theme = useThemeColors();
@@ -40,18 +50,20 @@ export default function ChooseTimeScreen() {
   const { height } = useWindowDimensions();
 
   const isSmallHeight = height < 740;
-  const isVerySmallHeight = height < 680;
-
   const latitude = String(params.latitude || "");
   const longitude = String(params.longitude || "");
   const destination = String(params.destination || "");
   const destinationLat = String(params.destinationLat || "");
   const destinationLng = String(params.destinationLng || "");
+  const selectedDestination = String(params.selectedDestination || "");
+  const sessionId = String(params.sessionId || "");
+  const voiceMode = String(params.voiceMode || "") === "true";
 
   const [mode, setMode] = useState<TimeMode>("NOW");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [dateText, setDateText] = useState(getTodayDateText());
   const [timeText, setTimeText] = useState(getCurrentTimeText());
+  const [voiceStatus, setVoiceStatus] = useState<VoiceLoopStatus>("idle");
 
   const dateOptions = getNext7Days();
 
@@ -108,6 +120,43 @@ export default function ChooseTimeScreen() {
 
   const screenMessage = "Você quer sair agora ou escolher outro horário?";
 
+  function buildProcessingParams(type: "DEPARTURE" | "ARRIVAL", dateTime: string) {
+    const originLat = parseRequiredCoordinate(latitude);
+    const originLng = parseRequiredCoordinate(longitude);
+    const destLat = parseRequiredCoordinate(destinationLat);
+    const destLng = parseRequiredCoordinate(destinationLng);
+
+    if (!destination || originLat === null || originLng === null || destLat === null || destLng === null) {
+      console.warn("[ChooseTime] Dados obrigatórios ausentes antes de processando", {
+        latitude,
+        longitude,
+        destination,
+        destinationLat,
+        destinationLng,
+      });
+      vibrationService.error();
+      Alert.alert(
+        "Dados da rota incompletos",
+        "Não consegui manter a localização do destino. Escolha o destino novamente.",
+        [{ text: "OK", onPress: () => router.replace({ pathname: "/inicio", params: { latitude, longitude } }) }]
+      );
+      return null;
+    }
+
+    return {
+      latitude: String(originLat),
+      longitude: String(originLng),
+      destination,
+      destinationLat: String(destLat),
+      destinationLng: String(destLng),
+      selectedDestination,
+      sessionId,
+      voiceMode: voiceMode ? "true" : "false",
+      timeType: type,
+      dateTime,
+    };
+  }
+
   const { startLoop, stopAll } = useVoiceConversationLoop({
     onIntent: async (intent) => {
       const timeIntent = parseVoiceTimeIntent(intent.transcript);
@@ -123,7 +172,7 @@ export default function ChooseTimeScreen() {
           validateAndNavigate("ARRIVAL", timeIntent.date, timeIntent.time);
           break;
         case "REPEAT":
-          startLoop(screenMessage);
+          void startLoop(screenMessage);
           break;
         case "CANCEL":
           vibrationService.light();
@@ -131,35 +180,37 @@ export default function ChooseTimeScreen() {
           break;
         case "UNKNOWN":
           vibrationService.error();
-          startLoop("Não entendi o horário. Você pode dizer, por exemplo: sair agora, hoje às oito ou amanhã às nove.");
+          void startLoop("Não entendi o horário. Você pode dizer, por exemplo: sair agora, hoje às oito ou amanhã às nove.");
           break;
       }
     },
+    onStatusChange: setVoiceStatus,
   });
 
   useEffect(() => {
-    startLoop(screenMessage);
+    if (!voiceMode) {
+      return;
+    }
+
+    void startLoop(screenMessage);
     return () => {
-      stopAll();
+      void stopAll();
     };
-  }, []);
+  }, [screenMessage, startLoop, stopAll, voiceMode]);
 
   function handleGoNow() {
     vibrationService.selection();
     const now = new Date();
     const dateTime = formatLocalDateTimeWithOffset(now);
+    const navigationParams = buildProcessingParams("DEPARTURE", dateTime);
+
+    if (!navigationParams) {
+      return;
+    }
 
     router.push({
       pathname: "/processando",
-      params: {
-        latitude,
-        longitude,
-        destination,
-        destinationLat,
-        destinationLng,
-        timeType: "DEPARTURE",
-        dateTime,
-      },
+      params: navigationParams,
     });
   }
 
@@ -189,17 +240,15 @@ export default function ChooseTimeScreen() {
         return;
       }
 
+      const navigationParams = buildProcessingParams(type, dateTime);
+
+      if (!navigationParams) {
+        return;
+      }
+
       router.push({
         pathname: "/processando",
-        params: {
-          latitude,
-          longitude,
-          destination,
-          destinationLat,
-          destinationLng,
-          timeType: type,
-          dateTime,
-        },
+        params: navigationParams,
       });
     } catch (error) {
       vibrationService.error();
@@ -216,8 +265,6 @@ export default function ChooseTimeScreen() {
     validateAndNavigate(mode === "ARRIVAL" ? "ARRIVAL" : "DEPARTURE", dateText, timeText);
     setIsModalOpen(false);
   }
-
-  const isCustomMode = mode === "DEPARTURE" || mode === "ARRIVAL";
 
   return (
     <View style={styles.screen}>
@@ -267,6 +314,19 @@ export default function ChooseTimeScreen() {
               Escolha o horário da viagem até <Text style={[styles.bold, { color: theme.primary }]}>{destination}</Text>.
             </Text>
           </View>
+
+          {voiceMode && voiceStatus === "listening" && (
+            <View
+              style={styles.voiceHintCard}
+              accessible={true}
+              accessibilityLabel="Você pode responder por voz. Diga agora ou informe um horário."
+            >
+              <Ionicons name="mic" size={18} color={theme.primary} />
+              <Text style={styles.voiceHintText}>
+                {'Você pode dizer: "agora", "hoje às oito" ou "amanhã às nove".'}
+              </Text>
+            </View>
+          )}
 
           <View style={[styles.optionsContainer, { gap: isSmallHeight ? layout.cardGapSmall : layout.cardGap }]}>
             <Pressable
@@ -597,6 +657,24 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   optionsContainer: {
+  },
+  voiceHintCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E0ECFF",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  voiceHintText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "700",
+    color: "#475569",
   },
   optionCard: {
     flexDirection: "row",

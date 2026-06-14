@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -23,19 +23,64 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenContainer } from "../src/components/ScreenContainer";
-import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
+import {
+  useVoiceConversationLoop,
+} from "../src/hooks/useVoiceConversationLoop";
+import type { VoiceLoopStatus } from "../src/hooks/useVoiceConversationLoop";
 import { sessionService } from "../src/services/session.service";
 import { journeyService } from "../src/services/journey.service";
+import { locationService } from "../src/services/location.service";
 import { vibrationService } from "../src/services/vibration.service";
 import {
   stopListening,
 } from "../src/services/speech.service";
 import { useThemeColors } from "../src/theme/colors";
 import { cleanVoiceTranscript } from "../src/utils/helpers";
+import type { VoiceIntent } from "../src/utils/voiceIntentParser";
+import type { DestinationOption, ResolveDestinationResponse } from "../src/types/journey.types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type ScreenStatus = "idle" | "listening" | "processing" | "error" | "success";
+type VoiceScreenStatus = ScreenStatus | "speaking";
+
+function isValidCoordinate(value: string) {
+  return value.trim().length > 0 && Number.isFinite(Number(value));
+}
+
+function normalizeDestinationOptions(response: ResolveDestinationResponse): DestinationOption[] {
+  const resolvedOptions: DestinationOption[] = [];
+
+  if (response.resolvedDestination) {
+    resolvedOptions.push(response.resolvedDestination);
+  }
+
+  if (response.candidates && response.candidates.length > 0) {
+    resolvedOptions.push(...response.candidates);
+  }
+
+  if (resolvedOptions.length > 0) {
+    return resolvedOptions;
+  }
+
+  if (!response.options || response.options.length === 0) {
+    return [];
+  }
+
+  const firstOption = response.options[0] as unknown;
+  if (typeof firstOption === "object" && firstOption !== null) {
+    return response.options as DestinationOption[];
+  }
+
+  return response.options.map((option, index) => ({
+    id: String(index),
+    name: String(option),
+    address: response.displayData?.items?.[index]?.address || "",
+    lat: Number.NaN,
+    lng: Number.NaN,
+    source: "LEGACY_FALLBACK",
+  }));
+}
 
 const BlinkingCursor = () => {
   const theme = useThemeColors();
@@ -43,7 +88,7 @@ const BlinkingCursor = () => {
 
   useEffect(() => {
     opacity.value = withRepeat(withTiming(0, { duration: 500 }), -1, true);
-  }, []);
+  }, [opacity]);
 
   const style = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -68,8 +113,12 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
 
   // Coordenadas passadas por parâmetro ou obtidas do serviço de localização
-  const latitude = String(params.latitude || "");
-  const longitude = String(params.longitude || "");
+  const [originCoords, setOriginCoords] = useState({
+    latitude: String(params.latitude || ""),
+    longitude: String(params.longitude || ""),
+  });
+  const latitude = originCoords.latitude;
+  const longitude = originCoords.longitude;
 
   /**
    * Máquina de Estados da Assistente:
@@ -79,47 +128,67 @@ export default function HomeScreen() {
    * - 'error': Algum erro na escuta ou no processamento.
    * - 'success': Destino encontrado e pronto para navegar.
    */
-  const [status, setStatus] = useState<ScreenStatus>("idle");
+  const [status, setStatus] = useState<VoiceScreenStatus>("idle");
   const [transcript, setTranscript] = useState(""); // Texto que aparece enquanto o usuário fala
   const [userName, setUserName] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const lastHandledSearchTextRef = useRef<string | null>(null);
 
   // Valores de animação para o "pulsar" do microfone e a expansão do painel
   const micPulse = useSharedValue(1);
   const panelTransition = useSharedValue(0);
+
+  const getOriginCoords = useCallback(async () => {
+    if (isValidCoordinate(originCoords.latitude) && isValidCoordinate(originCoords.longitude)) {
+      return originCoords;
+    }
+
+    const currentLocation = await locationService.getCurrentLocation();
+    const nextOrigin = {
+      latitude: String(currentLocation.latitude),
+      longitude: String(currentLocation.longitude),
+    };
+    setOriginCoords(nextOrigin);
+    return nextOrigin;
+  }, [originCoords]);
 
   /**
    * Envia o texto para o Backend para geocodificação e busca de rotas.
    */
   const processTranscription = useCallback(async (text: string) => {
     setStatus("processing");
+    setErrorMessage("");
     try {
       // Limpa a sessão conversacional anterior ao iniciar novo diálogo de busca
       sessionService.clearSessionId();
 
+      const origin = await getOriginCoords();
+
       const response = await journeyService.resolveDestination({
         text,
         origin: {
-          lat: Number(latitude),
-          lng: Number(longitude),
+          lat: Number(origin.latitude),
+          lng: Number(origin.longitude),
         },
       });
 
-      if (response.options.length > 0) {
+      const resolvedOptions = normalizeDestinationOptions(response);
+
+      if (resolvedOptions.length > 0) {
         setStatus("success");
         // Se encontrou opções, navega para a tela de confirmação de destino
         if (response.mode === "resolved" || response.mode === "suggestions") {
-          const bestOption = response.options[0];
+          const bestOption = resolvedOptions[0];
           vibrationService.success();
           router.push({
             pathname: "/confirmar-destino",
             params: {
-              latitude,
-              longitude,
+              latitude: origin.latitude,
+              longitude: origin.longitude,
               destination: bestOption?.name || response.interpretedDestination,
               address: bestOption?.address || "",
               confirmationQuestion: response.voice?.confirmationQuestion || response.message,
-              options: JSON.stringify(response.options),
+              options: JSON.stringify(resolvedOptions),
               mode: response.mode,
               message: response.message,
               // --- Novos campos conversacionais ---
@@ -130,6 +199,7 @@ export default function HomeScreen() {
               conversationState: response.conversationState || "",
               actions: response.actions ? JSON.stringify(response.actions) : "",
               sessionId: response.metadata?.sessionId || "",
+              voiceMode: "true",
             },
           });
         } else {
@@ -148,93 +218,169 @@ export default function HomeScreen() {
       setErrorMessage("Erro ao buscar destino. Verifique sua conexão.");
       vibrationService.error();
     }
-  }, [latitude, longitude]);
+  }, [getOriginCoords]);
 
   /**
    * Loop de voz orquestrado.
    * Substitui a lógica manual anterior para garantir o fluxo Fala -> Escuta.
    */
+  const handleIntent = useCallback((intent: VoiceIntent) => {
+    if (intent.type === "DESTINATION_TEXT") {
+      const cleanedText = cleanVoiceTranscript(intent.text);
+      setTranscript(cleanedText || intent.text);
+      void processTranscription(cleanedText || intent.text);
+      return;
+    }
+
+    if (intent.type === "CANCEL") {
+      setStatus("idle");
+      setTranscript("");
+      setErrorMessage("");
+    }
+  }, [processTranscription]);
+
+  const handleLoopStatusChange = useCallback((loopStatus: VoiceLoopStatus) => {
+    if (loopStatus === "error") {
+      setErrorMessage("Não consegui te ouvir. Pode tentar novamente.");
+      setStatus("error");
+      return;
+    }
+
+    if (loopStatus === "speaking") {
+      setErrorMessage("");
+      setStatus("speaking");
+      return;
+    }
+
+    if (loopStatus === "listening") {
+      setErrorMessage("");
+      setStatus("listening");
+      return;
+    }
+
+    if (loopStatus === "processing") {
+      setErrorMessage("");
+      setStatus("processing");
+      return;
+    }
+
+    if (loopStatus === "idle" || loopStatus === "stopped") {
+      setStatus("idle");
+    }
+  }, []);
+
+  const handleLoopTranscript = useCallback((text: string) => {
+    setTranscript(text);
+  }, []);
+
   const { startLoop, stopAll } = useVoiceConversationLoop({
-    onIntent: (intent) => {
-      if (intent.type === "DESTINATION_TEXT") {
-        const cleanedText = cleanVoiceTranscript(intent.text);
-        setTranscript(cleanedText || intent.text);
-        processTranscription(cleanedText || intent.text);
-      } else if (intent.type === "CANCEL") {
-        setStatus("idle");
-        setTranscript("");
-      }
-    },
-    onStatusChange: (loopStatus) => {
-      // Sincroniza o status do hook com o status da tela para manter animações
-      switch (loopStatus) {
-        case "speaking":
-          setStatus("idle");
-          break;
-        case "listening":
-          setStatus("listening");
-          break;
-        case "processing":
-          setStatus("processing");
-          break;
-        case "error":
-          setStatus("error");
-          setErrorMessage("Não ouvi seu destino. Tente falar novamente.");
-          break;
-        case "idle":
-        case "stopped":
-          setStatus("idle");
-          break;
-      }
-    },
-    onTranscript: (text) => {
-      setTranscript(text);
-    },
+    onIntent: handleIntent,
+    onStatusChange: handleLoopStatusChange,
+    onTranscript: handleLoopTranscript,
   });
 
   useEffect(() => {
-    // Carrega o nome do usuário salvo na sessão e restaura a sessão conversacional
+    const nextLatitude = String(params.latitude || "");
+    const nextLongitude = String(params.longitude || "");
+
+    if (nextLatitude || nextLongitude) {
+      setOriginCoords({
+        latitude: nextLatitude,
+        longitude: nextLongitude,
+      });
+    }
+  }, [params.latitude, params.longitude]);
+
+  useEffect(() => {
+    if (isValidCoordinate(latitude) && isValidCoordinate(longitude)) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadOrigin() {
+      try {
+        const currentLocation = await locationService.getCurrentLocation();
+        if (!isMounted) {
+          return;
+        }
+
+        setOriginCoords({
+          latitude: String(currentLocation.latitude),
+          longitude: String(currentLocation.longitude),
+        });
+      } catch (error) {
+        console.log("[inicio] Erro ao obter localização de origem:", error);
+      }
+    }
+
+    void loadOrigin();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [latitude, longitude]);
+
+  useEffect(() => {
+    let isMounted = true;
+
     async function loadUser() {
       try {
         await sessionService.restoreSessionId();
       } catch (error) {
         console.log("[inicio] Erro ao recuperar sessionId:", error);
       }
+
       const user = await sessionService.getUser();
       const first = user?.name ? user.name.split(" ")[0] : "";
-      if (first) setUserName(first);
 
-      // Se houver um texto de busca vindo de outra tela, processa direto
-      if (params.searchText) {
-        const text = String(params.searchText);
-        setTranscript(text);
-        processTranscription(text);
-      } else if (first) {
-        // Inicia a saudação automática apenas na primeira vez que carrega o usuário
-        const welcome = `Olá, ${first}. Para onde você quer ir hoje? Me diga o endereço ou o lugar para onde você quer ir.`;
-        startLoop(welcome);
+      if (isMounted && first) {
+        setUserName(first);
       }
     }
-    loadUser();
+
+    void loadUser();
 
     return () => {
-      stopAll();
+      isMounted = false;
     };
-  }, [params.searchText, startLoop, stopAll, processTranscription]);
+  }, []);
 
-  /**
-   * useFocusEffect: Garante que toda vez que a tela ganhar foco (voltar para ela),
-   * o estado seja resetado.
-   */
+  useEffect(() => {
+    if (!params.searchText) {
+      return;
+    }
+
+    const text = String(params.searchText);
+    if (!text || lastHandledSearchTextRef.current === text) {
+      return;
+    }
+
+    lastHandledSearchTextRef.current = text;
+    setTranscript(text);
+    setErrorMessage("");
+    void processTranscription(text);
+  }, [params.searchText, processTranscription]);
+
   useFocusEffect(
     useCallback(() => {
-      // O hook useVoiceConversationLoop já lida com o cleanup via useFocusEffect interno
+      if (!params.searchText && userName) {
+        setTranscript("");
+        setErrorMessage("");
+        void startLoop(`Olá, ${userName}. Para onde você quer ir hoje?`);
+      }
+
       return () => {
+        void stopAll();
+        lastHandledSearchTextRef.current = null;
+        setStatus("idle");
         setTranscript("");
         setErrorMessage("");
       };
-    }, []),
+    }, [params.searchText, startLoop, stopAll, userName]),
   );
+
+  const isVoicePanelVisible = status === "listening" || status === "processing";
 
   /**
    * Este useEffect controla as animações baseadas no status da assistente.
@@ -255,7 +401,7 @@ export default function HomeScreen() {
         true,
       );
       panelTransition.value = withTiming(1, transitionConfig);
-    } else if (status === "processing" || status === "error") {
+    } else if (status === "processing") {
       micPulse.value = withTiming(1);
       panelTransition.value = withTiming(1, transitionConfig);
     } else {
@@ -279,7 +425,6 @@ export default function HomeScreen() {
     transform: [
       { scale: interpolate(panelTransition.value, [0, 0.15], [1, 0.9]) },
     ],
-    pointerEvents: panelTransition.value > 0.1 ? "none" : "auto",
   }));
 
   const expandedContentStyle = useAnimatedStyle(() => ({
@@ -287,7 +432,6 @@ export default function HomeScreen() {
     transform: [
       { translateY: interpolate(panelTransition.value, [0.85, 1], [10, 0]) },
     ],
-    pointerEvents: panelTransition.value < 0.9 ? "none" : "auto",
   }));
 
   const bentoAnimatedStyle = useAnimatedStyle(() => ({
@@ -304,42 +448,42 @@ export default function HomeScreen() {
    */
   async function handleMicPress() {
     vibrationService.light();
-    if (status === "idle" || status === "error") {
+    if (status === "idle" || status === "error" || status === "speaking") {
       setTranscript("");
       setErrorMessage("");
-      // Inicia o microfone sem repetir a saudação longa
-      startLoop("Em que posso ajudar?");
+      void startLoop();
     } else if (status === "listening") {
-      // Para a escuta e o hook processará o que foi ouvido até agora
       stopListening();
     }
   }
 
-  function handleTypeDestination() {
+  async function handleTypeDestination() {
     vibrationService.light();
-    stopAll();
+    void stopAll();
+    const origin = await getOriginCoords();
 
     // Pequeno delay para garantir que o TTS ou escuta parem antes da navegação
     setTimeout(() => {
       router.push({
         pathname: "/digitar-destino",
-        params: { latitude, longitude },
+        params: { latitude: origin.latitude, longitude: origin.longitude },
       });
     }, 100);
   }
 
-  function handleHelp() {
+  async function handleHelp() {
     vibrationService.light();
-    stopAll();
+    void stopAll();
+    const origin = await getOriginCoords();
     router.push({
       pathname: "/ajuda",
-      params: { latitude, longitude },
+      params: { latitude: origin.latitude, longitude: origin.longitude },
     });
   }
 
   function handleSettings() {
     vibrationService.light();
-    stopAll();
+    void stopAll();
     router.push("/configuracoes");
   }
 
@@ -414,9 +558,18 @@ export default function HomeScreen() {
           { paddingBottom: Math.max(insets.bottom, 24) },
         ]}
       >
+        {status === "error" && !!errorMessage && (
+          <View style={styles.inlineErrorBanner} pointerEvents="none">
+            <Text style={styles.inlineErrorText}>{errorMessage}</Text>
+          </View>
+        )}
+
         <Animated.View style={[styles.actionPill, containerAnimatedStyle]}>
           {/* IDLE STATE */}
-          <Animated.View style={[styles.idleRow, idleContentStyle]}>
+          <Animated.View
+            style={[styles.idleRow, idleContentStyle]}
+            pointerEvents={isVoicePanelVisible ? "none" : "auto"}
+          >
             <Pressable
               style={styles.actionButton}
               onPress={handleTypeDestination}
@@ -453,46 +606,30 @@ export default function HomeScreen() {
               expandedContentStyle,
               { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
             ]}
+            pointerEvents={isVoicePanelVisible ? "auto" : "none"}
           >
             <View style={styles.expandedTextContainer}>
-              {status === "error" ? (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorMessage}>
-                    {errorMessage || "Não ouvi bem..."}
+              <ScrollView contentContainerStyle={styles.transcriptScroll}>
+                <View
+                  style={styles.transcriptContainer}
+                  accessible={true}
+                  accessibilityLabel={
+                    transcript ||
+                    (status === "listening"
+                      ? "Estou ouvindo..."
+                      : "Entendendo...")
+                  }
+                  accessibilityLiveRegion="polite"
+                >
+                  <Text style={styles.transcriptText}>
+                    {transcript ||
+                      (status === "listening"
+                        ? "Estou ouvindo..."
+                        : "Entendendo...")}
                   </Text>
-                  <Pressable
-                    style={[
-                      styles.retryButton,
-                      { backgroundColor: theme.primary },
-                    ]}
-                    onPress={() => {
-                      vibrationService.light();
-                      setStatus("idle");
-                    }}
-                    accessibilityLabel="Tentar falar novamente"
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.retryButtonText}>Tentar de novo</Text>
-                  </Pressable>
+                  {status === "listening" && <BlinkingCursor />}
                 </View>
-              ) : (
-                <ScrollView contentContainerStyle={styles.transcriptScroll}>
-                  <View
-                    style={styles.transcriptContainer}
-                    accessible={true}
-                    accessibilityLabel={transcript || "Ouvindo seu destino..."}
-                    accessibilityLiveRegion="polite"
-                  >
-                    <Text style={styles.transcriptText}>
-                      {transcript ||
-                        (status === "listening"
-                          ? "Estou ouvindo..."
-                          : "Entendendo...")}
-                    </Text>
-                    {status === "listening" && <BlinkingCursor />}
-                  </View>
-                </ScrollView>
-              )}
+              </ScrollView>
             </View>
 
             <View style={styles.expandedBottomRow}>
@@ -652,6 +789,22 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
+  },
+  inlineErrorBanner: {
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "#FFF1F2",
+    borderWidth: 1,
+    borderColor: "#FECDD3",
+    maxWidth: SCREEN_WIDTH - 40,
+  },
+  inlineErrorText: {
+    color: "#9F1239",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
   },
   actionPill: {
     width: SCREEN_WIDTH - 24,

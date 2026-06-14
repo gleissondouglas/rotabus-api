@@ -1,9 +1,9 @@
-import { renderHook, act } from "@testing-library/react-native";
+import { act, renderHook } from "@testing-library/react-native";
+
 import { useVoiceConversationLoop } from "./useVoiceConversationLoop";
 import * as SpeechService from "../services/speech.service";
 import { vibrationService } from "../services/vibration.service";
 
-// Mock das dependências
 jest.mock("../services/speech.service", () => ({
   speakAndWait: jest.fn(),
   stopSpeaking: jest.fn(),
@@ -21,11 +21,24 @@ jest.mock("../services/vibration.service", () => ({
   },
 }));
 
-// Mock do expo-router para o useFocusEffect
-// O useFocusEffect do expo-router recebe um callback que é executado quando foca.
-jest.mock("expo-router", () => ({
-  useFocusEffect: jest.fn((cb) => cb()),
-}));
+jest.mock("expo-router", () => {
+  const ReactModule = jest.requireActual("react");
+
+  return {
+    useFocusEffect: (callback: () => void | (() => void)) => {
+      ReactModule.useEffect(() => callback(), [callback]);
+    },
+  };
+});
+
+function createDeferredPromise() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolver) => {
+    resolve = resolver;
+  });
+
+  return { promise, resolve };
+}
 
 describe("useVoiceConversationLoop", () => {
   beforeEach(() => {
@@ -34,26 +47,35 @@ describe("useVoiceConversationLoop", () => {
     (SpeechService.startListening as jest.Mock).mockResolvedValue(undefined);
   });
 
-  it("deve iniciar o loop com fala e depois escuta", async () => {
+  it("não inicia o microfone antes de speakAndWait terminar", async () => {
     const onIntent = jest.fn();
-    const speechText = "Olá, para onde vamos?";
+    const deferred = createDeferredPromise();
+    (SpeechService.speakAndWait as jest.Mock).mockReturnValue(deferred.promise);
 
     const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
 
+    let startPromise: Promise<void>;
     await act(async () => {
-      await result.current.startLoop(speechText);
+      startPromise = result.current.startLoop("Olá, Douglas. Para onde você quer ir hoje?");
+      await Promise.resolve();
     });
 
-    expect(SpeechService.speakAndWait).toHaveBeenCalledWith(speechText);
-    expect(SpeechService.startListening).toHaveBeenCalled();
+    expect(result.current.status).toBe("speaking");
+    expect(SpeechService.startListening).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferred.resolve();
+      await startPromise!;
+    });
+
+    expect(SpeechService.startListening).toHaveBeenCalledTimes(1);
     expect(result.current.status).toBe("listening");
   });
 
-  it("deve processar intenção 'CONFIRM' corretamente", async () => {
+  it("processa a intenção final capturada pelo microfone", async () => {
     const onIntent = jest.fn();
     const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
 
-    // Mock startListening para chamar onResult imediatamente com uma frase de confirmação
     (SpeechService.startListening as jest.Mock).mockImplementation(({ onResult }) => {
       onResult("sim", true);
     });
@@ -62,82 +84,68 @@ describe("useVoiceConversationLoop", () => {
       await result.current.startLoop();
     });
 
-    expect(onIntent).toHaveBeenCalledWith(expect.objectContaining({ type: "CONFIRM" }));
+    expect(onIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "CONFIRM" }),
+    );
     expect(result.current.status).toBe("processing");
+    expect(vibrationService.selection).toHaveBeenCalled();
   });
 
-  it("deve processar intenção 'SELECT_OPTION' corretamente", async () => {
+  it("limita o retry de silêncio a uma tentativa e termina em erro", async () => {
     const onIntent = jest.fn();
     const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
 
-    (SpeechService.startListening as jest.Mock).mockImplementation(({ onResult }) => {
-      onResult("primeira", true);
-    });
+    (SpeechService.startListening as jest.Mock)
+      .mockImplementationOnce(({ onError }) => {
+        onError({ error: "no-speech", isSilentError: true });
+      })
+      .mockImplementationOnce(({ onError }) => {
+        onError({ error: "no-speech", isSilentError: true });
+      });
 
     await act(async () => {
       await result.current.startLoop();
     });
 
-    expect(onIntent).toHaveBeenCalledWith(expect.objectContaining({ 
-      type: "SELECT_OPTION",
-      optionIndex: 0 
-    }));
-  });
-
-  it("deve repetir a fala quando receber intenção 'REPEAT'", async () => {
-    const onIntent = jest.fn();
-    const speechText = "Pergunta original";
-    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
-
-    // Simula a primeira vez: fala e ouve "repetir"
-    (SpeechService.startListening as jest.Mock).mockImplementationOnce(({ onResult }) => {
-      onResult("repetir", true);
-    });
-
-    await act(async () => {
-      await result.current.startLoop(speechText);
-    });
-
-    // Deve ter chamado speakAndWait duas vezes (uma original, uma pela repetição)
-    expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(2);
-    expect(SpeechService.speakAndWait).toHaveBeenLastCalledWith(speechText);
-    expect(onIntent).not.toHaveBeenCalled(); // REPEAT é tratado internamente pelo hook
-  });
-
-  it("deve tratar silêncio com retry automático uma vez", async () => {
-    const onIntent = jest.fn();
-    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
-
-    // Simula erro de silêncio na primeira tentativa
-    (SpeechService.startListening as jest.Mock).mockImplementationOnce(({ onError }) => {
-      onError({ error: "no-speech", isSilentError: true });
-    });
-
-    await act(async () => {
-      await result.current.startLoop();
-    });
-
-    // Deve ter falado a mensagem de incentivo
-    expect(SpeechService.speakAndWait).toHaveBeenCalledWith("Não consegui te ouvir. Pode repetir?");
-    // Deve ter tentado ouvir de novo (1 erro + 1 sucesso no retry)
+    expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(1);
+    expect(SpeechService.speakAndWait).toHaveBeenCalledWith(
+      "Não consegui te ouvir. Pode repetir?",
+    );
     expect(SpeechService.startListening).toHaveBeenCalledTimes(2);
+    expect(result.current.status).toBe("error");
+    expect(vibrationService.error).toHaveBeenCalledTimes(1);
   });
 
-  it("deve mapear status corretamente no fluxo", async () => {
+  it("repete a última fala quando recebe o comando repetir", async () => {
     const onIntent = jest.fn();
-    const onStatusChange = jest.fn();
-    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent, onStatusChange }));
+    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
 
-    (SpeechService.startListening as jest.Mock).mockImplementation(({ onResult }) => {
-      onResult("centro", true);
-    });
+    (SpeechService.startListening as jest.Mock)
+      .mockImplementationOnce(({ onResult }) => {
+        onResult("repetir", true);
+      })
+      .mockResolvedValue(undefined);
 
     await act(async () => {
-      await result.current.startLoop("Oi");
+      await result.current.startLoop("Pergunta original");
     });
 
-    expect(onStatusChange).toHaveBeenCalledWith("speaking");
-    expect(onStatusChange).toHaveBeenCalledWith("listening");
-    expect(onStatusChange).toHaveBeenCalledWith("processing");
+    expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(2);
+    expect(SpeechService.speakAndWait).toHaveBeenNthCalledWith(1, "Pergunta original");
+    expect(SpeechService.speakAndWait).toHaveBeenNthCalledWith(2, "Pergunta original");
+    expect(onIntent).not.toHaveBeenCalled();
+  });
+
+  it("faz cleanup de fala e escuta ao desmontar", async () => {
+    const onIntent = jest.fn();
+    const { unmount } = renderHook(() => useVoiceConversationLoop({ onIntent }));
+
+    unmount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(SpeechService.stopSpeaking).toHaveBeenCalled();
+    expect(SpeechService.stopListening).toHaveBeenCalled();
   });
 });

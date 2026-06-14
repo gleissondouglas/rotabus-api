@@ -27,6 +27,9 @@ export default function ProcessingScreen() {
   const destination = String(params.destination || "");
   const destinationLat = String(params.destinationLat || "");
   const destinationLng = String(params.destinationLng || "");
+  const selectedDestination = String(params.selectedDestination || "");
+  const sessionId = String(params.sessionId || "");
+  const voiceMode = String(params.voiceMode || "") === "true";
 
   const timeType: "DEPARTURE" | "ARRIVAL" = params.timeType === "ARRIVAL" ? "ARRIVAL" : "DEPARTURE";
   const dateTime = String(
@@ -129,6 +132,9 @@ export default function ProcessingScreen() {
             latitude: String(origin.latitude),
             longitude: String(origin.longitude),
             destination,
+            destinationLat,
+            destinationLng,
+            selectedDestination,
             message: journey.message,
             summary: JSON.stringify(journey.summary),
             alerts: JSON.stringify(journey.alerts),
@@ -141,7 +147,8 @@ export default function ProcessingScreen() {
             expectedInput: journey.expectedInput || "",
             conversationState: journey.conversationState || "",
             actions: journey.actions ? JSON.stringify(journey.actions) : "",
-            sessionId: journey.metadata?.sessionId || "",
+            sessionId: journey.metadata?.sessionId || sessionId,
+            voiceMode: voiceMode ? "true" : "false",
           },
         });
       } catch (error) {
