@@ -17,6 +17,26 @@ describe("voiceIntentParser", () => {
       expect(parseVoiceIntent("pode ser")).toEqual({ type: "CONFIRM", transcript: "pode ser" });
       expect(parseVoiceIntent("é esse")).toEqual({ type: "CONFIRM", transcript: "e esse" });
       expect(parseVoiceIntent("esse mesmo")).toEqual({ type: "CONFIRM", transcript: "esse mesmo" });
+      expect(parseVoiceIntent("vamos")).toEqual({ type: "CONFIRM", transcript: "vamos" });
+      expect(parseVoiceIntent("bora")).toEqual({ type: "CONFIRM", transcript: "bora" });
+    });
+
+    it("mapeia comando de iniciar navegação", () => {
+      expect(parseVoiceIntent("iniciar")).toEqual({ type: "START_NAVIGATION", transcript: "iniciar" });
+      expect(parseVoiceIntent("iniciar navegação")).toEqual({ type: "START_NAVIGATION", transcript: "iniciar navegacao" });
+      expect(parseVoiceIntent("começar")).toEqual({ type: "START_NAVIGATION", transcript: "comecar" });
+    });
+
+    it("mapeia comando de mostrar detalhes", () => {
+      expect(parseVoiceIntent("ver detalhes")).toEqual({ type: "SHOW_DETAILS", transcript: "ver detalhes" });
+      expect(parseVoiceIntent("mostrar detalhes")).toEqual({ type: "SHOW_DETAILS", transcript: "mostrar detalhes" });
+      expect(parseVoiceIntent("detalhes da rota")).toEqual({ type: "SHOW_DETAILS", transcript: "detalhes da rota" });
+    });
+
+    it("mapeia comando de ocultar detalhes", () => {
+      expect(parseVoiceIntent("ocultar detalhes")).toEqual({ type: "HIDE_DETAILS", transcript: "ocultar detalhes" });
+      expect(parseVoiceIntent("fechar detalhes")).toEqual({ type: "HIDE_DETAILS", transcript: "fechar detalhes" });
+      expect(parseVoiceIntent("esconder detalhes")).toEqual({ type: "HIDE_DETAILS", transcript: "esconder detalhes" });
     });
 
     it("mapeia rejeições para cancelar e perguntar destino novamente", () => {

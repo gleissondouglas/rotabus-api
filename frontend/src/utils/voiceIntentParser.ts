@@ -4,6 +4,9 @@ export type VoiceIntent =
   | { type: "REPEAT"; transcript: string }
   | { type: "CANCEL"; transcript: string }
   | { type: "SELECT_OPTION"; optionIndex: number; transcript: string }
+  | { type: "START_NAVIGATION"; transcript: string }
+  | { type: "SHOW_DETAILS"; transcript: string }
+  | { type: "HIDE_DETAILS"; transcript: string }
   | { type: "DESTINATION_TEXT"; text: string; transcript: string }
   | { type: "EMPTY"; transcript: string };
 
@@ -14,6 +17,28 @@ const CONFIRM_PATTERNS = [
   "pode ser",
   "e esse",
   "esse mesmo",
+  "vamos",
+  "bora",
+];
+
+const START_NAVIGATION_PATTERNS = [
+  "iniciar",
+  "iniciar navegacao",
+  "comecar",
+  "ir",
+];
+
+const SHOW_DETAILS_PATTERNS = [
+  "ver detalhes",
+  "mostrar detalhes",
+  "detalhes da rota",
+  "abrir detalhes",
+];
+
+const HIDE_DETAILS_PATTERNS = [
+  "ocultar detalhes",
+  "fechar detalhes",
+  "esconder detalhes",
 ];
 
 const CANCEL_THEN_ASK_PATTERNS = [
@@ -78,6 +103,18 @@ export function parseVoiceIntent(transcript: string): VoiceIntent {
 
   if (matchesPattern(normalized, CANCEL_PATTERNS)) {
     return { type: "CANCEL", transcript: normalized };
+  }
+
+  if (matchesPattern(normalized, START_NAVIGATION_PATTERNS)) {
+    return { type: "START_NAVIGATION", transcript: normalized };
+  }
+
+  if (matchesPattern(normalized, SHOW_DETAILS_PATTERNS)) {
+    return { type: "SHOW_DETAILS", transcript: normalized };
+  }
+
+  if (matchesPattern(normalized, HIDE_DETAILS_PATTERNS)) {
+    return { type: "HIDE_DETAILS", transcript: normalized };
   }
 
   for (const [optionIndex, patterns] of Object.entries(OPTION_PATTERNS)) {
