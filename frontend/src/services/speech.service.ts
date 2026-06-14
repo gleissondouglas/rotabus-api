@@ -19,6 +19,7 @@ try {
 
 let sound: Audio.Sound | null = null;
 let currentAbortController: AbortController | null = null;
+let pendingSpeechCompletion: (() => void) | null = null;
 
 // Armazenamento de inscrições de eventos para limpeza
 let resultSubscription: any = null;
@@ -37,15 +38,40 @@ let volumeSubscription: any = null;
  * Tenta usar a API do Google Cloud para uma voz mais natural, 
  * caindo para a voz local do celular em caso de falha ou falta de internet.
  */
-export async function speak(text: string) {
-  // Aborta qualquer requisição de fala anterior que ainda não terminou
-  if (currentAbortController) {
-    currentAbortController.abort();
+type SpeakMode = {
+  waitForCompletion: boolean;
+};
+
+function settlePendingSpeechCompletion() {
+  if (!pendingSpeechCompletion) {
+    return;
   }
+
+  const resolve = pendingSpeechCompletion;
+  pendingSpeechCompletion = null;
+  resolve();
+}
+
+/**
+ * Fala o texto e retorna assim que a reprodução for iniciada, preservando o comportamento atual.
+ */
+export async function speak(text: string) {
+  await speakInternal(text, { waitForCompletion: false });
+}
+
+/**
+ * Fala o texto e resolve apenas quando o TTS terminar ou for interrompido por stopSpeaking().
+ * Esta função não inicia o microfone; ela apenas cria a base segura para o loop voice-first.
+ */
+export async function speakAndWait(text: string) {
+  await speakInternal(text, { waitForCompletion: true });
+}
+
+async function speakInternal(text: string, mode: SpeakMode) {
+  await stopSpeaking();
+
   currentAbortController = new AbortController();
   const signal = currentAbortController.signal;
-
-  await stopSpeaking();
 
   // Verifica se o usuário ativou a opção de "Voz Lenta" nas configurações de acessibilidade
   let isSlowVoice = false;
@@ -109,8 +135,15 @@ export async function speak(text: string) {
           if (status.isLoaded && status.didJustFinish) {
             sound?.unloadAsync();
             if (sound === newSound) sound = null;
+            settlePendingSpeechCompletion();
           }
         });
+
+        if (mode.waitForCompletion) {
+          await new Promise<void>((resolve) => {
+            pendingSpeechCompletion = resolve;
+          });
+        }
         
         return;
       }
@@ -125,6 +158,22 @@ export async function speak(text: string) {
 
   // FALLBACK: VOZ LOCAL (Nativa do iOS/Android)
   // Usada se a chave do Google não existir ou se a internet falhar.
+  if (mode.waitForCompletion) {
+    await new Promise<void>((resolve) => {
+      pendingSpeechCompletion = resolve;
+
+      Speech.speak(text, {
+        ...VOICE_CONFIG.localVoice,
+        rate: isSlowVoice ? 0.9 : VOICE_CONFIG.localVoice.rate,
+        onStart: () => console.log("Iniciando voz local..."),
+        onDone: settlePendingSpeechCompletion,
+        onStopped: settlePendingSpeechCompletion,
+        onError: settlePendingSpeechCompletion,
+      });
+    });
+    return;
+  }
+
   Speech.speak(text, {
     ...VOICE_CONFIG.localVoice,
     rate: isSlowVoice ? 0.9 : VOICE_CONFIG.localVoice.rate,
@@ -136,6 +185,12 @@ export async function speak(text: string) {
  * Interrompe qualquer som ou fala que esteja tocando no momento.
  */
 export async function stopSpeaking() {
+  if (currentAbortController) {
+    currentAbortController.abort();
+    currentAbortController = null;
+  }
+
+  settlePendingSpeechCompletion();
   Speech.stop(); // Para a voz nativa
 
   if (sound) {
@@ -339,4 +394,3 @@ function cleanupListeners() {
 export function isSpeechRecognitionAvailable() {
   return !!SpeechRecognitionModule;
 }
-
