@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Alert,
   Pressable,
@@ -18,7 +18,7 @@ import { BackButton } from "../src/components/BackButton";
 import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { TextField } from "../src/components/TextField";
-import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
+import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
 import { layout } from "../src/theme/layout";
 import { vibrationService } from "../src/services/vibration.service";
@@ -29,6 +29,7 @@ import {
   getTodayDateText,
   getNext7Days,
 } from "../src/utils/date-time";
+import { parseVoiceTimeIntent } from "../src/utils/voiceTimeParser";
 
 type TimeMode = "NOW" | "DEPARTURE" | "ARRIVAL";
 
@@ -105,10 +106,43 @@ export default function ChooseTimeScreen() {
     }
   }
 
-  const screenMessage =
-    "Você quer ir agora ou escolher um horário? Se preferir outro horário, escolha uma data dentro dos próximos 7 dias e defina se quer sair ou chegar nesse horário.";
+  const screenMessage = "Você quer sair agora ou escolher outro horário?";
 
-  useAutoSpeak(screenMessage);
+  const { startLoop, stopAll } = useVoiceConversationLoop({
+    onIntent: async (intent) => {
+      const timeIntent = parseVoiceTimeIntent(intent.transcript);
+      
+      switch (timeIntent.type) {
+        case "NOW":
+          handleGoNow();
+          break;
+        case "DEPARTURE_TIME":
+          validateAndNavigate("DEPARTURE", timeIntent.date, timeIntent.time);
+          break;
+        case "ARRIVAL_TIME":
+          validateAndNavigate("ARRIVAL", timeIntent.date, timeIntent.time);
+          break;
+        case "REPEAT":
+          startLoop(screenMessage);
+          break;
+        case "CANCEL":
+          vibrationService.light();
+          router.replace("/inicio");
+          break;
+        case "UNKNOWN":
+          vibrationService.error();
+          startLoop("Não entendi o horário. Você pode dizer, por exemplo: sair agora, hoje às oito ou amanhã às nove.");
+          break;
+      }
+    },
+  });
+
+  useEffect(() => {
+    startLoop(screenMessage);
+    return () => {
+      stopAll();
+    };
+  }, []);
 
   function handleGoNow() {
     vibrationService.selection();
@@ -135,15 +169,14 @@ export default function ChooseTimeScreen() {
     setIsModalOpen(true);
   }
 
-  function handleConfirmCustomTime() {
+  function validateAndNavigate(type: "DEPARTURE" | "ARRIVAL", date: string, time: string) {
     try {
       vibrationService.selection();
-      const dateTime = buildLocalDateTimeFromInputs(dateText, timeText);
+      const dateTime = buildLocalDateTimeFromInputs(date, time);
       
       const now = new Date();
       const selectedDate = new Date(dateTime);
       
-      // Limites: de hoje 00:00 até daqui a 7 dias 23:59:59
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const endOf7Days = new Date(startOfToday.getTime() + 7 * 24 * 60 * 60 * 1000 + 23 * 59 * 60 * 1000 + 59 * 1000);
 
@@ -156,8 +189,6 @@ export default function ChooseTimeScreen() {
         return;
       }
 
-      setIsModalOpen(false);
-
       router.push({
         pathname: "/processando",
         params: {
@@ -166,7 +197,7 @@ export default function ChooseTimeScreen() {
           destination,
           destinationLat,
           destinationLng,
-          timeType: mode === "ARRIVAL" ? "ARRIVAL" : "DEPARTURE",
+          timeType: type,
           dateTime,
         },
       });
@@ -179,6 +210,11 @@ export default function ChooseTimeScreen() {
           : "Informe uma data e um horário válidos.",
       );
     }
+  }
+
+  function handleConfirmCustomTime() {
+    validateAndNavigate(mode === "ARRIVAL" ? "ARRIVAL" : "DEPARTURE", dateText, timeText);
+    setIsModalOpen(false);
   }
 
   const isCustomMode = mode === "DEPARTURE" || mode === "ARRIVAL";
