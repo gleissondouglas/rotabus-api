@@ -1,12 +1,12 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, Alert, ActivityIndicator } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "../src/components/BackButton";
-import { useAutoSpeakOnce } from "../src/hooks/useAutoSpeakOnce";
+import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
 import { speak } from "../src/services/speech.service";
 import { journeyService } from "../src/services/journey.service";
@@ -36,7 +36,6 @@ export default function ConfirmDestinationScreen() {
   const [sessionId, setSessionId] = useState(String(params.sessionId || ""));
   const [speechText, setSpeechText] = useState(String(params.speechText || ""));
   const [displayData, setDisplayData] = useState<any>(params.displayData ? JSON.parse(String(params.displayData)) : null);
-  const [actions, setActions] = useState<string[]>(params.actions ? JSON.parse(String(params.actions)) : []);
   const [conversationState, setConversationState] = useState(String(params.conversationState || ""));
 
   const rawOptions = parseJsonParam<any[]>(params.options, []);
@@ -79,7 +78,48 @@ export default function ConfirmDestinationScreen() {
     ? "Encontrei algumas opções. Qual delas é o seu destino correto?"
     : confirmationQuestion || `Destino encontrado: ${displayDestination}, ${address}. É para este lugar que você quer ir?`);
 
-  useAutoSpeakOnce(`confirmar-destino-${displayDestination}-${address}`, voiceText);
+  /**
+   * Loop de voz orquestrado para confirmação ou seleção de opções.
+   */
+  const { startLoop, stopAll } = useVoiceConversationLoop({
+    onIntent: async (intent) => {
+      switch (intent.type) {
+        case "CONFIRM":
+          handleConfirmDestination();
+          break;
+        case "CANCEL_THEN_ASK_DESTINATION":
+          handleChangeDestination();
+          break;
+        case "REPEAT":
+          handleHearDestination();
+          break;
+        case "SELECT_OPTION":
+          if (options[intent.optionIndex]) {
+            handleConfirmDestination(options[intent.optionIndex]);
+          } else {
+            startLoop("Não encontrei essa opção. Qual você deseja?");
+          }
+          break;
+        case "CANCEL":
+          router.replace("/inicio");
+          break;
+        case "DESTINATION_TEXT":
+          // Se o usuário falar algo que não é um comando, mas estamos esperando seleção
+          if (showSuggestions) {
+            startLoop("Desculpe, não entendi. Escolha a primeira, segunda ou terceira opção.");
+          }
+          break;
+      }
+    },
+  });
+
+  useEffect(() => {
+    // Inicia o loop assim que a tela carrega ou o texto de voz muda
+    startLoop(voiceText);
+    return () => {
+      stopAll();
+    };
+  }, [voiceText, startLoop, stopAll]);
 
   const [isLoadingCommand, setIsLoadingCommand] = useState(false);
 
@@ -136,7 +176,6 @@ export default function ConfirmDestinationScreen() {
             if (result.speechText) setSpeechText(result.speechText);
             if (result.displayData) setDisplayData(result.displayData);
             if (result.conversationState) setConversationState(result.conversationState);
-            if (result.actions) setActions(result.actions);
             if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
           } else {
             const result = await journeyService.executeCommand({
@@ -146,7 +185,6 @@ export default function ConfirmDestinationScreen() {
             if (result.speechText) setSpeechText(result.speechText);
             if (result.displayData) setDisplayData(result.displayData);
             if (result.conversationState) setConversationState(result.conversationState);
-            if (result.actions) setActions(result.actions);
             if (result.metadata?.sessionId) setSessionId(result.metadata.sessionId);
           }
         }

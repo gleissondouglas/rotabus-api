@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -23,16 +23,12 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenContainer } from "../src/components/ScreenContainer";
-import { useAutoSpeakOnce } from "../src/hooks/useAutoSpeakOnce";
+import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
 import { sessionService } from "../src/services/session.service";
 import { journeyService } from "../src/services/journey.service";
 import { vibrationService } from "../src/services/vibration.service";
 import {
-  stopSpeaking,
-  startListening,
   stopListening,
-  isSpeechRecognitionAvailable,
-  speak,
 } from "../src/services/speech.service";
 import { useThemeColors } from "../src/theme/colors";
 import { cleanVoiceTranscript } from "../src/utils/helpers";
@@ -92,13 +88,47 @@ export default function HomeScreen() {
   const micPulse = useSharedValue(1);
   const panelTransition = useSharedValue(0);
 
-  // Refs são usadas para manter valores que não devem disparar renderização imediata, 
-  // mas precisam persistir entre ciclos de render.
-  const isListeningRef = useRef(false);
-  const retryCountRef = useRef(0);
-  const currentTranscriptRef = useRef("");
-  const accumulatedPartsRef = useRef<string[]>([]);
-  const restartTimeoutRef = useRef<any>(null);
+  /**
+   * Loop de voz orquestrado.
+   * Substitui a lógica manual anterior para garantir o fluxo Fala -> Escuta.
+   */
+  const { startLoop, stopAll } = useVoiceConversationLoop({
+    onIntent: (intent) => {
+      if (intent.type === "DESTINATION_TEXT") {
+        const cleanedText = cleanVoiceTranscript(intent.text);
+        setTranscript(cleanedText || intent.text);
+        processTranscription(cleanedText || intent.text);
+      } else if (intent.type === "CANCEL") {
+        setStatus("idle");
+        setTranscript("");
+      }
+    },
+    onStatusChange: (loopStatus) => {
+      // Sincroniza o status do hook com o status da tela para manter animações
+      switch (loopStatus) {
+        case "speaking":
+          setStatus("idle");
+          break;
+        case "listening":
+          setStatus("listening");
+          break;
+        case "processing":
+          setStatus("processing");
+          break;
+        case "error":
+          setStatus("error");
+          setErrorMessage("Não ouvi seu destino. Tente falar novamente.");
+          break;
+        case "idle":
+        case "stopped":
+          setStatus("idle");
+          break;
+      }
+    },
+    onTranscript: (text) => {
+      setTranscript(text);
+    },
+  });
 
   useEffect(() => {
     // Carrega o nome do usuário salvo na sessão e restaura a sessão conversacional
@@ -110,42 +140,37 @@ export default function HomeScreen() {
       }
       const user = await sessionService.getUser();
       if (user?.name) {
-        setUserName(user.name.split(" ")[0]); // Pega apenas o primeiro nome
+        const first = user.name.split(" ")[0];
+        setUserName(first);
+
+        // Inicia a saudação automática apenas na primeira vez que carrega o usuário
+        const welcome = `Olá, ${first}. Para onde você quer ir hoje? Me diga o endereço ou o lugar para onde você quer ir.`;
+        startLoop(welcome);
       }
     }
     loadUser();
 
     return () => {
-      // Limpeza ao sair da tela
-      if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
-      stopListening();
+      stopAll();
     };
   }, []);
 
   /**
    * useFocusEffect: Garante que toda vez que a tela ganhar foco (voltar para ela),
-   * o estado seja resetado para 'idle'.
+   * o estado seja resetado.
    */
   useFocusEffect(
     useCallback(() => {
-      setStatus("idle");
-      isListeningRef.current = false;
-      setTranscript("");
-      setErrorMessage("");
-      stopListening();
-
+      // O hook useVoiceConversationLoop já lida com o cleanup via useFocusEffect interno
       return () => {
-        isListeningRef.current = false;
-        if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
-        stopListening();
+        setTranscript("");
+        setErrorMessage("");
       };
     }, []),
   );
 
   /**
    * Este useEffect controla as animações baseadas no status da assistente.
-   * Quando 'listening', o microfone pulsa infinitamente.
-   * Quando sai de 'idle', o painel inferior expande suavemente.
    */
   useEffect(() => {
     const transitionConfig = {
@@ -208,144 +233,18 @@ export default function HomeScreen() {
   }));
 
   /**
-   * Inicia uma sessão de reconhecimento de fala.
-   * Utiliza callbacks para tratar o início, os resultados parciais e erros.
-   */
-  async function initiateListeningSession() {
-    if (!isListeningRef.current) return;
-
-    await startListening({
-      onStart: () => {
-        setStatus("listening");
-        vibrationService.medium(); // Feedback tátil ao começar a ouvir
-      },
-      onResult: (text, isFinal) => {
-        currentTranscriptRef.current = text;
-        // Combina partes já confirmadas com a parte que o usuário está falando agora
-        const fullVisibleText = [...accumulatedPartsRef.current, text]
-          .join(" ")
-          .trim();
-        setTranscript(fullVisibleText);
-
-        if (isFinal) {
-          // Quando o SO confirma que uma frase terminou, salvamos no acumulador
-          accumulatedPartsRef.current.push(text);
-          currentTranscriptRef.current = "";
-          vibrationService.selection();
-          retryCountRef.current = 0;
-        }
-      },
-      onError: async (err: any) => {
-        const isSilent = err.isSilentError || err.error === "no-speech";
-        
-        if (isSilent) {
-          console.log("[SpeechService] Silêncio detectado (no-speech).");
-          
-          // Se o usuário não falou nada, tentamos incentivar a fala uma vez antes de desistir
-          if (retryCountRef.current < 1) {
-            retryCountRef.current++;
-            vibrationService.light();
-            
-            // Avisa o usuário por voz e tenta de novo automaticamente
-            await speak("Não consegui te ouvir. Para onde você quer ir?");
-            
-            // Pequeno delay para começar a ouvir após a fala terminar
-            restartTimeoutRef.current = setTimeout(() => {
-              if (isListeningRef.current) initiateListeningSession();
-            }, 500);
-            return;
-          }
-        } else {
-          console.warn("[SpeechService] Erro na escuta:", err);
-        }
-        
-        isListeningRef.current = false;
-        setStatus("error");
-        setErrorMessage(
-          err.message || "Não ouvi seu destino. Tente falar novamente."
-        );
-        vibrationService.error();
-      },
-      onEnd: () => {
-        console.log("[HomeScreen] Fim da sessão de escuta.");
-        isListeningRef.current = false;
-        // Se a sessão acabou mas não foi por erro ou processamento manual, volta ao idle
-        setStatus((current) => current === "listening" ? "idle" : current);
-      },
-    });
-  }
-
-  /**
-   * Prepara o estado do app para começar a gravar.
-   */
-  async function startRecording() {
-    if (status === "processing") return;
-
-    await stopSpeaking(); // Para qualquer fala anterior da assistente
-
-    isListeningRef.current = true;
-    accumulatedPartsRef.current = [];
-    currentTranscriptRef.current = "";
-    setTranscript("");
-    setErrorMessage("");
-    setStatus("listening");
-
-    // Verifica se o dispositivo tem suporte a reconhecimento de voz
-    if (!isSpeechRecognitionAvailable()) {
-      setErrorMessage("Recurso de voz indisponível no dispositivo.");
-      setStatus("error");
-      isListeningRef.current = false;
-      vibrationService.error();
-      return;
-    }
-
-    initiateListeningSession();
-  }
-
-  /**
-   * Para a gravação e inicia o processamento do texto final.
-   */
-  async function stopAndProcess() {
-    isListeningRef.current = false;
-    retryCountRef.current = 0;
-    if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
-
-    stopListening();
-    vibrationService.medium();
-
-    // Consolida todas as partes faladas em uma única string
-    const finalParts = [...accumulatedPartsRef.current];
-    if (currentTranscriptRef.current.trim()) {
-      finalParts.push(currentTranscriptRef.current.trim());
-    }
-    const finalText = Array.from(new Set(finalParts))
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    // Limpa comandos comuns (ex: "Quero ir para...") para focar no nome do lugar
-    const cleanedText = cleanVoiceTranscript(finalText);
-    setTranscript(cleanedText || finalText);
-
-    if (cleanedText || finalText) {
-      processTranscription(cleanedText || finalText);
-    } else {
-      setStatus("error");
-      setErrorMessage("Não ouvi seu destino. Tente falar novamente.");
-      vibrationService.error();
-    }
-  }
-
-  /**
    * Gerencia o clique no botão de microfone (Toggle entre Iniciar e Parar).
    */
   async function handleMicPress() {
     vibrationService.light();
     if (status === "idle" || status === "error") {
-      retryCountRef.current = 0;
-      startRecording();
+      setTranscript("");
+      setErrorMessage("");
+      // Inicia o microfone sem repetir a saudação longa
+      startLoop("Em que posso ajudar?");
     } else if (status === "listening") {
-      stopAndProcess();
+      // Para a escuta e o hook processará o que foi ouvido até agora
+      stopListening();
     }
   }
 
@@ -398,6 +297,10 @@ export default function HomeScreen() {
           setErrorMessage(response.message || "Não encontrei esse lugar. Tente falar de forma diferente.");
           vibrationService.error();
         }
+      } else {
+        setStatus("error");
+        setErrorMessage("Não encontrei esse lugar. Tente falar de forma diferente.");
+        vibrationService.error();
       }
     } catch (err) {
       console.error("Erro ao processar destino:", err);
@@ -409,7 +312,7 @@ export default function HomeScreen() {
 
   function handleTypeDestination() {
     vibrationService.light();
-    if (status === "listening") stopAndProcess();
+    stopAll();
 
     // Pequeno delay para garantir que o TTS ou escuta parem antes da navegação
     setTimeout(() => {
@@ -422,7 +325,7 @@ export default function HomeScreen() {
 
   function handleHelp() {
     vibrationService.light();
-    if (status === "listening") stopAndProcess();
+    stopAll();
     router.push({
       pathname: "/ajuda",
       params: { latitude, longitude },
@@ -431,15 +334,9 @@ export default function HomeScreen() {
 
   function handleSettings() {
     vibrationService.light();
-    if (status === "listening") stopAndProcess();
+    stopAll();
     router.push("/configuracoes");
   }
-
-  const welcomeMessage = userName
-    ? `Olá, ${userName}. Para onde você quer ir hoje? Me diga o endereço ou o lugar para onde você quer ir.`
-    : "Olá. Para onde você quer ir hoje? me diga o endereço ou o lugar para onde você quer ir.";
-
-  useAutoSpeakOnce("home-greeting", status === "idle" ? welcomeMessage : "");
 
   return (
     <ScreenContainer withPadding={false} style={{ backgroundColor: "#F6F8FA" }}>
@@ -597,8 +494,7 @@ export default function HomeScreen() {
               <Pressable
                 onPress={() => {
                   vibrationService.light();
-                  isListeningRef.current = false;
-                  stopListening();
+                  stopAll();
                   setStatus("idle");
                   setTranscript("");
                   setErrorMessage("");
