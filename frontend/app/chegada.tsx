@@ -7,6 +7,7 @@ import { PrimaryButton } from "../src/components/PrimaryButton";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { colors, useThemeColors } from "../src/theme/colors";
 import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
+import { formatBusWaitingTimeToFriendlyTextShort } from "../src/utils/date-time";
 
 export default function ArrivalScreen() {
   const params = useLocalSearchParams();
@@ -19,8 +20,10 @@ export default function ArrivalScreen() {
   const busName = String(params.busName || "");
   const direction = String(params.direction || "--");
   const stopName = String(params.stopName || "ponto indicado");
+  const beAtStopDateTime = String(params.beAtStopDateTime || "");
 
-  const arrivalMessage = `Você chegou ao ponto ${stopName}. Agora aguarde o ônibus ${busLine}, sentido ${direction}. Confira o número do ônibus antes de embarcar. Tenha uma ótima viagem.`;
+  const busLabel = busName ? `${busLine}, ${busName}` : busLine;
+  const arrivalMessage = `Você chegou ao ponto ${stopName}. Agora aguarde o ônibus linha ${busLabel}, sentido ${direction}. Confira o número do ônibus antes de embarcar. Tenha uma ótima viagem.`;
 
   useAutoSpeak(arrivalMessage);
 
@@ -64,6 +67,14 @@ export default function ArrivalScreen() {
             <View style={[styles.busDisplay, { backgroundColor: "#F0F7FF", borderColor: "#E1EDFF" }]}>
               <Text style={[styles.busNumber, { color: theme.primary }]}>{busLine}</Text>
               {!!busName && <Text style={[styles.busNameText, { color: "#000" }]}>{busName}</Text>}
+              {!!direction && direction !== "--" && (
+                <Text style={[styles.busDirectionText, { color: "#64748B" }]}>{direction}</Text>
+              )}
+              {!!beAtStopDateTime && (
+                <Text style={[styles.busCountdownText, { color: theme.primary }]}>
+                  Próximo ônibus: {formatBusWaitingTimeToFriendlyTextShort(beAtStopDateTime)}
+                </Text>
+              )}
             </View>
 
             <View style={styles.detailsGrid}>
@@ -211,6 +222,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginTop: 4,
+  },
+  busDirectionText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  busCountdownText: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 8,
+    textAlign: "center",
   },
   detailsGrid: {
     gap: 16,

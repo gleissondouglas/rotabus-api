@@ -4,6 +4,14 @@ const {
 } = require('../../../src/modules/journeys/journeys.validator');
 
 describe('Journeys Validator (Baseline)', () => {
+  beforeAll(() => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-06-13T14:20:00Z"));
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   describe('validatePlanJourneyInput', () => {
     const validOrigin = { lat: -19.747, lng: -47.939 };
     const validDestination = { text: 'Praça Rui Barbosa' };
@@ -48,6 +56,55 @@ describe('Journeys Validator (Baseline)', () => {
       const result = validatePlanJourneyInput(input);
       expect(result.timePreference.type).toBe('DEPARTURE');
       expect(result.timePreference.dateTime).toBe(departureTime);
+    });
+
+    test('deve aceitar datas válidas dentro da janela permitida de 7 dias', () => {
+      // 2 dias no futuro
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 2);
+      
+      const input = { 
+        origin: validOrigin, 
+        destination: validDestination,
+        timePreference: {
+          type: 'DEPARTURE',
+          dateTime: futureDate.toISOString()
+        }
+      };
+      const result = validatePlanJourneyInput(input);
+      expect(result.timePreference.dateTime).toBe(futureDate.toISOString());
+    });
+
+    test('deve rejeitar datas fora da janela permitida (ex: 8 dias no futuro)', () => {
+      // 8 dias no futuro
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 8);
+      
+      const input = { 
+        origin: validOrigin, 
+        destination: validDestination,
+        timePreference: {
+          type: 'DEPARTURE',
+          dateTime: futureDate.toISOString()
+        }
+      };
+      expect(() => validatePlanJourneyInput(input)).toThrow('Só consigo buscar ônibus para os próximos 7 dias. Escolha uma data mais próxima.');
+    });
+
+    test('deve rejeitar datas no passado (ex: 2 dias atrás)', () => {
+      // Ontem/2 dias atrás
+      const pastDate = new Date();
+      pastDate.setDate(pastDate.getDate() - 2);
+      
+      const input = { 
+        origin: validOrigin, 
+        destination: validDestination,
+        timePreference: {
+          type: 'DEPARTURE',
+          dateTime: pastDate.toISOString()
+        }
+      };
+      expect(() => validatePlanJourneyInput(input)).toThrow('Só consigo buscar ônibus para os próximos 7 dias. Escolha uma data mais próxima.');
     });
 
     test('deve normalizar routingPreference para UPPERCASE', () => {

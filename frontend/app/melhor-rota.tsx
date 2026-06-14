@@ -261,7 +261,7 @@ export default function BestRouteScreen() {
                   type="bus"
                   time={step.departureTime || (index === 0 ? summary?.beAtStopAt : "") || "--"}
                   title={`Pegue o ônibus ${step.line}`}
-                  description=""
+                  description={step.lineName || step.headsign || ""}
                   highlight={getShortStopName(step.from)}
                   highlightSecondary={getShortStopName(step.to)}
                 />

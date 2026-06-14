@@ -113,7 +113,7 @@ describe('Journeys Routes (Integration)', () => {
     });
 
     test('deve preservar suporte ao campo legado departureTime', async () => {
-      const departureTime = '2026-06-13T14:20:00Z';
+      const departureTime = new Date().toISOString();
       planJourney.mockResolvedValue({ ok: true });
 
       const response = await request(app)

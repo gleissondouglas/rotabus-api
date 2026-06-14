@@ -13,6 +13,21 @@ const dateTimeSchema = z.string().refine((val) => {
   return !Number.isNaN(date.getTime());
 }, {
   message: "A data/hora informada deve ser uma data válida."
+}).refine((val) => {
+  const date = new Date(val);
+  const now = new Date();
+  
+  // Limite passado: permite hoje inteiro (início do dia atual menos 2 horas de tolerância)
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const minAllowedTime = startOfToday.getTime() - 2 * 60 * 60 * 1000;
+  
+  // Limite futuro: 7 dias a partir do início de hoje
+  const maxAllowedTime = startOfToday.getTime() + 7 * 24 * 60 * 60 * 1000 + 24 * 60 * 60 * 1000;
+  
+  const time = date.getTime();
+  return time >= minAllowedTime && time <= maxAllowedTime;
+}, {
+  message: "Só consigo buscar ônibus para os próximos 7 dias. Escolha uma data mais próxima."
 });
 
 const coordinateSchema = z.object({
