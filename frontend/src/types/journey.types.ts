@@ -52,6 +52,8 @@ export type JourneyStep =
   | {
       type: "transit";
       line: string;
+      lineShortName?: string;
+      lineName?: string;
       from: string;
       to: string;
       departureTime: string;

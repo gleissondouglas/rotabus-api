@@ -27,6 +27,7 @@ import {
   formatLocalDateTimeWithOffset,
   getCurrentTimeText,
   getTodayDateText,
+  getNext7Days,
 } from "../src/utils/date-time";
 
 type TimeMode = "NOW" | "DEPARTURE" | "ARRIVAL";
@@ -51,8 +52,61 @@ export default function ChooseTimeScreen() {
   const [dateText, setDateText] = useState(getTodayDateText());
   const [timeText, setTimeText] = useState(getCurrentTimeText());
 
+  const dateOptions = getNext7Days();
+
+  function handleTimeTextChange(text: string) {
+    const clean = text.replace(/[^0-9]/g, "");
+    if (clean.length <= 2) {
+      setTimeText(clean);
+    } else {
+      const hh = clean.substring(0, 2);
+      const mm = clean.substring(2, 4);
+      setTimeText(`${hh}:${mm}`);
+    }
+  }
+
+  function handleQuickTime(minutesToAdd: number) {
+    vibrationService.light();
+    const now = new Date();
+    const future = new Date(now.getTime() + minutesToAdd * 60 * 1000);
+    const year = future.getFullYear();
+    const month = String(future.getMonth() + 1).padStart(2, "0");
+    const day = String(future.getDate()).padStart(2, "0");
+    setDateText(`${year}-${month}-${day}`);
+    setTimeText(`${String(future.getHours()).padStart(2, "0")}:${String(future.getMinutes()).padStart(2, "0")}`);
+  }
+
+  function adjustTime(minutesDiff: number) {
+    try {
+      vibrationService.light();
+      const [hoursStr, minutesStr] = timeText.split(":");
+      let hours = parseInt(hoursStr, 10);
+      let minutes = parseInt(minutesStr, 10);
+      
+      if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        const now = new Date();
+        hours = now.getHours();
+        minutes = now.getMinutes();
+      }
+
+      let totalMinutes = hours * 60 + minutes + minutesDiff;
+      if (totalMinutes < 0) {
+        totalMinutes += 24 * 60;
+      }
+      totalMinutes = totalMinutes % (24 * 60);
+
+      const finalHours = Math.floor(totalMinutes / 60);
+      const finalMinutes = totalMinutes % 60;
+
+      const pad = (n: number) => String(n).padStart(2, "0");
+      setTimeText(`${pad(finalHours)}:${pad(finalMinutes)}`);
+    } catch (e) {
+      console.log("Erro ao ajustar hora:", e);
+    }
+  }
+
   const screenMessage =
-    "Quando você quer ir? Toque em agora para buscar imediatamente, ou escolha outro horário de saída ou chegada.";
+    "Você quer ir agora ou escolher um horário? Se preferir outro horário, escolha uma data dentro dos próximos 7 dias e defina se quer sair ou chegar nesse horário.";
 
   useAutoSpeak(screenMessage);
 
@@ -85,6 +139,23 @@ export default function ChooseTimeScreen() {
     try {
       vibrationService.selection();
       const dateTime = buildLocalDateTimeFromInputs(dateText, timeText);
+      
+      const now = new Date();
+      const selectedDate = new Date(dateTime);
+      
+      // Limites: de hoje 00:00 até daqui a 7 dias 23:59:59
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOf7Days = new Date(startOfToday.getTime() + 7 * 24 * 60 * 60 * 1000 + 23 * 59 * 60 * 1000 + 59 * 1000);
+
+      if (selectedDate.getTime() < startOfToday.getTime() || selectedDate.getTime() > endOf7Days.getTime()) {
+        vibrationService.error();
+        Alert.alert(
+          "Atenção",
+          "Só consigo buscar ônibus para os próximos 7 dias. Escolha uma data mais próxima."
+        );
+        return;
+      }
+
       setIsModalOpen(false);
 
       router.push({
@@ -319,21 +390,109 @@ export default function ChooseTimeScreen() {
             </View>
 
             <View style={styles.formGrid}>
-                <TextField
-                  label="Data da viagem"
-                  placeholder="Ex: 2026-05-10"
-                  value={dateText}
-                  onChangeText={setDateText}
-                  keyboardType="numbers-and-punctuation"
-                />
+                <Text style={styles.formLabel}>Escolha um dia nos próximos 7 dias</Text>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dateChipsContainer}
+                >
+                  {dateOptions.map((opt) => {
+                    const isSelected = dateText === opt.dateText;
+                    return (
+                      <Pressable
+                        key={opt.dateText}
+                        onPress={() => {
+                          vibrationService.light();
+                          setDateText(opt.dateText);
+                        }}
+                        style={[
+                          styles.dateChip,
+                          isSelected && [styles.dateChipActive, { borderColor: theme.primary, backgroundColor: theme.primaryLight }]
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${opt.label === 'Hoje' ? 'Hoje' : opt.label === 'Amanhã' ? 'Amanhã' : opt.label}, dia ${opt.dayNum}`}
+                        accessibilityState={{ selected: isSelected }}
+                      >
+                        <Text style={[styles.dateChipLabel, isSelected && { color: theme.primary }]}>
+                          {opt.label}
+                        </Text>
+                        <Text style={[styles.dateChipDay, isSelected && { color: theme.primary }]}>
+                          {opt.dayNum}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
 
-                <TextField
-                  label={mode === "DEPARTURE" ? "Hora de saída" : "Hora de chegada"}
-                  placeholder="Ex: 10:30"
-                  value={timeText}
-                  onChangeText={setTimeText}
-                  keyboardType="numbers-and-punctuation"
-                />
+                <View style={styles.timeInputRow}>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Escolha o horário"
+                      placeholder="Ex: 10:30"
+                      value={timeText}
+                      onChangeText={handleTimeTextChange}
+                      keyboardType="number-pad"
+                      maxLength={5}
+                    />
+                  </View>
+                  <View style={styles.timeAdjustmentColumn}>
+                    <Text style={styles.adjustmentLabel}>Ajustar</Text>
+                    <View style={styles.timeAdjustmentRow}>
+                      <Pressable
+                        onPress={() => adjustTime(-10)}
+                        style={styles.adjustBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Diminuir dez minutos"
+                      >
+                        <Ionicons name="remove" size={20} color="#475569" />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => adjustTime(10)}
+                        style={styles.adjustBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Aumentar dez minutos"
+                      >
+                        <Ionicons name="add" size={20} color="#475569" />
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+
+                <Text style={styles.formLabelSmall}>Opções rápidas de horário</Text>
+                <View style={styles.quickTimeContainer}>
+                  <Pressable
+                    onPress={() => handleQuickTime(0)}
+                    style={styles.quickTimeBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Definir para agora"
+                  >
+                    <Text style={[styles.quickTimeText, { color: theme.primary }]}>Agora</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleQuickTime(30)}
+                    style={styles.quickTimeBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Definir para daqui trinta minutos"
+                  >
+                    <Text style={[styles.quickTimeText, { color: theme.primary }]}>+30 min</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleQuickTime(60)}
+                    style={styles.quickTimeBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Definir para daqui uma hora"
+                  >
+                    <Text style={[styles.quickTimeText, { color: theme.primary }]}>+1h</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleQuickTime(120)}
+                    style={styles.quickTimeBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Definir para daqui duas horas"
+                  >
+                    <Text style={[styles.quickTimeText, { color: theme.primary }]}>+2h</Text>
+                  </Pressable>
+                </View>
             </View>
 
             <View style={styles.modalActions}>
@@ -486,6 +645,98 @@ const styles = StyleSheet.create({
   },
   formGrid: {
     gap: 12,
+  },
+  formLabel: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  formLabelSmall: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  dateChipsContainer: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  dateChip: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  dateChipActive: {
+    borderWidth: 2,
+  },
+  dateChipLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  dateChipDay: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
+  timeInputRow: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-end",
+    marginTop: 8,
+  },
+  timeAdjustmentColumn: {
+    alignItems: "center",
+    gap: 4,
+  },
+  adjustmentLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#94A3B8",
+    textTransform: "uppercase",
+  },
+  timeAdjustmentRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  adjustBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickTimeContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  quickTimeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    minWidth: 60,
+    alignItems: "center",
+  },
+  quickTimeText: {
+    fontSize: 14,
+    fontWeight: "800",
   },
   modalActions: {
     gap: 8,

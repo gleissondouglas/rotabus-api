@@ -137,3 +137,20 @@ A limpeza local do `sessionId` ocorre nos seguintes momentos:
 3.  Tente interagir clicando em "Buscar rota para este lugar".
 4.  O app deve disparar o `Alert.alert` de sessão expirada e redirecioná-lo para a tela `/inicio` limpando a sessão.
 
+---
+
+## 7. Checklist de Homologação de UX, Horários e Linhas de Ônibus
+ 
+Este checklist deve ser validado após a aplicação das melhorias de UX de tempo, formulário e informações de transporte público:
+ 
+- [ ] **Seleção Visual dos Próximos 7 Dias:** Na tela `/escolher-horario` (no Modal de escolha de data/hora), o campo de digitação técnica da data `YYYY-MM-DD` deve ser substituído por uma lista horizontal de chips contendo os próximos 7 dias formatados (ex: `"Hoje"`, `"Amanhã"`, `"Dom 15"`, etc.).
+- [ ] **Máscara de Hora:** No campo de texto de hora, a digitação de números deve ser formatada automaticamente como `HH:mm` (ex: digitou "1030" vira "10:30").
+- [ ] **Ajuste de Horário (+/- 10 min):** Ao lado do campo de hora, os botões de `+` e `-` devem aumentar ou diminuir o horário em 10 minutos a cada clique.
+- [ ] **Opções Rápidas de Horário:** Abaixo da hora, os botões rápidos `"Agora"`, `"+30 min"`, `"+1h"` e `"+2h"` devem preencher a data e a hora correspondente imediatamente ao clique.
+- [ ] **Formatação de Tempo Curta nas Telas:** Em `/navegando` e `/chegada`, em vez de exibir datas longas e apertadas como `"terça-feira às 09:10"`, o tempo do ônibus deve ser exibido na forma curta: `"terça, 09:10"`, `"hoje, 21:30"`, `"amanhã, 12:40"`.
+- [ ] **Label do Card de Tempo:** O label clássico `"ÔNIBUS"` nas caixas pequenas das telas de navegação e chegada deve ser alterado para `"CHEGA"`, melhorando a legibilidade.
+- [ ] **Nome e Sentido da Linha abaixo da Linha:** Nas telas `/navegando` (no grid do ponto de espera e no card inferior de caminhada) e `/chegada` (no display principal do ônibus), caso exista o nome/sentido da linha (ex: `"Terminal Beija-Flor / Jd. Copacabana"`), ele deve ser renderizado logo abaixo do número destacado da linha.
+- [ ] **Fallback de Linha:** Se o backend não retornar `lineName`/`headsign`, o app deve renderizar somente o número da linha (ex: `"Linha 26"`), sem quebrar o layout e sem exibir campos vazios.
+- [ ] **Validação de 7 dias:** Ao submeter um horário customizado no frontend ou no backend, datas anteriores a hoje ou posteriores aos próximos 7 dias devem ser barradas, emitindo vibração de erro no app.
+
+

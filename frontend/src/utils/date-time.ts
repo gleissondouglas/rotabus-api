@@ -93,6 +93,46 @@ export function buildLocalDateTimeFromInputs(
  * Exemplo: 288 -> "4h48min"
  * Exemplo: 45 -> "45 min"
  */
+export interface Next7DaysOption {
+  dateText: string;
+  label: string;
+  dayNum: number;
+}
+
+export function getNext7Days(referenceDate = new Date()): Next7DaysOption[] {
+  const options: Next7DaysOption[] = [];
+  const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth(),
+      referenceDate.getDate() + i
+    );
+    const year = d.getFullYear();
+    const month = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const dateText = `${year}-${month}-${day}`;
+
+    let label = "";
+    if (i === 0) {
+      label = "Hoje";
+    } else if (i === 1) {
+      label = "Amanhã";
+    } else {
+      label = weekDays[d.getDay()];
+    }
+
+    options.push({
+      dateText,
+      label,
+      dayNum: d.getDate(),
+    });
+  }
+
+  return options;
+}
+
 export function formatMinutesToFriendlyText(diffMin: number) {
   if (diffMin <= 0) return "Chegando";
   if (diffMin >= 60) {
@@ -102,3 +142,133 @@ export function formatMinutesToFriendlyText(diffMin: number) {
   }
   return `${diffMin} min`;
 }
+
+/**
+ * Formata o tempo de espera/chegada do ônibus em relação ao momento atual de forma amigável.
+ */
+export function formatBusWaitingTimeToFriendlyText(targetDateTimeStr: string, referenceDate = new Date()): string {
+  if (!targetDateTimeStr) return "Calculando...";
+  const target = new Date(targetDateTimeStr);
+  const now = referenceDate;
+  if (Number.isNaN(target.getTime())) return "Calculando...";
+
+  const diffMs = target.getTime() - now.getTime();
+  const diffMin = Math.ceil(diffMs / 60000);
+
+  if (diffMin <= 0 && diffMin >= -2) {
+    return "Chegando agora";
+  }
+  if (diffMin < -2) {
+    return "Horário passou";
+  }
+
+  // menos de 60 minutos: “em X min”
+  if (diffMin < 60) {
+    return `em ${diffMin} min`;
+  }
+
+  // entre 60 minutos e 12 horas (algumas horas): “em XhY”
+  if (diffMin < 12 * 60) {
+    const hours = Math.floor(diffMin / 60);
+    const mins = diffMin % 60;
+    return mins > 0 ? `em ${hours}h${mins}` : `em ${hours}h`;
+  }
+
+  // Se for mais de 12 horas, mostramos por dia relativo e horário
+  const pad = (v: number) => String(v).padStart(2, "0");
+  const timeStr = `${pad(target.getHours())}:${pad(target.getMinutes())}`;
+
+  // Compara as datas (removendo a hora) para saber o dia relativo
+  const targetDate = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const daysDiff = Math.round((targetDate.getTime() - nowDate.getTime()) / oneDayMs);
+
+  if (daysDiff === 0) {
+    return `hoje às ${timeStr}`;
+  }
+  
+  if (daysDiff === 1) {
+    return `amanhã às ${timeStr}`;
+  }
+  
+  if (daysDiff > 1 && daysDiff <= 7) {
+    const weekDays = [
+      "domingo",
+      "segunda-feira",
+      "terça-feira",
+      "quarta-feira",
+      "quinta-feira",
+      "sexta-feira",
+      "sábado"
+    ];
+    const dayOfWeekName = weekDays[target.getDay()];
+    return `${dayOfWeekName} às ${timeStr}`;
+  }
+
+  return "Escolha outro horário";
+}
+
+export function formatBusWaitingTimeToFriendlyTextShort(targetDateTimeStr: string, referenceDate = new Date()): string {
+  if (!targetDateTimeStr) return "Calculando...";
+  const target = new Date(targetDateTimeStr);
+  const now = referenceDate;
+  if (Number.isNaN(target.getTime())) return "Calculando...";
+
+  const diffMs = target.getTime() - now.getTime();
+  const diffMin = Math.ceil(diffMs / 60000);
+
+  if (diffMin <= 0 && diffMin >= -2) {
+    return "Chegando agora";
+  }
+  if (diffMin < -2) {
+    return "Horário passou";
+  }
+
+  // menos de 60 minutos: “em X min”
+  if (diffMin < 60) {
+    return `em ${diffMin} min`;
+  }
+
+  // entre 60 minutos e 12 horas (algumas horas): “em XhY”
+  if (diffMin < 12 * 60) {
+    const hours = Math.floor(diffMin / 60);
+    const mins = diffMin % 60;
+    return mins > 0 ? `em ${hours}h${mins}` : `em ${hours}h`;
+  }
+
+  // Se for mais de 12 horas, mostramos por dia relativo e horário
+  const pad = (v: number) => String(v).padStart(2, "0");
+  const timeStr = `${pad(target.getHours())}:${pad(target.getMinutes())}`;
+
+  // Compara as datas (removendo a hora) para saber o dia relativo
+  const targetDate = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const daysDiff = Math.round((targetDate.getTime() - nowDate.getTime()) / oneDayMs);
+
+  if (daysDiff === 0) {
+    return `hoje, ${timeStr}`;
+  }
+  
+  if (daysDiff === 1) {
+    return `amanhã, ${timeStr}`;
+  }
+  
+  if (daysDiff > 1 && daysDiff <= 7) {
+    const weekDaysShort = [
+      "domingo",
+      "segunda",
+      "terça",
+      "quarta",
+      "quinta",
+      "sexta",
+      "sábado"
+    ];
+    const dayOfWeekName = weekDaysShort[target.getDay()];
+    return `${dayOfWeekName}, ${timeStr}`;
+  }
+
+  return "Outro horário";
+}
+

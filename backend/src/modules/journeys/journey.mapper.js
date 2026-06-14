@@ -147,6 +147,8 @@ function mapGoogleStepToJourneyStep(step) {
         step.transitDetails?.transitLine?.nameShort ||
         step.transitDetails?.transitLine?.name ||
         "Linha não identificada",
+      lineShortName: step.transitDetails?.transitLine?.nameShort || "",
+      lineName: step.transitDetails?.transitLine?.name || "",
       from:
         step.transitDetails?.stopDetails?.departureStop?.name ||
         "Ponto de partida não identificado",

@@ -24,7 +24,7 @@ import { useThemeColors } from "../src/theme/colors";
 import Map from "../src/components/Map";
 import { speak } from "../src/services/speech.service";
 import { MapData, MapFocusMode } from "../src/types/journey.types";
-import { formatMinutesToFriendlyText } from "../src/utils/date-time";
+import { formatMinutesToFriendlyText, formatBusWaitingTimeToFriendlyTextShort } from "../src/utils/date-time";
 import { formatWalkingInstruction } from "../src/utils/navigationInstructionFormatter";
 import { parseJsonParam, calculateDistance } from "../src/utils/helpers";
 import { ScreenContainer } from "../src/components/ScreenContainer";
@@ -53,21 +53,6 @@ type NavigationStage =
   | "waiting_bus"
   | "boarded_success";
 
-/**
- * Formata o texto de chegada do ônibus conforme regras de negócio:
- * - > 1 min: [x] min
- * - === 1 min: 1 min
- * - Entre 0 e -2: Chegando agora
- * - < -2: Horário passou
- */
-function formatBusArrival(diffMin: number): string {
-  if (diffMin > 1) return `${diffMin} min`;
-  if (diffMin === 1) return "1 min";
-  if (diffMin <= 0 && diffMin >= -2) return "Chegando agora";
-  if (diffMin < -2) return "Horário passou";
-  return "Calculando...";
-}
-
 export default function NavigatingScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
@@ -86,6 +71,12 @@ export default function NavigatingScreen() {
   const mapData = useMemo(() => parseJsonParam<MapData | undefined>(params.map, undefined), [params.map]);
   const summary = useMemo(() => parseJsonParam<any>(params.summary, null), [params.summary]);
   const allSteps = useMemo(() => parseJsonParam<any[]>(params.steps, []), [params.steps]);
+  
+  const transitStep = useMemo(() => allSteps.find(s => s.type === "transit"), [allSteps]);
+  const lineDetails = useMemo(() => {
+    const details = transitStep?.lineName || transitStep?.headsign || direction || "";
+    return details === "--" ? "" : details;
+  }, [transitStep, direction]);
 
   // Estados de controle da tela
   const [stage, setStage] = useState<NavigationStage>("walking_to_stop");
@@ -241,10 +232,15 @@ export default function NavigatingScreen() {
   // Navigation Instruction Formatting
   const formattedInstruction = useMemo(() => {
     if (stage === "waiting_bus") {
+      const subtitleText = lineDetails ? `Aguarde o ônibus ${busLine} - ${lineDetails}.` : `Aguarde o ônibus ${busLine}.`;
+      const speechText = lineDetails 
+        ? `Você chegou ao ponto. Aguarde o ônibus linha ${busLine}, sentido ${lineDetails}. Confira o número antes de embarcar.`
+        : `Você chegou ao ponto. Aguarde o ônibus ${busLine}. Confira o número antes de embarcar.`;
+
       return { 
         displayTitle: "Você chegou ao ponto", 
-        displaySubtitle: `Aguarde o ônibus ${busLine}.`, 
-        speechText: `Você chegou ao ponto. Aguarde o ônibus ${busLine}. Confira o número antes de embarcar.` 
+        displaySubtitle: subtitleText, 
+        speechText: speechText 
       };
     }
 
@@ -317,7 +313,7 @@ export default function NavigatingScreen() {
       const diffMs = target.getTime() - now.getTime(); 
       const diffMin = Math.ceil(diffMs / 60000);
       setBusCountdownDiff(diffMin); 
-      setBusCountdown(formatBusArrival(diffMin));
+      setBusCountdown(formatBusWaitingTimeToFriendlyTextShort(targetStopDateTime));
     };
     updateCountdown(); 
     const interval = setInterval(updateCountdown, 30000); 
@@ -525,7 +521,7 @@ export default function NavigatingScreen() {
 
               <Text style={styles.largeStatusSubtitle}>
                 {stage === "waiting_bus" 
-                  ? `Aguarde o ônibus ${busLine}.` 
+                  ? formattedInstruction.displaySubtitle 
                   : "Boa viagem. Eu aviso quando estiver perto de descer."}
               </Text>
               
@@ -542,9 +538,12 @@ export default function NavigatingScreen() {
                   <View style={styles.infoCard}>
                     <Text style={styles.infoCardLabel}>Linha</Text>
                     <Text style={styles.infoCardValue}>{busLine}</Text>
+                    {!!lineDetails && lineDetails !== "--" && (
+                      <Text style={styles.infoCardSubValue} numberOfLines={2}>{lineDetails}</Text>
+                    )}
                   </View>
                   <View style={styles.infoCard}>
-                    <Text style={styles.infoCardLabel}>Ônibus</Text>
+                    <Text style={styles.infoCardLabel}>Chega</Text>
                     <Text style={[styles.infoCardValue, { color: theme.primary }]}>{busCountdown || "Calculando..."}</Text>
                   </View>
                 </View>
@@ -606,9 +605,12 @@ export default function NavigatingScreen() {
               <View style={styles.summaryItem}>
                 <Text style={styles.summaryLabel}>Linha</Text>
                 <Text style={styles.summaryValue}>{busLine}</Text>
+                {!!lineDetails && lineDetails !== "--" && (
+                  <Text style={styles.infoCardSubValue} numberOfLines={2}>{lineDetails}</Text>
+                )}
               </View>
               <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Ônibus</Text>
+                <Text style={styles.summaryLabel}>Chega</Text>
                 <Text style={[styles.summaryValue, { color: theme.primary }]}>{busCountdown || "..."}</Text>
               </View>
             </View>
@@ -689,6 +691,7 @@ const styles = StyleSheet.create({
   infoCard: { flex: 1, backgroundColor: "#F8FAFC", borderRadius: 20, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#F1F5F9" },
   infoCardLabel: { fontSize: 11, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", marginBottom: 4, textAlign: "center" },
   infoCardValue: { fontSize: 18, fontWeight: "900", color: "#011030" },
+  infoCardSubValue: { fontSize: 12, fontWeight: "600", color: "#64748B", marginTop: 4, textAlign: "center", lineHeight: 15 },
   fixedStatusActions: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "white", paddingHorizontal: 24, paddingTop: 16, borderTopLeftRadius: 32, borderTopRightRadius: 32, shadowColor: "#000", shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 10, gap: 12 },
   secondaryActionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 8 },
   secondaryActionText: { fontSize: 17, fontWeight: "800" },

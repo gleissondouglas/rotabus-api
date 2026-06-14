@@ -165,8 +165,9 @@ function buildVoiceBlock(mappedSteps, summary, detailedMessage) {
 
   const firstTransit = transitSteps[0];
   const line = firstTransit.line || "ônibus";
+  const headsign = firstTransit.headsign ? `, sentido ${firstTransit.headsign}` : "";
 
-  const shortMessage = `Encontrei uma rota para você. Saia de onde você está por volta das ${summary.leaveHomeAt} e pegue o ônibus ${line} às ${summary.beAtStopAt}.`;
+  const shortMessage = `Encontrei uma rota para você. Saia de onde você está por volta das ${summary.leaveHomeAt} e pegue o ônibus ${line}${headsign} às ${summary.beAtStopAt}.`;
 
   const firstStopQuestion =
     summary.initialWalkTimeMin > 3
