@@ -91,6 +91,16 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 *   **Status:** Concluída no Backend (Persistência durável no PostgreSQL implementada via Prisma. Detalhes em [ADR-014](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/DECISIONS.md) e [CONVERSATIONAL_SESSION_PERSISTENCE_PLAN.md](file:///Users/douglasoliveira/Desktop/RotaBus-API/docs/CONVERSATIONAL_SESSION_PERSISTENCE_PLAN.md)).
 *   **Critério de Conclusão:** Sessões conversacionais persistidas de forma durável no banco PostgreSQL com suporte a deploys e escalabilidade horizontal.
 
+### Fase 7.1: Loop Conversacional por Voz no Frontend (Planejada)
+*   **Objetivo:** Planejar e implementar gradualmente o loop voice-first no frontend, em que a assistente fala, aguarda o fim do TTS, ativa o microfone e converte respostas simples em comandos conversacionais existentes.
+*   **Tarefas Planejadas:**
+    *   Implementar uma API de fala aguardável (`speakAndWait`) no serviço de voz.
+    *   Criar um parser determinístico inicial para respostas como "sim", "não", "repetir", "primeira", "segunda" e "terceira".
+    *   Criar um orquestrador local para controlar os estados de fala, escuta, processamento e cancelamento.
+    *   Integrar o loop em etapas nas telas `inicio`, `confirmar-destino`, opções de destino e `melhor-rota`.
+*   **Status:** Planejamento concluído em `docs/VOICE_CONVERSATION_LOOP_PLAN.md`; implementação futura dividida em branches incrementais.
+*   **Critério de Conclusão:** Usuário consegue conduzir o fluxo principal por voz sem quebrar o fallback por toque, sem ativar microfone durante TTS e sem alterar contratos legados do backend.
+
 ### Fase 8: Testes e Observabilidade (Contínua - Fase de Integração Concluída)
 *   **Objetivo:** Garantir a resiliência e a saúde do sistema através de testes automatizados e monitoramento.
 *   **Tarefas Realizadas (Integração):**
@@ -130,7 +140,7 @@ A evolução será realizada de forma incremental, evitando reescritas totais e 
 | :--- | :--- | :--- |
 | **Curto Prazo** | 0, 1, 2 | Estabilização, Documentação e Limpeza de Código. |
 | **Médio Prazo** | 3, 4, 5, 6 | Desacoplamento, Inteligência Local e Base Conversacional. |
-| **Longo Prazo** | 7, 8, 9 | Gerenciamento de Diálogo, Robustez e Maturidade. |
+| **Longo Prazo** | 7, 7.1, 8, 9 | Gerenciamento de Diálogo, Loop de Voz, Robustez e Maturidade. |
 | **Futuro** | 10 | Expansão com Inteligência Artificial Opcional. |
 
 ---
