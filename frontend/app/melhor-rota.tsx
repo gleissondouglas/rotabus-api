@@ -1,17 +1,16 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View, Alert } from "react-native";
+import { useState, useEffect, useCallback } from "react";
+import { ScrollView, StyleSheet, Text, View, Alert, Pressable } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
-import Animated, { FadeInUp } from "react-native-reanimated";
+import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "../src/components/BackButton";
 import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { RouteStep } from "../src/components/RouteStep";
-import { useAutoSpeakOnce } from "../src/hooks/useAutoSpeakOnce";
+import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
-import { speak } from "../src/services/speech.service";
 import { journeyService } from "../src/services/journey.service";
 import { sessionService } from "../src/services/session.service";
 import { vibrationService } from "../src/services/vibration.service";
@@ -59,6 +58,22 @@ function buildShortMessage({
   return `Encontrei uma rota com ${buses.length} ônibus. Primeiro, pegue o ônibus ${buses[0]} ${beAtStopText}. Depois eu te aviso onde trocar.`;
 }
 
+function buildVoiceSummary({
+  busLine,
+  departureTime,
+  arrivalTime,
+}: {
+  busLine: string;
+  departureTime: string;
+  arrivalTime: string;
+}) {
+  const linePart = busLine ? `Você vai pegar a linha ${busLine}. ` : "";
+  const departurePart = departureTime ? `O ônibus sai ${departureTime.replace("às ", "às ")}. ` : "";
+  const arrivalPart = arrivalTime ? `A chegada prevista é às ${arrivalTime}. ` : "";
+  
+  return `Encontrei uma rota. ${linePart}${departurePart}${arrivalPart}Quer iniciar a navegação?`;
+}
+
 export default function BestRouteScreen() {
   const params = useLocalSearchParams();
   const theme = useThemeColors();
@@ -75,6 +90,7 @@ export default function BestRouteScreen() {
   const steps = parseJsonParam<JourneyStep[]>(params.steps, []);
 
   const [isLoadingCommand, setIsLoadingCommand] = useState(false);
+  const [showSteps, setShowSteps] = useState(false);
 
   const transitSteps = getTransitSteps(steps);
   const firstTransitStep = transitSteps[0];
@@ -87,7 +103,7 @@ export default function BestRouteScreen() {
   const busLine =
     firstTransitStep?.type === "transit"
       ? firstTransitStep.line
-      : summary?.busLines?.[0] || "Linha não identificada";
+      : summary?.busLines?.[0] || "";
 
   const leaveHomeText = summary?.leaveHomeText || "";
   const beAtStopText = summary?.beAtStopText || "";
@@ -104,9 +120,47 @@ export default function BestRouteScreen() {
   const speechTextParam = String(params.speechText || "");
   const sessionIdParam = String(params.sessionId || "");
 
-  const voiceText = speechTextParam || shortMessage;
+  const voiceSummary = buildVoiceSummary({
+    busLine,
+    departureTime: summary?.beAtStopAt || summary?.leaveHomeAt || "",
+    arrivalTime: summary?.arrivalAtDestination || "",
+  });
 
-  useAutoSpeakOnce(`melhor-rota-${destination}-${busLine}`, voiceText);
+  const voiceText = speechTextParam || voiceSummary;
+
+  const { startLoop, stopAll } = useVoiceConversationLoop({
+    onIntent: async (intent) => {
+      switch (intent.type) {
+        case "CONFIRM":
+        case "START_NAVIGATION":
+          handleStartNavigation();
+          break;
+        case "REPEAT":
+          handleHearRoute();
+          break;
+        case "SHOW_DETAILS":
+          vibrationService.light();
+          setShowSteps(true);
+          startLoop("Detalhes da rota abertos. Quer iniciar a navegação?");
+          break;
+        case "HIDE_DETAILS":
+          vibrationService.light();
+          setShowSteps(false);
+          startLoop("Detalhes da rota fechados. Vamos começar?");
+          break;
+        case "CANCEL":
+          handleGoHome();
+          break;
+      }
+    },
+  });
+
+  useEffect(() => {
+    startLoop(voiceText);
+    return () => {
+      stopAll();
+    };
+  }, [voiceText, startLoop, stopAll]);
 
   async function handleGoHome() {
     setIsLoadingCommand(true);
@@ -132,38 +186,10 @@ export default function BestRouteScreen() {
     }
   }
 
-  async function handleHearRoute() {
-    setIsLoadingCommand(true);
+  const handleHearRoute = useCallback(() => {
     vibrationService.selection();
-    try {
-      const connected = await isConnected();
-      const activeSessionId = sessionIdParam || sessionService.getSessionId();
-      if (connected && activeSessionId) {
-        await journeyService.executeCommand({
-          sessionId: activeSessionId,
-          command: "REPEAT"
-        });
-      }
-      speak(voiceText);
-    } catch (err: any) {
-      console.log("[BestRoute] Erro ao executar REPEAT no backend:", err);
-      if (err?.message && (
-        err.message.includes("Sessão conversacional não encontrada") ||
-        err.message.includes("não encontrada ou expirada")
-      )) {
-        vibrationService.error();
-        Alert.alert(
-          "Conversa Expirada",
-          "Sua conversa expirou. Vamos começar de novo.",
-          [{ text: "OK", onPress: () => router.replace("/inicio") }]
-        );
-      } else {
-        speak(voiceText);
-      }
-    } finally {
-      setIsLoadingCommand(false);
-    }
-  }
+    startLoop(voiceText);
+  }, [voiceText, startLoop]);
 
   function handleStartNavigation() {
     setIsLoadingCommand(true);
@@ -243,38 +269,53 @@ export default function BestRouteScreen() {
           </View>
 
           <View style={styles.stepsContainer}>
-            <View style={styles.sectionHeader}>
+            <Pressable 
+              onPress={() => {
+                vibrationService.light();
+                setShowSteps(!showSteps);
+              }}
+              style={styles.sectionHeader}
+              accessibilityRole="button"
+              accessibilityLabel={showSteps ? "Ocultar detalhes da rota" : "Ver detalhes da rota"}
+            >
               <Text style={styles.sectionTitle}>Como chegar</Text>
-            </View>
-
-            <View style={styles.stepsList}>
-              <RouteStep 
-                type="start"
-                time={summary?.leaveHomeAt || "Agora"}
-                title="Saia do seu local"
-                description={leaveHomeText || "Comece agora."}
+              <Ionicons 
+                name={showSteps ? "chevron-up" : "chevron-down"} 
+                size={24} 
+                color={theme.primary} 
               />
+            </Pressable>
 
-              {transitSteps.map((step, index) => (
+            {showSteps && (
+              <Animated.View entering={FadeInUp} exiting={FadeOutUp} style={styles.stepsList}>
                 <RouteStep 
-                  key={`step-${index}`}
-                  type="bus"
-                  time={step.departureTime || (index === 0 ? summary?.beAtStopAt : "") || "--"}
-                  title={`Pegue o ônibus ${step.line}`}
-                  description={step.lineName || step.headsign || ""}
-                  highlight={getShortStopName(step.from)}
-                  highlightSecondary={getShortStopName(step.to)}
+                  type="start"
+                  time={summary?.leaveHomeAt || "Agora"}
+                  title="Saia do seu local"
+                  description={leaveHomeText || "Comece agora."}
                 />
-              ))}
 
-              <RouteStep 
-                type="finish"
-                time={summary?.arrivalAtDestination || "--"}
-                title="Chegada"
-                description={destination}
-                isLast={true}
-              />
-            </View>
+                {transitSteps.map((step, index) => (
+                  <RouteStep 
+                    key={`step-${index}`}
+                    type="bus"
+                    time={step.departureTime || (index === 0 ? summary?.beAtStopAt : "") || "--"}
+                    title={`Pegue o ônibus ${step.line}`}
+                    description={step.lineName || step.headsign || ""}
+                    highlight={getShortStopName(step.from)}
+                    highlightSecondary={getShortStopName(step.to)}
+                  />
+                ))}
+
+                <RouteStep 
+                  type="finish"
+                  time={summary?.arrivalAtDestination || "--"}
+                  title="Chegada"
+                  description={destination}
+                  isLast={true}
+                />
+              </Animated.View>
+            )}
           </View>
         </Animated.View>
       </ScrollView>
@@ -390,6 +431,9 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 4,
   },
   sectionTitle: {
