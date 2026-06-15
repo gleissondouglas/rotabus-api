@@ -21,7 +21,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "../src/components/BackButton";
 import { BottomVoiceMicButton } from "../src/components/BottomVoiceMicButton";
 import { VoiceVisualizer } from "../src/components/VoiceVisualizer";
-import { LiveTranscript } from "../src/components/LiveTranscript";
 import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
 import { journeyService } from "../src/services/journey.service";
@@ -52,26 +51,6 @@ function parseRequiredCoordinate(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function getVoicePrompt(showSuggestions: boolean, optionCount: number) {
-  if (!showSuggestions) {
-    return "Diga sim ou não";
-  }
-
-  if (optionCount <= 1) {
-    return "Diga primeira ou toque no destino.";
-  }
-
-  if (optionCount === 2) {
-    return "Diga primeira ou segunda.";
-  }
-
-  if (optionCount === 3) {
-    return "Diga primeira, segunda ou terceira.";
-  }
-
-  return "Diga o número da opção ou toque no card.";
-}
-
 /**
  * Mapeia VoiceLoopStatus para VoiceVisualizerState.
  */
@@ -87,12 +66,10 @@ function toVisualizerState(status: VoiceLoopStatus): VoiceVisualizerState {
  *
  * Layout voice-first:
  *  1. Topo fixo: Voltar + Ajuda
- *  2. Conteúdo rolável:
+ *  2. Conteúdo principal:
  *     - VoiceVisualizer compacto (reflete estado de fala/escuta)
- *     - Título + subtítulo
- *     - Card do destino único  OU  lista de sugestões
- *     - LiveTranscript (transcrição discreta)
- *     - Pergunta "Este é o destino correto?" (apenas destino único)
+ *     - Título
+ *     - Card do destino único OU carrossel de sugestões
  *  3. Rodapé fixo:
  *     - [Buscar rota para este lugar] (apenas destino único)
  *     - [Outro destino] | [🎤 Microfone compacto]
@@ -118,7 +95,6 @@ export default function ConfirmDestinationScreen() {
   const confirmationQuestion = getSingleParam(params.confirmationQuestion);
   const backendMode = getSingleParam(params.mode);
   const voiceMode = getSingleParam(params.voiceMode) === "true";
-  const recognizedText = getSingleParam(params.recognizedText);
 
   const [sessionId] = useState(getSingleParam(params.sessionId));
   const [speechText] = useState(getSingleParam(params.speechText));
@@ -128,8 +104,6 @@ export default function ConfirmDestinationScreen() {
   const [conversationState] = useState(getSingleParam(params.conversationState));
   const [isLoadingCommand, setIsLoadingCommand] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<VoiceLoopStatus>("idle");
-  const [voiceTranscript, setVoiceTranscript] = useState(recognizedText);
-  const [isTranscriptFinal, setIsTranscriptFinal] = useState(!!recognizedText);
   const [voiceErrorMessage, setVoiceErrorMessage] = useState("");
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
@@ -158,7 +132,6 @@ export default function ConfirmDestinationScreen() {
   const selectedSuggestion =
     selectedOptionIndex !== null ? options[selectedOptionIndex] : null;
   const isChoosingSuggestion = showSuggestions && !selectedSuggestion;
-  const isConfirmingSuggestion = showSuggestions && !!selectedSuggestion;
 
   const displayDestination =
     displayData?.title || destination || bestOption.name || "Destino informado";
@@ -248,20 +221,12 @@ export default function ConfirmDestinationScreen() {
           : confirmationQuestion ||
             `Destino encontrado: ${displayDestination}, ${address}. É para este lugar que você quer ir?`);
 
-  const voicePromptText = selectedSuggestion
-    ? "Diga sim ou não"
-    : getVoicePrompt(showSuggestions, options.length);
   const isVoiceSpeaking = voiceMode && voiceStatus === "speaking";
   const isVoiceProcessing = voiceMode && voiceStatus === "processing";
   const isActionDisabled = isLoadingCommand || isVoiceSpeaking || isVoiceProcessing;
-
-  // LiveTranscript: mostra transcrição durante escuta/processamento ou logo após
-  const showLiveTranscript =
-    !!voiceTranscript &&
-    (voiceStatus === "listening" ||
-      voiceStatus === "processing" ||
-      voiceStatus === "idle" ||
-      voiceStatus === "error");
+  const bottomActionsReservedSpace = isChoosingSuggestion
+    ? (isSmallHeight ? 112 : 124)
+    : (isSmallHeight ? 164 : 178);
 
   const navigateWithSelectedDestination = useCallback(
     (selected: any) => {
@@ -467,28 +432,14 @@ export default function ConfirmDestinationScreen() {
         setVoiceErrorMessage("");
       }
 
-      // Limpa transcrição ao iniciar nova escuta
-      if (nextStatus === "listening") {
-        setVoiceTranscript("");
-        setIsTranscriptFinal(false);
-      }
+      // A tela não exibe transcrição visual; mantém apenas o estado de voz.
     },
-    onTranscript: (text, isFinal) => {
-      if (text) {
-        setVoiceTranscript(text);
-        setIsTranscriptFinal(isFinal);
-      }
-
+    onTranscript: (_text, isFinal) => {
       if (!isFinal) {
         setVoiceErrorMessage("");
       }
     },
     onRecognitionIssue: (issue: VoiceRecognitionIssue) => {
-      if ("transcript" in issue && issue.transcript) {
-        setVoiceTranscript(issue.transcript);
-        setIsTranscriptFinal(true);
-      }
-
       setVoiceErrorMessage(issue.message);
     },
     maxSilentRetries: 0,
@@ -535,19 +486,11 @@ export default function ConfirmDestinationScreen() {
       return "Não consegui ouvir. Toque para tentar novamente.";
     }
 
-    if (voiceStatus === "speaking") {
-      return "O microfone será liberado ao fim da fala.";
-    }
-
-    if (voiceStatus === "processing") {
-      return "Interpretando sua resposta.";
-    }
-
     if (isChoosingSuggestion) {
-      return voicePromptText;
+      return "Diga o número da opção ou toque no card.";
     }
 
-    return voicePromptText;
+    return "Diga sim ou não.";
   }
 
   // ── Handlers do microfone ─────────────────────────────────────────────────
@@ -591,14 +534,13 @@ export default function ConfirmDestinationScreen() {
         </Pressable>
       </View>
 
-      {/* ─── CONTEÚDO ROLÁVEL ─── */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
+      {/* ─── CONTEÚDO PRINCIPAL ─── */}
+      <View
+        style={[
+          styles.mainContentWrapper,
           {
-            paddingTop: insets.top + 72,
-            paddingBottom: insets.bottom + (isChoosingSuggestion ? 172 : 300),
+            paddingTop: insets.top + (isSmallHeight ? 60 : 72),
+            paddingBottom: insets.bottom + bottomActionsReservedSpace,
           },
         ]}
       >
@@ -627,12 +569,12 @@ export default function ConfirmDestinationScreen() {
             </Animated.View>
           )}
 
-          {/* ── HERO: ícone + título + subtítulo ── */}
+          {/* ── HERO: título compacto ── */}
           <View
             style={[
               styles.heroArea,
               {
-                marginBottom: isSmallHeight ? 16 : 18,
+                marginBottom: isSmallHeight ? 10 : 14,
               },
             ]}
           >
@@ -641,32 +583,14 @@ export default function ConfirmDestinationScreen() {
                 styles.heroTitle,
                 { color: "#000" },
                 {
-                  fontSize: isSmallHeight ? 32 : 36,
-                  lineHeight: isSmallHeight ? 36 : 40,
+                  fontSize: isSmallHeight ? 28 : 32,
+                  lineHeight: isSmallHeight ? 32 : 36,
                 },
               ]}
               maxFontSizeMultiplier={1.2}
             >
-              {isChoosingSuggestion
-                ? "Destinos encontrados"
-                : isConfirmingSuggestion
-                  ? "Destino selecionado"
-                  : "Destino encontrado"}
+              Destinos encontrados
             </Text>
-            {!isChoosingSuggestion && (
-              <Text
-                style={[
-                  styles.heroSubtitle,
-                  { color: "#666" },
-                  {
-                    fontSize: isSmallHeight ? 18 : 20,
-                  },
-                ]}
-                maxFontSizeMultiplier={1.1}
-              >
-                Confira se este é o lugar certo.
-              </Text>
-            )}
           </View>
 
           {isChoosingSuggestion ? (
@@ -707,7 +631,8 @@ export default function ConfirmDestinationScreen() {
                           styles.carouselSuggestionCard,
                           isCurrent && styles.suggestionCardCurrent,
                           {
-                            padding: isSmallHeight ? 16 : 18,
+                            minHeight: isSmallHeight ? 262 : 286,
+                            padding: isSmallHeight ? 14 : 16,
                             borderColor: isCurrent ? theme.primary : "#E5E7EB",
                           },
                           (pressed || isActionDisabled) && {
@@ -771,8 +696,8 @@ export default function ConfirmDestinationScreen() {
                               style={[
                                 styles.suggestionName,
                                 {
-                                  fontSize: isSmallHeight ? 25 : 28,
-                                  lineHeight: isSmallHeight ? 29 : 32,
+                                  fontSize: isSmallHeight ? 22 : 25,
+                                  lineHeight: isSmallHeight ? 26 : 29,
                                 },
                               ]}
                               numberOfLines={2}
@@ -812,7 +737,9 @@ export default function ConfirmDestinationScreen() {
                         <View style={styles.suggestionChipsRow}>
                           <View style={styles.infoChip}>
                             <Ionicons name="map-outline" size={14} color={theme.primary} />
-                            <Text style={styles.infoChipText}>{city}</Text>
+                            <Text style={styles.infoChipText} numberOfLines={1}>
+                              {city}
+                            </Text>
                           </View>
                           <View style={styles.infoChip}>
                             <Ionicons
@@ -820,7 +747,7 @@ export default function ConfirmDestinationScreen() {
                               size={14}
                               color={theme.primary}
                             />
-                            <Text style={styles.infoChipText}>
+                            <Text style={styles.infoChipText} numberOfLines={1}>
                               {hasCoordinates ? "Localização encontrada" : "Localização pendente"}
                             </Text>
                           </View>
@@ -856,7 +783,7 @@ export default function ConfirmDestinationScreen() {
                 styles.suggestionCard,
                 styles.selectedDestinationCard,
                 {
-                  padding: isSmallHeight ? 16 : 18,
+                  padding: isSmallHeight ? 14 : 16,
                   borderColor: theme.primary,
                 },
               ]}
@@ -889,8 +816,8 @@ export default function ConfirmDestinationScreen() {
                     style={[
                       styles.suggestionName,
                       {
-                        fontSize: isSmallHeight ? 25 : 28,
-                        lineHeight: isSmallHeight ? 29 : 32,
+                        fontSize: isSmallHeight ? 22 : 25,
+                        lineHeight: isSmallHeight ? 26 : 29,
                       },
                     ]}
                     numberOfLines={2}
@@ -933,7 +860,9 @@ export default function ConfirmDestinationScreen() {
               <View style={styles.suggestionChipsRow}>
                 <View style={styles.infoChip}>
                   <Ionicons name="map-outline" size={14} color={theme.primary} />
-                  <Text style={styles.infoChipText}>{city}</Text>
+                  <Text style={styles.infoChipText} numberOfLines={1}>
+                    {city}
+                  </Text>
                 </View>
                 <View style={styles.infoChip}>
                   <Ionicons
@@ -941,7 +870,7 @@ export default function ConfirmDestinationScreen() {
                     size={14}
                     color={theme.primary}
                   />
-                  <Text style={styles.infoChipText}>
+                  <Text style={styles.infoChipText} numberOfLines={1}>
                     {activeHasCoordinates ? "Localização encontrada" : "Localização pendente"}
                   </Text>
                 </View>
@@ -967,45 +896,8 @@ export default function ConfirmDestinationScreen() {
             </Animated.View>
           )}
 
-          {/* ── LIVE TRANSCRIPT — transcrição discreta do usuário ── */}
-          {showLiveTranscript && (
-            <Animated.View
-              entering={FadeIn.duration(300)}
-              style={styles.liveTranscriptWrapper}
-            >
-              <LiveTranscript
-                transcript={voiceTranscript}
-                isFinal={isTranscriptFinal}
-              />
-            </Animated.View>
-          )}
-
-          {/* ── ERRO DE RECONHECIMENTO ── */}
-          {!!voiceErrorMessage && (
-            <Animated.View
-              entering={FadeIn.duration(300)}
-              style={styles.errorBanner}
-              accessible
-              accessibilityLiveRegion="assertive"
-            >
-              <Ionicons name="alert-circle" size={16} color="#9F1239" />
-              <Text style={styles.errorBannerText}>{voiceErrorMessage}</Text>
-            </Animated.View>
-          )}
-
-          {/* ── PERGUNTA "Este é o destino correto?" ── */}
-          {!isChoosingSuggestion && (
-            <View style={styles.questionSection}>
-              <Text
-                style={[styles.questionTitle, { color: "#000" }]}
-                maxFontSizeMultiplier={1.2}
-              >
-                Este é o destino correto?
-              </Text>
-            </View>
-          )}
         </Animated.View>
-      </ScrollView>
+      </View>
 
       {/* ─── BARRA DE AÇÕES FIXA ─── */}
       <View
@@ -1152,8 +1044,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  scrollContent: {
-    flexGrow: 1,
+  mainContentWrapper: {
+    flex: 1,
   },
   content: {
     flex: 1,
@@ -1186,10 +1078,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     letterSpacing: -0.5,
     marginBottom: 4,
-  },
-  heroSubtitle: {
-    fontWeight: "600",
-    textAlign: "center",
   },
   mainCard: {
     width: "100%",
@@ -1264,41 +1152,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     lineHeight: 18,
   },
-  // LiveTranscript
-  liveTranscriptWrapper: {
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  // Banner de erro sem transcrição
-  errorBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 18,
-    backgroundColor: "#FFF1F2",
-    borderWidth: 1,
-    borderColor: "#FECDD3",
-    marginBottom: 12,
-  },
-  errorBannerText: {
-    color: "#9F1239",
-    fontSize: 14,
-    fontWeight: "700",
-    flex: 1,
-    lineHeight: 20,
-  },
-  questionSection: {
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  questionTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    textAlign: "center",
-  },
   fixedBottomActions: {
     position: "absolute",
     bottom: 0,
@@ -1352,7 +1205,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   carouselSuggestionCard: {
-    minHeight: 318,
+    minHeight: 286,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.03,

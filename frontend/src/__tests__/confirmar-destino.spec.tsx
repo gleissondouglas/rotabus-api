@@ -108,21 +108,6 @@ jest.mock("../components/VoiceVisualizer", () => ({
   },
 }));
 
-// LiveTranscript — mock que renderiza o texto e o badge
-jest.mock("../components/LiveTranscript", () => ({
-  LiveTranscript: ({ transcript, isFinal }: { transcript: string; isFinal: boolean }) => {
-    const { Text: MockText } = jest.requireActual("react-native");
-    return (
-      <>
-        <MockText testID={isFinal ? "live-transcript-final" : "live-transcript-partial"}>
-          {transcript}
-        </MockText>
-        <MockText>{isFinal ? "Entendi" : "Ouvindo..."}</MockText>
-      </>
-    );
-  },
-}));
-
 jest.mock("../hooks/useVoiceConversationLoop", () => ({
   useVoiceConversationLoop: (options: typeof mockVoiceLoopCallbacks) => {
     mockVoiceLoopCallbacks = options;
@@ -297,6 +282,43 @@ describe("ConfirmDestinationScreen", () => {
     );
   });
 
+  it("mantém o layout de múltiplos destinos limpo ao buscar hospital", () => {
+    mockParams = buildParams({
+      mode: "suggestions",
+      recognizedText: "hospital",
+      options: JSON.stringify([
+        {
+          id: "dest-1",
+          name: "Hospital de Clínicas",
+          address: "Av. Getúlio Guaritá, Uberaba",
+          lat: -19.746,
+          lng: -47.934,
+          source: "GEOCODER",
+        },
+        {
+          id: "dest-2",
+          name: "Hospital São Domingos",
+          address: "Rua São Domingos, Uberaba",
+          lat: -19.751,
+          lng: -47.93,
+          source: "GEOCODER",
+        },
+      ]),
+    });
+
+    const screen = render(<ConfirmDestinationScreen />);
+
+    expect(screen.getByText("Destinos encontrados")).toBeTruthy();
+    expect(screen.getByText("Hospital de Clínicas")).toBeTruthy();
+    expect(screen.getByText("Opção 1 de 2")).toBeTruthy();
+    expect(screen.getByText("Outro destino")).toBeTruthy();
+    expect(screen.getByText("Responder")).toBeTruthy();
+    expect(screen.getByText("Diga o número da opção ou toque no card.")).toBeTruthy();
+    expect(screen.queryByText("Entendi")).toBeNull();
+    expect(screen.queryByText("Você disse: hospital")).toBeNull();
+    expect(screen.queryByText("Este é o destino correto?")).toBeNull();
+  });
+
   it("remove o card central de voz e usa o microfone inferior", () => {
     const screen = render(<ConfirmDestinationScreen />);
 
@@ -309,12 +331,10 @@ describe("ConfirmDestinationScreen", () => {
     // Deve existir o botão mic compacto
     expect(screen.getByText("Responder")).toBeTruthy();
 
-    // Texto helper com instrução de voz
-    expect(screen.getByText("Diga sim ou não")).toBeTruthy();
-
-    // Transcrição inicial do recognizedText exibida pelo LiveTranscript mock (isFinal=true porque é recognizedText)
-    expect(screen.getByTestId("live-transcript-final")).toBeTruthy();
-    expect(screen.getByText("Entendi")).toBeTruthy();
+    // Texto helper pequeno no rodapé, sem transcrição visual
+    expect(screen.getByText("Diga sim ou não.")).toBeTruthy();
+    expect(screen.queryByText("Entendi")).toBeNull();
+    expect(screen.queryByText("Você disse: Centro")).toBeNull();
   });
 
   it("exibe o VoiceVisualizer no modo listening quando o loop está ouvindo", async () => {
@@ -342,10 +362,10 @@ describe("ConfirmDestinationScreen", () => {
       mockVoiceLoopCallbacks.onStatusChange?.("error");
     });
 
-    // Transcrição "ah" exibida pelo LiveTranscript
-    expect(screen.getByText("ah")).toBeTruthy();
-    // Mensagem de erro exibida no banner
-    expect(screen.getByText("Entendi \"ah\", mas isso parece muito curto.")).toBeTruthy();
+    // Erro de voz aparece só como helper pequeno no rodapé.
+    expect(screen.queryByText("ah")).toBeNull();
+    expect(screen.queryByText("Entendi \"ah\", mas isso parece muito curto.")).toBeNull();
+    expect(screen.getByText("Não consegui ouvir. Toque para tentar novamente.")).toBeTruthy();
     // Label do botão mic no estado erro
     expect(screen.getByText("Tentar")).toBeTruthy();
 
@@ -363,7 +383,7 @@ describe("ConfirmDestinationScreen", () => {
     });
 
     expect(screen.getByText("Aguarde")).toBeTruthy();
-    expect(screen.getByText("O microfone será liberado ao fim da fala.")).toBeTruthy();
+    expect(screen.getByText("Diga sim ou não.")).toBeTruthy();
 
     await act(async () => {
       mockVoiceLoopCallbacks.onStatusChange?.("listening");
@@ -376,7 +396,7 @@ describe("ConfirmDestinationScreen", () => {
     });
 
     expect(screen.getByText("Entendendo")).toBeTruthy();
-    expect(screen.getByText("Interpretando sua resposta.")).toBeTruthy();
+    expect(screen.getByText("Diga sim ou não.")).toBeTruthy();
   });
 
   it("não mostra segunda ou terceira no texto de voz quando há só uma opção sugerida", () => {
@@ -396,7 +416,7 @@ describe("ConfirmDestinationScreen", () => {
 
     const screen = render(<ConfirmDestinationScreen />);
 
-    expect(screen.getByText("Diga primeira ou toque no destino.")).toBeTruthy();
+    expect(screen.getByText("Diga o número da opção ou toque no card.")).toBeTruthy();
     expect(screen.queryByText(/segunda/i)).toBeNull();
     expect(screen.queryByText(/terceira/i)).toBeNull();
   });
@@ -435,9 +455,8 @@ describe("ConfirmDestinationScreen", () => {
     });
 
     expect(router.push).not.toHaveBeenCalled();
-    expect(screen.getByText("Destino selecionado")).toBeTruthy();
+    expect(screen.getByText("Destinos encontrados")).toBeTruthy();
     expect(screen.getByText("Hospital B")).toBeTruthy();
-    expect(screen.getByText("Este é o destino correto?")).toBeTruthy();
 
     await act(async () => {
       await mockVoiceLoopCallbacks.onIntent?.({ type: "CONFIRM", transcript: "sim" });
@@ -481,7 +500,7 @@ describe("ConfirmDestinationScreen", () => {
     fireEvent.press(screen.getByLabelText("Selecionar 2: Hospital B, Rua B, Uberaba"));
 
     expect(router.push).not.toHaveBeenCalled();
-    expect(screen.getByText("Destino selecionado")).toBeTruthy();
+    expect(screen.getByText("Destinos encontrados")).toBeTruthy();
     expect(screen.getByText("Outras opções")).toBeTruthy();
 
     await act(async () => {
@@ -530,7 +549,7 @@ describe("ConfirmDestinationScreen", () => {
     );
   });
 
-  it("exibe o LiveTranscript com a transcrição parcial durante a escuta", async () => {
+  it("não exibe transcrição parcial durante a escuta nesta tela", async () => {
     const screen = render(<ConfirmDestinationScreen />);
 
     await act(async () => {
@@ -542,8 +561,9 @@ describe("ConfirmDestinationScreen", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("live-transcript-partial")).toBeTruthy();
-      expect(screen.getByText("Mário Palmério")).toBeTruthy();
+      expect(screen.queryByText("Mário Palmério")).toBeNull();
+      expect(screen.queryByText("Ouvindo...")).toBeNull();
+      expect(screen.getByText("Ouvindo")).toBeTruthy();
     });
   });
 });
