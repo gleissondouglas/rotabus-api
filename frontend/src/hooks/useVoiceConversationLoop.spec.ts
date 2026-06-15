@@ -112,6 +112,52 @@ describe("useVoiceConversationLoop", () => {
     expect(result.current.status).toBe("listening");
   });
 
+  it("não processa ruído curto como destino final", async () => {
+    const onIntent = jest.fn();
+    const onRecognitionIssue = jest.fn();
+    const { result } = renderHook(() => (
+      useVoiceConversationLoop({ onIntent, onRecognitionIssue })
+    ));
+
+    (SpeechService.startListening as jest.Mock).mockImplementation(({ onResult }) => {
+      onResult("ah", true);
+    });
+
+    await act(async () => {
+      await result.current.startLoop();
+    });
+
+    expect(onIntent).not.toHaveBeenCalled();
+    expect(onRecognitionIssue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "UNCLEAR_TRANSCRIPT",
+        transcript: "ah",
+      }),
+    );
+    expect(result.current.status).toBe("error");
+    expect(vibrationService.error).toHaveBeenCalled();
+  });
+
+  it("continua aceitando destino curto útil como Centro", async () => {
+    const onIntent = jest.fn();
+    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
+
+    (SpeechService.startListening as jest.Mock).mockImplementation(({ onResult }) => {
+      onResult("Centro", true);
+    });
+
+    await act(async () => {
+      await result.current.startLoop();
+    });
+
+    expect(onIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "DESTINATION_TEXT",
+        text: "centro",
+      }),
+    );
+  });
+
   it("limita o retry de silêncio a uma tentativa e termina em erro", async () => {
     const onIntent = jest.fn();
     const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));

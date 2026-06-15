@@ -8,6 +8,7 @@ export type VoiceIntent =
   | { type: "SHOW_DETAILS"; transcript: string }
   | { type: "HIDE_DETAILS"; transcript: string }
   | { type: "DESTINATION_TEXT"; text: string; transcript: string }
+  | { type: "UNCLEAR"; transcript: string }
   | { type: "EMPTY"; transcript: string };
 
 const CONFIRM_PATTERNS = [
@@ -68,6 +69,24 @@ const OPTION_PATTERNS: Record<number, string[]> = {
   2: ["terceira", "opcao tres", "numero tres"],
 };
 
+const NOISE_WORDS = new Set([
+  "a",
+  "ah",
+  "ai",
+  "e",
+  "eh",
+  "ei",
+  "ha",
+  "hm",
+  "hum",
+  "o",
+  "oh",
+  "oi",
+  "ta",
+  "uh",
+  "um",
+]);
+
 export function normalizeVoiceTranscript(text: string) {
   return text
     .toLowerCase()
@@ -80,6 +99,24 @@ export function normalizeVoiceTranscript(text: string) {
 
 function matchesPattern(normalized: string, patterns: string[]) {
   return patterns.some((pattern) => normalized === pattern);
+}
+
+export function isLikelyNoiseTranscript(normalizedTranscript: string) {
+  const normalized = normalizeVoiceTranscript(normalizedTranscript);
+
+  if (!normalized) {
+    return false;
+  }
+
+  const tokens = normalized.split(" ").filter(Boolean);
+
+  if (tokens.length === 1) {
+    const [word] = tokens;
+    return word.length < 3 || NOISE_WORDS.has(word) || /^\d+$/.test(word);
+  }
+
+  const meaningfulTokens = tokens.filter((token) => !NOISE_WORDS.has(token));
+  return meaningfulTokens.length === 0;
 }
 
 export function parseVoiceIntent(transcript: string): VoiceIntent {
@@ -125,6 +162,10 @@ export function parseVoiceIntent(transcript: string): VoiceIntent {
         transcript: normalized,
       };
     }
+  }
+
+  if (isLikelyNoiseTranscript(normalized)) {
+    return { type: "UNCLEAR", transcript: normalized };
   }
 
   return {

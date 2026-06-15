@@ -22,6 +22,21 @@ let currentAbortController: AbortController | null = null;
 let pendingSpeechCompletion: (() => void) | null = null;
 
 const SPEECH_RECOGNITION_LANGUAGE = "pt-BR";
+const SPEECH_CONTEXTUAL_STRINGS = [
+  "Centro",
+  "Centro de Uberaba",
+  "Praça Rui Barbosa",
+  "Hospital Mário Palmério",
+  "Terminal Univerde",
+  "Terminal Gameleiras",
+  "Terminal Beija-Flor",
+  "UFTM",
+  "Shopping Uberaba",
+  "Rodoviária",
+  "Mercado Municipal",
+  "Avenida Leopoldino de Oliveira",
+  "Avenida Guilherme Ferreira",
+];
 
 // Armazenamento de inscrições de eventos para limpeza
 let resultSubscription: any = null;
@@ -290,8 +305,16 @@ export async function startListening(options: {
     // REGISTRO CORRETO DOS LISTENERS NATIVOS (API REAL DA LIB)
     resultSubscription = SpeechRecognitionModule.addListener("result", (event: any) => {
       // Tenta obter a transcrição de múltiplos formatos possíveis para maior compatibilidade
-      const transcript = String(event.results?.[0]?.transcript || event.transcript || "").trim();
-      const isFinal = event.isFinal === true || event.results?.[0]?.isFinal === true;
+      const speechResult = Array.isArray(event.results)
+        ? event.results.find((result: any) => result?.isFinal === true) || event.results[0]
+        : null;
+      const transcript = String(speechResult?.transcript || event.transcript || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const hasFinalSignal = typeof event.isFinal === "boolean" || typeof speechResult?.isFinal === "boolean";
+      const isFinal = hasFinalSignal
+        ? event.isFinal === true || speechResult?.isFinal === true
+        : true;
       
       if (transcript.length > 0) {
         if (process.env.NODE_ENV !== "production") {
@@ -340,17 +363,10 @@ export async function startListening(options: {
     SpeechRecognitionModule.start({
       lang: SPEECH_RECOGNITION_LANGUAGE,
       interimResults: true,
+      maxAlternatives: 3,
       continuous: Platform.OS === 'android', // No iOS, continuous pode causar timeouts rápidos no simulador
       volumeChangeEventOptions: { enabled: true, intervalMillis: 300 },
-      contextualStrings: [
-        "Praça Rui Barbosa",
-        "Hospital Mário Palmério",
-        "Terminal Univerde",
-        "Terminal Gameleiras",
-        "Terminal Beija-Flor",
-        "UFTM",
-        "Shopping Uberaba"
-      ]
+      contextualStrings: SPEECH_CONTEXTUAL_STRINGS,
     });
   } catch (error) {
     console.error("[SpeechService] Falha ao iniciar reconhecimento:", error);

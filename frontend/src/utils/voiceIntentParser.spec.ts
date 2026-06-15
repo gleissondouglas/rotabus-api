@@ -1,4 +1,8 @@
-import { normalizeVoiceTranscript, parseVoiceIntent } from "./voiceIntentParser";
+import {
+  isLikelyNoiseTranscript,
+  normalizeVoiceTranscript,
+  parseVoiceIntent,
+} from "./voiceIntentParser";
 
 describe("voiceIntentParser", () => {
   describe("normalizeVoiceTranscript", () => {
@@ -155,6 +159,26 @@ describe("voiceIntentParser", () => {
     it("mapeia entrada vazia", () => {
       expect(parseVoiceIntent("")).toEqual({ type: "EMPTY", transcript: "" });
       expect(parseVoiceIntent("   ...   ")).toEqual({ type: "EMPTY", transcript: "" });
+    });
+
+    it("não trata ruído curto como destino", () => {
+      expect(parseVoiceIntent("ah")).toEqual({ type: "UNCLEAR", transcript: "ah" });
+      expect(parseVoiceIntent("1")).toEqual({ type: "UNCLEAR", transcript: "1" });
+      expect(parseVoiceIntent("hm")).toEqual({ type: "UNCLEAR", transcript: "hm" });
+      expect(parseVoiceIntent("Centro")).toEqual({
+        type: "DESTINATION_TEXT",
+        text: "centro",
+        transcript: "centro",
+      });
+    });
+  });
+
+  describe("isLikelyNoiseTranscript", () => {
+    it("aceita destino curto conhecido e rejeita ruído mínimo", () => {
+      expect(isLikelyNoiseTranscript("Centro")).toBe(false);
+      expect(isLikelyNoiseTranscript("UFTM")).toBe(false);
+      expect(isLikelyNoiseTranscript("ah")).toBe(true);
+      expect(isLikelyNoiseTranscript("o")).toBe(true);
     });
   });
 });

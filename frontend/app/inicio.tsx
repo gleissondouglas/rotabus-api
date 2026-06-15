@@ -26,7 +26,10 @@ import { ScreenContainer } from "../src/components/ScreenContainer";
 import {
   useVoiceConversationLoop,
 } from "../src/hooks/useVoiceConversationLoop";
-import type { VoiceLoopStatus } from "../src/hooks/useVoiceConversationLoop";
+import type {
+  VoiceLoopStatus,
+  VoiceRecognitionIssue,
+} from "../src/hooks/useVoiceConversationLoop";
 import { sessionService } from "../src/services/session.service";
 import { journeyService } from "../src/services/journey.service";
 import { locationService } from "../src/services/location.service";
@@ -40,8 +43,14 @@ import {
   markHomeVoiceAutoStarted,
   shouldAutoStartHomeVoice,
 } from "../src/state/homeVoiceSession";
-import type { VoiceIntent } from "../src/utils/voiceIntentParser";
-import type { DestinationOption, ResolveDestinationResponse } from "../src/types/journey.types";
+import {
+  isLikelyNoiseTranscript,
+  type VoiceIntent,
+} from "../src/utils/voiceIntentParser";
+import type {
+  DestinationOption,
+  ResolveDestinationResponse,
+} from "../src/types/journey.types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -138,6 +147,7 @@ export default function HomeScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isTranscriptFinal, setIsTranscriptFinal] = useState(false);
   const lastHandledSearchTextRef = useRef<string | null>(null);
+  const voiceIssueMessageRef = useRef("");
 
   // Valores de animação para o "pulsar" do microfone e a expansão do painel
   const micPulse = useSharedValue(1);
@@ -161,6 +171,19 @@ export default function HomeScreen() {
    * Envia o texto para o Backend para geocodificação e busca de rotas.
    */
   const processTranscription = useCallback(async (text: string) => {
+    const destinationText = text.trim();
+
+    if (!destinationText || isLikelyNoiseTranscript(destinationText)) {
+      setStatus("error");
+      setErrorMessage(
+        destinationText
+          ? `Entendi "${destinationText}", mas isso parece muito curto. Fale o destino novamente ou use a digitação.`
+          : "Não consegui entender sua fala. Tente falar novamente ou digite o destino.",
+      );
+      vibrationService.error();
+      return;
+    }
+
     setStatus("processing");
     setErrorMessage("");
     try {
@@ -170,7 +193,7 @@ export default function HomeScreen() {
       const origin = await getOriginCoords();
 
       const response = await journeyService.resolveDestination({
-        text,
+        text: destinationText,
         origin: {
           lat: Number(origin.latitude),
           lng: Number(origin.longitude),
@@ -191,6 +214,7 @@ export default function HomeScreen() {
               latitude: origin.latitude,
               longitude: origin.longitude,
               destination: bestOption?.name || response.interpretedDestination,
+              recognizedText: destinationText,
               address: bestOption?.address || "",
               confirmationQuestion: response.voice?.confirmationQuestion || response.message,
               options: JSON.stringify(resolvedOptions),
@@ -243,35 +267,44 @@ export default function HomeScreen() {
       setTranscript("");
       setIsTranscriptFinal(false);
       setErrorMessage("");
+      voiceIssueMessageRef.current = "";
     }
   }, [processTranscription]);
 
   const handleLoopStatusChange = useCallback((loopStatus: VoiceLoopStatus) => {
     if (loopStatus === "error") {
-      setErrorMessage("Não consegui te ouvir. Pode tentar novamente.");
+      setErrorMessage(
+        voiceIssueMessageRef.current ||
+          "Não consegui te ouvir. Pode tentar novamente.",
+      );
+      voiceIssueMessageRef.current = "";
       setStatus("error");
       return;
     }
 
     if (loopStatus === "speaking") {
+      voiceIssueMessageRef.current = "";
       setErrorMessage("");
       setStatus("speaking");
       return;
     }
 
     if (loopStatus === "listening") {
+      voiceIssueMessageRef.current = "";
       setErrorMessage("");
       setStatus("listening");
       return;
     }
 
     if (loopStatus === "processing") {
+      voiceIssueMessageRef.current = "";
       setErrorMessage("");
       setStatus("processing");
       return;
     }
 
     if (loopStatus === "idle" || loopStatus === "stopped") {
+      voiceIssueMessageRef.current = "";
       setStatus("idle");
     }
   }, []);
@@ -281,10 +314,21 @@ export default function HomeScreen() {
     setIsTranscriptFinal(isFinal);
   }, []);
 
+  const handleRecognitionIssue = useCallback((issue: VoiceRecognitionIssue) => {
+    if ("transcript" in issue && issue.transcript) {
+      setTranscript(issue.transcript);
+      setIsTranscriptFinal(true);
+    }
+
+    voiceIssueMessageRef.current = issue.message;
+    setErrorMessage(issue.message);
+  }, []);
+
   const { startLoop, stopAll } = useVoiceConversationLoop({
     onIntent: handleIntent,
     onStatusChange: handleLoopStatusChange,
     onTranscript: handleLoopTranscript,
+    onRecognitionIssue: handleRecognitionIssue,
   });
 
   useEffect(() => {
@@ -377,6 +421,7 @@ export default function HomeScreen() {
       setTranscript("");
       setIsTranscriptFinal(false);
       setErrorMessage("");
+      voiceIssueMessageRef.current = "";
 
       if (!params.searchText && userName && shouldAutoStartHomeVoice()) {
         markHomeVoiceAutoStarted();
@@ -462,6 +507,7 @@ export default function HomeScreen() {
       setTranscript("");
       setIsTranscriptFinal(false);
       setErrorMessage("");
+      voiceIssueMessageRef.current = "";
       void startLoop();
     } else if (status === "listening") {
       stopListening();
@@ -572,6 +618,11 @@ export default function HomeScreen() {
         {status === "error" && !!errorMessage && (
           <View style={styles.inlineErrorBanner} pointerEvents="none">
             <Text style={styles.inlineErrorText}>{errorMessage}</Text>
+            {!!transcript && (
+              <Text style={styles.inlineTranscriptText}>
+                Texto entendido: {transcript}
+              </Text>
+            )}
           </View>
         )}
 
@@ -824,6 +875,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     textAlign: "center",
+  },
+  inlineTranscriptText: {
+    color: "#4C0519",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 4,
   },
   actionPill: {
     width: SCREEN_WIDTH - 24,

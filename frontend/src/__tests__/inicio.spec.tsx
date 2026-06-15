@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 
 import HomeScreen from "../../app/inicio";
-import type { VoiceLoopStatus } from "../hooks/useVoiceConversationLoop";
+import type { VoiceLoopStatus, VoiceRecognitionIssue } from "../hooks/useVoiceConversationLoop";
 import { vibrationService } from "../services/vibration.service";
 import { resetHomeVoiceSessionForTests } from "../state/homeVoiceSession";
 
@@ -12,6 +12,7 @@ const mockStopAll = jest.fn().mockResolvedValue(undefined);
 let mockVoiceLoopCallbacks: {
   onStatusChange?: (status: VoiceLoopStatus) => void;
   onTranscript?: (text: string, isFinal: boolean) => void;
+  onRecognitionIssue?: (issue: VoiceRecognitionIssue) => void;
 } = {};
 
 jest.mock("react-native-reanimated", () => {
@@ -230,5 +231,27 @@ describe("HomeScreen voice-first flow", () => {
 
     expect(vibrationService.light).toHaveBeenCalled();
     expect(mockStartLoop).toHaveBeenCalledWith();
+  });
+
+  it("mostra claramente a transcrição descartada por ruído curto", async () => {
+    const screen = render(<HomeScreen />);
+
+    await waitFor(() => {
+      expect(mockStartLoop).toHaveBeenCalledWith(
+        "Olá, Douglas. Para onde você quer ir hoje?",
+      );
+    });
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onRecognitionIssue?.({
+        type: "UNCLEAR_TRANSCRIPT",
+        transcript: "ah",
+        message: "Entendi \"ah\", mas isso parece muito curto.",
+      });
+      mockVoiceLoopCallbacks.onStatusChange?.("error");
+    });
+
+    expect(screen.getByText("Entendi \"ah\", mas isso parece muito curto.")).toBeTruthy();
+    expect(screen.getByText("Texto entendido: ah")).toBeTruthy();
   });
 });

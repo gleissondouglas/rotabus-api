@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 
 import ConfirmDestinationScreen from "../../app/confirmar-destino";
 import type { VoiceIntent } from "../utils/voiceIntentParser";
-import type { VoiceLoopStatus } from "../hooks/useVoiceConversationLoop";
+import type { VoiceLoopStatus, VoiceRecognitionIssue } from "../hooks/useVoiceConversationLoop";
 import { journeyService } from "../services/journey.service";
 
 const mockStartLoop = jest.fn().mockResolvedValue(undefined);
@@ -13,6 +13,8 @@ const mockStopAll = jest.fn().mockResolvedValue(undefined);
 let mockVoiceLoopCallbacks: {
   onIntent?: (intent: VoiceIntent) => void | Promise<void>;
   onStatusChange?: (status: VoiceLoopStatus) => void;
+  onTranscript?: (text: string, isFinal: boolean) => void;
+  onRecognitionIssue?: (issue: VoiceRecognitionIssue) => void;
 } = {};
 
 let mockParams: Record<string, string> = {};
@@ -135,6 +137,7 @@ function buildParams(overrides: Record<string, string> = {}) {
     message: "Destino encontrado",
     sessionId: "session-1",
     voiceMode: "true",
+    recognizedText: "Centro",
     ...overrides,
   };
 }
@@ -222,6 +225,29 @@ describe("ConfirmDestinationScreen", () => {
     render(<ConfirmDestinationScreen />);
 
     expect(mockStartLoop).not.toHaveBeenCalled();
+  });
+
+  it("mostra o texto entendido e permite falar novamente após erro de reconhecimento", async () => {
+    const screen = render(<ConfirmDestinationScreen />);
+
+    expect(screen.getByText("Texto entendido: Centro")).toBeTruthy();
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onRecognitionIssue?.({
+        type: "UNCLEAR_TRANSCRIPT",
+        transcript: "ah",
+        message: "Entendi \"ah\", mas isso parece muito curto.",
+      });
+      mockVoiceLoopCallbacks.onStatusChange?.("error");
+    });
+
+    expect(screen.getByText("Texto entendido: ah")).toBeTruthy();
+    expect(screen.getByText("Entendi \"ah\", mas isso parece muito curto.")).toBeTruthy();
+
+    mockStartLoop.mockClear();
+    fireEvent.press(screen.getByText("Falar novamente"));
+
+    expect(mockStartLoop).toHaveBeenCalledWith();
   });
 
   it("não navega quando faltam coordenadas do destino", async () => {

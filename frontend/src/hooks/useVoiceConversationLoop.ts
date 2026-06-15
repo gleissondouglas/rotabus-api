@@ -7,8 +7,7 @@ import {
   stopListening, 
   isSpeechRecognitionAvailable 
 } from "../services/speech.service";
-import { parseVoiceIntent } from "../utils/voiceIntentParser";
-import type { VoiceIntent } from "../utils/voiceIntentParser";
+import { parseVoiceIntent, type VoiceIntent } from "../utils/voiceIntentParser";
 import { vibrationService } from "../services/vibration.service";
 
 const LISTEN_AFTER_SPEECH_DELAY_MS = 250;
@@ -36,6 +35,12 @@ export type VoiceLoopStatus =
   | "error" 
   | "stopped";
 
+export type VoiceRecognitionIssue =
+  | { type: "EMPTY_TRANSCRIPT"; message: string }
+  | { type: "UNCLEAR_TRANSCRIPT"; transcript: string; message: string }
+  | { type: "SPEECH_UNAVAILABLE"; message: string }
+  | { type: "SPEECH_ERROR"; message: string; error?: any };
+
 interface VoiceConversationLoopOptions {
   /** Callback chamado quando uma intenção de voz é identificada */
   onIntent: (intent: VoiceIntent) => void | Promise<void>;
@@ -43,6 +48,8 @@ interface VoiceConversationLoopOptions {
   onStatusChange?: (status: VoiceLoopStatus) => void;
   /** Callback opcional para receber transcrições parciais/finais */
   onTranscript?: (transcript: string, isFinal: boolean) => void;
+  /** Callback opcional para explicar falhas de reconhecimento sem misturar com falhas de rede */
+  onRecognitionIssue?: (issue: VoiceRecognitionIssue) => void;
 }
 
 /**
@@ -53,6 +60,7 @@ export function useVoiceConversationLoop({
   onIntent,
   onStatusChange,
   onTranscript,
+  onRecognitionIssue,
 }: VoiceConversationLoopOptions) {
   const [status, setStatus] = useState<VoiceLoopStatus>("idle");
   const isFocusedRef = useRef(true);
@@ -62,6 +70,7 @@ export function useVoiceConversationLoop({
   const onIntentRef = useRef(onIntent);
   const onStatusChangeRef = useRef(onStatusChange);
   const onTranscriptRef = useRef(onTranscript);
+  const onRecognitionIssueRef = useRef(onRecognitionIssue);
   const startLoopRef = useRef<(speechText?: string) => Promise<void>>(async () => {});
   const openMicrophoneRef = useRef<(runId: number) => Promise<void>>(async () => {});
   const MAX_RETRIES = 1;
@@ -77,6 +86,10 @@ export function useVoiceConversationLoop({
   useEffect(() => {
     onTranscriptRef.current = onTranscript;
   }, [onTranscript]);
+
+  useEffect(() => {
+    onRecognitionIssueRef.current = onRecognitionIssue;
+  }, [onRecognitionIssue]);
 
   // Atualiza o estado interno e notifica o componente
   const updateStatus = useCallback((newStatus: VoiceLoopStatus) => {
@@ -101,18 +114,39 @@ export function useVoiceConversationLoop({
     const finalTranscript = transcript.trim();
 
     if (!finalTranscript) {
+      onRecognitionIssueRef.current?.({
+        type: "EMPTY_TRANSCRIPT",
+        message: "Não consegui entender sua fala. Toque no microfone e tente novamente.",
+      });
+      vibrationService.error();
+      updateStatus("error");
+      return;
+    }
+
+    const intent = parseVoiceIntent(finalTranscript);
+
+    if (intent.type === "EMPTY") {
+      onRecognitionIssueRef.current?.({
+        type: "EMPTY_TRANSCRIPT",
+        message: "Não consegui entender sua fala. Toque no microfone e tente novamente.",
+      });
+      vibrationService.error();
+      updateStatus("error");
+      return;
+    }
+
+    if (intent.type === "UNCLEAR") {
+      onRecognitionIssueRef.current?.({
+        type: "UNCLEAR_TRANSCRIPT",
+        transcript: intent.transcript,
+        message: `Entendi "${intent.transcript}", mas isso parece muito curto. Fale o nome do destino novamente ou digite o endereço.`,
+      });
+      vibrationService.error();
       updateStatus("error");
       return;
     }
 
     retryCountRef.current = 0;
-    updateStatus("processing");
-    const intent = parseVoiceIntent(finalTranscript);
-
-    if (intent.type === "EMPTY") {
-      updateStatus("error");
-      return;
-    }
 
     if (intent.type === "REPEAT") {
       vibrationService.light();
@@ -120,6 +154,7 @@ export function useVoiceConversationLoop({
       return;
     }
 
+    updateStatus("processing");
     await onIntentRef.current(intent);
   }, [updateStatus]);
 
@@ -129,6 +164,10 @@ export function useVoiceConversationLoop({
     }
 
     if (!isSpeechRecognitionAvailable()) {
+      onRecognitionIssueRef.current?.({
+        type: "SPEECH_UNAVAILABLE",
+        message: "O recurso de voz não está disponível neste dispositivo. Você ainda pode digitar o destino.",
+      });
       updateStatus("error");
       return;
     }
@@ -176,6 +215,13 @@ export function useVoiceConversationLoop({
 
         retryCountRef.current = 0;
         if (isRunActive(runId)) {
+          onRecognitionIssueRef.current?.({
+            type: "SPEECH_ERROR",
+            message: isSilent
+              ? "Não consegui te ouvir. Toque no microfone e tente novamente."
+              : "Não consegui entender sua fala agora. Tente falar novamente ou digite o destino.",
+            error: err,
+          });
           updateStatus("error");
           vibrationService.error();
         }

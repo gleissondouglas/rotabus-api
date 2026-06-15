@@ -15,7 +15,10 @@ import { vibrationService } from "../src/services/vibration.service";
 import { isConnected } from "../src/utils/network";
 import { parseJsonParam } from "../src/utils/helpers";
 import { layout } from "../src/theme/layout";
-import type { VoiceLoopStatus } from "../src/hooks/useVoiceConversationLoop";
+import type {
+  VoiceLoopStatus,
+  VoiceRecognitionIssue,
+} from "../src/hooks/useVoiceConversationLoop";
 
 function getSingleParam(value: string | string[] | undefined, fallback = "") {
   return Array.isArray(value) ? String(value[0] || fallback) : String(value || fallback);
@@ -47,12 +50,15 @@ export default function ConfirmDestinationScreen() {
   const backendMode = getSingleParam(params.mode);
   const backendMessage = getSingleParam(params.message, "Encontrei algumas opções");
   const voiceMode = getSingleParam(params.voiceMode) === "true";
+  const recognizedText = getSingleParam(params.recognizedText);
   
   const [sessionId] = useState(getSingleParam(params.sessionId));
   const [speechText] = useState(getSingleParam(params.speechText));
   const [displayData] = useState<any>(params.displayData ? JSON.parse(String(params.displayData)) : null);
   const [conversationState] = useState(getSingleParam(params.conversationState));
   const [voiceStatus, setVoiceStatus] = useState<VoiceLoopStatus>("idle");
+  const [voiceTranscript, setVoiceTranscript] = useState(recognizedText);
+  const [voiceErrorMessage, setVoiceErrorMessage] = useState("");
 
   const rawOptions = parseJsonParam<any[]>(params.options, []);
   const options = (rawOptions.length > 0 ? rawOptions : (displayData?.items || [])).map((item: any, index: number) => {
@@ -245,6 +251,8 @@ export default function ConfirmDestinationScreen() {
    */
   const { startLoop, stopAll } = useVoiceConversationLoop({
     onIntent: async (intent) => {
+      setVoiceErrorMessage("");
+
       switch (intent.type) {
         case "CONFIRM":
           await handleConfirmDestination();
@@ -279,7 +287,29 @@ export default function ConfirmDestinationScreen() {
           break;
       }
     },
-    onStatusChange: setVoiceStatus,
+    onStatusChange: (nextStatus) => {
+      setVoiceStatus(nextStatus);
+
+      if (nextStatus === "listening" || nextStatus === "processing") {
+        setVoiceErrorMessage("");
+      }
+    },
+    onTranscript: (text, isFinal) => {
+      if (text) {
+        setVoiceTranscript(text);
+      }
+
+      if (!isFinal) {
+        setVoiceErrorMessage("");
+      }
+    },
+    onRecognitionIssue: (issue: VoiceRecognitionIssue) => {
+      if ("transcript" in issue && issue.transcript) {
+        setVoiceTranscript(issue.transcript);
+      }
+
+      setVoiceErrorMessage(issue.message);
+    },
   });
 
   useEffect(() => {
@@ -481,6 +511,31 @@ export default function ConfirmDestinationScreen() {
                     ? "Diga 'primeira', 'segunda' ou 'terceira' para escolher."
                     : "Diga 'sim' para buscar a rota ou 'não' para escolher outro destino."}
                 </Text>
+                {!!voiceTranscript && (
+                  <Text style={styles.voiceTranscriptText}>
+                    Texto entendido: {voiceTranscript}
+                  </Text>
+                )}
+                {!!voiceErrorMessage && (
+                  <Text style={styles.voiceErrorText}>{voiceErrorMessage}</Text>
+                )}
+                {voiceStatus === "error" && (
+                  <Pressable
+                    style={styles.retryVoiceButton}
+                    onPress={() => {
+                      vibrationService.light();
+                      setVoiceErrorMessage("");
+                      void startLoop();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Falar novamente"
+                  >
+                    <Ionicons name="mic" size={16} color={theme.primary} />
+                    <Text style={[styles.retryVoiceText, { color: theme.primary }]}>
+                      Falar novamente
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             </View>
           )}
@@ -727,6 +782,34 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#475569",
     lineHeight: 19,
+  },
+  voiceTranscriptText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#011030",
+    marginTop: 4,
+  },
+  voiceErrorText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#9F1239",
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  retryVoiceButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    backgroundColor: "rgba(59, 130, 246, 0.08)",
+    marginTop: 8,
+  },
+  retryVoiceText: {
+    fontSize: 13,
+    fontWeight: "900",
   },
   fixedBottomActions: {
     position: "absolute",
