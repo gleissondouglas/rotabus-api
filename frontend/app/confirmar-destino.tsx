@@ -597,7 +597,7 @@ export default function ConfirmDestinationScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: insets.top + (isChoosingSuggestion ? 72 : isSmallHeight ? 50 : 70),
+            paddingTop: insets.top + 72,
             paddingBottom: insets.bottom + (isChoosingSuggestion ? 172 : 300),
           },
         ]}
@@ -632,51 +632,17 @@ export default function ConfirmDestinationScreen() {
             style={[
               styles.heroArea,
               {
-                marginBottom: isSmallHeight
-                  ? 18
-                  : isSmallHeight
-                    ? layout.sectionGapSmall
-                    : layout.sectionGap,
+                marginBottom: isSmallHeight ? 16 : 18,
               },
             ]}
           >
-            {!isChoosingSuggestion && (
-              <View
-                style={[
-                  styles.heroIconCircle,
-                  { backgroundColor: "white" },
-                  {
-                    width: isSmallHeight ? layout.heroIconSizeSmall : layout.heroIconSize,
-                    height: isSmallHeight ? layout.heroIconSizeSmall : layout.heroIconSize,
-                    borderRadius:
-                      (isSmallHeight ? layout.heroIconSizeSmall : layout.heroIconSize) / 2,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name={showSuggestions ? "list" : "location"}
-                  size={isSmallHeight ? 32 : 40}
-                  color={theme.primary}
-                />
-              </View>
-            )}
             <Text
               style={[
                 styles.heroTitle,
                 { color: "#000" },
                 {
-                  fontSize: isChoosingSuggestion
-                    ? isSmallHeight
-                      ? 32
-                      : 36
-                    : isSmallHeight
-                      ? layout.titleFontSizeSmall
-                      : layout.titleFontSize,
-                  lineHeight: isChoosingSuggestion
-                    ? isSmallHeight
-                      ? 36
-                      : 40
-                    : undefined,
+                  fontSize: isSmallHeight ? 32 : 36,
+                  lineHeight: isSmallHeight ? 36 : 40,
                 },
               ]}
               maxFontSizeMultiplier={1.2}
@@ -693,9 +659,7 @@ export default function ConfirmDestinationScreen() {
                   styles.heroSubtitle,
                   { color: "#666" },
                   {
-                    fontSize: isSmallHeight
-                      ? layout.subtitleFontSizeSmall
-                      : layout.subtitleFontSize,
+                    fontSize: isSmallHeight ? 18 : 20,
                   },
                 ]}
                 maxFontSizeMultiplier={1.1}
@@ -1048,10 +1012,12 @@ export default function ConfirmDestinationScreen() {
         style={[
           styles.fixedBottomActions,
           {
-            paddingBottom: insets.bottom + 16,
+            paddingTop: isChoosingSuggestion ? 16 : 12,
+            paddingBottom: insets.bottom + (isChoosingSuggestion ? 16 : 12),
             paddingHorizontal: isSmallHeight
               ? layout.screenHorizontalPaddingSmall
               : layout.screenHorizontalPadding,
+            gap: isChoosingSuggestion ? 12 : 8,
           },
         ]}
       >
@@ -1062,7 +1028,7 @@ export default function ConfirmDestinationScreen() {
               styles.primaryButton,
               {
                 backgroundColor: theme.primary,
-                height: isSmallHeight
+                height: !isChoosingSuggestion || isSmallHeight
                   ? layout.primaryButtonHeightSmall
                   : layout.primaryButtonHeight,
               },
@@ -1096,7 +1062,7 @@ export default function ConfirmDestinationScreen() {
           style={[
             styles.secondaryVoiceRow,
             {
-              height: isSmallHeight
+              height: !isChoosingSuggestion || isSmallHeight
                 ? layout.primaryButtonHeightSmall
                 : layout.primaryButtonHeight,
             },
@@ -1326,7 +1292,7 @@ const styles = StyleSheet.create({
   },
   questionSection: {
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 12,
   },
   questionTitle: {
     fontSize: 20,
