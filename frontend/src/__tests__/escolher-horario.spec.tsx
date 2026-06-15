@@ -210,4 +210,92 @@ describe("ChooseTimeScreen", () => {
 
     expect(mockStartLoop).toHaveBeenCalledWith();
   });
+
+  it("renderiza os cards de horário de 30 em 30 minutos e permite selecionar", () => {
+    const screen = render(<ChooseTimeScreen />);
+    
+    fireEvent.press(screen.getByText("Outro horário"));
+    
+    // Verifica que alguns slots foram gerados (ex: 00:00, 08:30, 23:30)
+    expect(screen.getByLabelText("Horário 00:00")).toBeTruthy();
+    expect(screen.getByLabelText("Horário 08:30")).toBeTruthy();
+    expect(screen.getByLabelText("Horário 23:30")).toBeTruthy();
+
+    // Seleciona um horário e verifica se ele adquire o estado "selected"
+    const card0930 = screen.getByLabelText("Horário 09:30");
+    fireEvent.press(card0930);
+    
+    expect(card0930.props.accessibilityState.selected).toBe(true);
+  });
+
+  it("garante que opções rápidas de horário e inputs manuais não aparecem mais", () => {
+    const screen = render(<ChooseTimeScreen />);
+    fireEvent.press(screen.getByText("Outro horário"));
+    
+    expect(screen.queryByText("+30 min")).toBeNull();
+    expect(screen.queryByText("+1h")).toBeNull();
+    expect(screen.queryByText("+2h")).toBeNull();
+    expect(screen.queryByText("Ajustar")).toBeNull();
+  });
+
+  it("confirma horário de saída usando a nova UI de cards", () => {
+    const screen = render(<ChooseTimeScreen />);
+    fireEvent.press(screen.getByText("Outro horário"));
+    
+    // Supondo que selecionou "Amanhã"
+    fireEvent.press(screen.getByText("Amanhã"));
+    // Seleciona o horário
+    fireEvent.press(screen.getByLabelText("Horário 10:30"));
+    // Confirma
+    fireEvent.press(screen.getByText("Confirmar horário"));
+
+    expect(router.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: "/processando",
+        params: expect.objectContaining({ timeType: "DEPARTURE" }),
+      })
+    );
+  });
+
+  it("confirma horário de chegada usando a nova UI de cards", () => {
+    const screen = render(<ChooseTimeScreen />);
+    fireEvent.press(screen.getByText("Chegar até um horário"));
+    
+    // Seleciona o horário
+    fireEvent.press(screen.getByLabelText("Horário 16:30"));
+    // Confirma
+    fireEvent.press(screen.getByText("Confirmar horário"));
+
+    expect(router.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: "/processando",
+        params: expect.objectContaining({ timeType: "ARRIVAL" }),
+      })
+    );
+  });
+
+  it("atualiza a UI de cards corretamente quando um intent de voz é recebido", async () => {
+    const screen = render(<ChooseTimeScreen />);
+    fireEvent.press(screen.getByText("Outro horário"));
+    
+    await act(async () => {
+      if (mockVoiceLoopCallbacks.onIntent) {
+        await mockVoiceLoopCallbacks.onIntent({
+          type: "DESTINATION_TEXT",
+          text: "quero sair amanhã às 20:00",
+          transcript: "quero sair amanhã às 20:00",
+        });
+      }
+    });
+
+    const card2000 = screen.getByLabelText("Horário 20:00");
+    expect(card2000.props.accessibilityState.selected).toBe(true);
+
+    expect(router.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: "/processando",
+        params: expect.objectContaining({ timeType: "DEPARTURE" }),
+      })
+    );
+  });
 });

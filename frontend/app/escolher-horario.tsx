@@ -17,7 +17,6 @@ import Animated, { FadeInUp, FadeIn } from "react-native-reanimated";
 import { BackButton } from "../src/components/BackButton";
 import { BottomVoiceMicButton } from "../src/components/BottomVoiceMicButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
-import { TextField } from "../src/components/TextField";
 import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
 import type { VoiceLoopStatus, VoiceRecognitionIssue } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
@@ -71,55 +70,11 @@ export default function ChooseTimeScreen() {
 
   const dateOptions = getNext7Days();
 
-  function handleTimeTextChange(text: string) {
-    const clean = text.replace(/[^0-9]/g, "");
-    if (clean.length <= 2) {
-      setTimeText(clean);
-    } else {
-      const hh = clean.substring(0, 2);
-      const mm = clean.substring(2, 4);
-      setTimeText(`${hh}:${mm}`);
-    }
-  }
-
-  function handleQuickTime(minutesToAdd: number) {
-    vibrationService.light();
-    const now = new Date();
-    const future = new Date(now.getTime() + minutesToAdd * 60 * 1000);
-    const year = future.getFullYear();
-    const month = String(future.getMonth() + 1).padStart(2, "0");
-    const day = String(future.getDate()).padStart(2, "0");
-    setDateText(`${year}-${month}-${day}`);
-    setTimeText(`${String(future.getHours()).padStart(2, "0")}:${String(future.getMinutes()).padStart(2, "0")}`);
-  }
-
-  function adjustTime(minutesDiff: number) {
-    try {
-      vibrationService.light();
-      const [hoursStr, minutesStr] = timeText.split(":");
-      let hours = parseInt(hoursStr, 10);
-      let minutes = parseInt(minutesStr, 10);
-      
-      if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-        const now = new Date();
-        hours = now.getHours();
-        minutes = now.getMinutes();
-      }
-
-      let totalMinutes = hours * 60 + minutes + minutesDiff;
-      if (totalMinutes < 0) {
-        totalMinutes += 24 * 60;
-      }
-      totalMinutes = totalMinutes % (24 * 60);
-
-      const finalHours = Math.floor(totalMinutes / 60);
-      const finalMinutes = totalMinutes % 60;
-
-      const pad = (n: number) => String(n).padStart(2, "0");
-      setTimeText(`${pad(finalHours)}:${pad(finalMinutes)}`);
-    } catch (e) {
-      console.log("Erro ao ajustar hora:", e);
-    }
+  const timeSlots = [];
+  for (let i = 0; i < 24; i++) {
+    const hr = String(i).padStart(2, "0");
+    timeSlots.push(`${hr}:00`);
+    timeSlots.push(`${hr}:30`);
   }
 
   const screenMessage = "Você quer sair agora ou escolher outro horário?";
@@ -171,9 +126,13 @@ export default function ChooseTimeScreen() {
           handleGoNow();
           break;
         case "DEPARTURE_TIME":
+          setDateText(timeIntent.date);
+          setTimeText(timeIntent.time);
           validateAndNavigate("DEPARTURE", timeIntent.date, timeIntent.time);
           break;
         case "ARRIVAL_TIME":
+          setDateText(timeIntent.date);
+          setTimeText(timeIntent.time);
           validateAndNavigate("ARRIVAL", timeIntent.date, timeIntent.time);
           break;
         case "REPEAT":
@@ -616,75 +575,36 @@ export default function ChooseTimeScreen() {
                   })}
                 </ScrollView>
 
-                <View style={styles.timeInputRow}>
-                  <View style={{ flex: 1 }}>
-                    <TextField
-                      label="Escolha o horário"
-                      placeholder="Ex: 10:30"
-                      value={timeText}
-                      onChangeText={handleTimeTextChange}
-                      keyboardType="number-pad"
-                      maxLength={5}
-                    />
-                  </View>
-                  <View style={styles.timeAdjustmentColumn}>
-                    <Text style={styles.adjustmentLabel}>Ajustar</Text>
-                    <View style={styles.timeAdjustmentRow}>
+                <Text style={styles.formLabel}>Escolha o horário</Text>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dateChipsContainer}
+                >
+                  {timeSlots.map((slot) => {
+                    const isSelected = timeText === slot;
+                    return (
                       <Pressable
-                        onPress={() => adjustTime(-10)}
-                        style={styles.adjustBtn}
+                        key={slot}
+                        onPress={() => {
+                          vibrationService.light();
+                          setTimeText(slot);
+                        }}
+                        style={[
+                          styles.timeChip,
+                          isSelected && [styles.timeChipActive, { borderColor: theme.primary, backgroundColor: theme.primaryLight }]
+                        ]}
                         accessibilityRole="button"
-                        accessibilityLabel="Diminuir dez minutos"
+                        accessibilityLabel={`Horário ${slot}`}
+                        accessibilityState={{ selected: isSelected }}
                       >
-                        <Ionicons name="remove" size={20} color="#475569" />
+                        <Text style={[styles.timeChipText, isSelected && { color: theme.primary }]}>
+                          {slot}
+                        </Text>
                       </Pressable>
-                      <Pressable
-                        onPress={() => adjustTime(10)}
-                        style={styles.adjustBtn}
-                        accessibilityRole="button"
-                        accessibilityLabel="Aumentar dez minutos"
-                      >
-                        <Ionicons name="add" size={20} color="#475569" />
-                      </Pressable>
-                    </View>
-                  </View>
-                </View>
-
-                <Text style={styles.formLabelSmall}>Opções rápidas de horário</Text>
-                <View style={styles.quickTimeContainer}>
-                  <Pressable
-                    onPress={() => handleQuickTime(0)}
-                    style={styles.quickTimeBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Definir para agora"
-                  >
-                    <Text style={[styles.quickTimeText, { color: theme.primary }]}>Agora</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => handleQuickTime(30)}
-                    style={styles.quickTimeBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Definir para daqui trinta minutos"
-                  >
-                    <Text style={[styles.quickTimeText, { color: theme.primary }]}>+30 min</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => handleQuickTime(60)}
-                    style={styles.quickTimeBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Definir para daqui uma hora"
-                  >
-                    <Text style={[styles.quickTimeText, { color: theme.primary }]}>+1h</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => handleQuickTime(120)}
-                    style={styles.quickTimeBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Definir para daqui duas horas"
-                  >
-                    <Text style={[styles.quickTimeText, { color: theme.primary }]}>+2h</Text>
-                  </Pressable>
-                </View>
+                    );
+                  })}
+                </ScrollView>
             </View>
 
             <View style={styles.modalActions}>
@@ -899,56 +819,24 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#0F172A",
   },
-  timeInputRow: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-end",
-    marginTop: 8,
-  },
-  timeAdjustmentColumn: {
-    alignItems: "center",
-    gap: 4,
-  },
-  adjustmentLabel: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#94A3B8",
-    textTransform: "uppercase",
-  },
-  timeAdjustmentRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  adjustBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
+  timeChip: {
+    height: 72,
+    minWidth: 72,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
     borderColor: "#E2E8F0",
     alignItems: "center",
     justifyContent: "center",
   },
-  quickTimeContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 4,
-    marginBottom: 8,
+  timeChipActive: {
+    borderWidth: 2,
   },
-  quickTimeBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    minWidth: 60,
-    alignItems: "center",
-  },
-  quickTimeText: {
-    fontSize: 14,
-    fontWeight: "800",
+  timeChipText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0F172A",
   },
   modalActions: {
     gap: 8,
