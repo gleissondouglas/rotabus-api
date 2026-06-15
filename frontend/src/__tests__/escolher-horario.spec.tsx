@@ -1,12 +1,20 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 import { router, useLocalSearchParams } from "expo-router";
 
 import ChooseTimeScreen from "../../app/escolher-horario";
+import type { VoiceIntent } from "../utils/voiceIntentParser";
+import type { VoiceLoopStatus, VoiceRecognitionIssue } from "../hooks/useVoiceConversationLoop";
 
 const mockStartLoop = jest.fn().mockResolvedValue(undefined);
 const mockStopAll = jest.fn().mockResolvedValue(undefined);
 
 let mockParams: Record<string, string> = {};
+let mockVoiceLoopCallbacks: {
+  onIntent?: (intent: VoiceIntent) => void | Promise<void>;
+  onStatusChange?: (status: VoiceLoopStatus) => void;
+  onTranscript?: (text: string, isFinal: boolean) => void;
+  onRecognitionIssue?: (issue: VoiceRecognitionIssue) => void;
+} = {};
 
 jest.mock("react-native-reanimated", () => {
   const Reanimated = jest.requireActual("react-native-reanimated/mock");
@@ -18,6 +26,22 @@ jest.mock("react-native-reanimated", () => {
   };
   Reanimated.FadeInUp = {
     duration: () => ({}),
+  };
+  Reanimated.useSharedValue = (value: number) => ({ value });
+  Reanimated.useAnimatedStyle = (updater: () => object) => updater();
+  Reanimated.withTiming = (value: number) => value;
+  Reanimated.withRepeat = (value: number) => value;
+  Reanimated.withSequence = (...values: number[]) => values[values.length - 1];
+  Reanimated.interpolate = (
+    value: number,
+    input: number[],
+    output: number[],
+  ) => {
+    return value >= input[input.length - 1] ? output[output.length - 1] : output[0];
+  };
+  Reanimated.Easing = {
+    inOut: () => undefined,
+    ease: undefined,
   };
 
   return Reanimated;
@@ -79,10 +103,18 @@ jest.mock("../components/TextField", () => ({
 }));
 
 jest.mock("../hooks/useVoiceConversationLoop", () => ({
-  useVoiceConversationLoop: () => ({
-    startLoop: mockStartLoop,
-    stopAll: mockStopAll,
-  }),
+  useVoiceConversationLoop: (options: typeof mockVoiceLoopCallbacks) => {
+    mockVoiceLoopCallbacks = options;
+
+    return {
+      startLoop: mockStartLoop,
+      stopAll: mockStopAll,
+    };
+  },
+}));
+
+jest.mock("../services/speech.service", () => ({
+  stopListening: jest.fn(),
 }));
 
 jest.mock("../services/vibration.service", () => ({
@@ -110,6 +142,7 @@ function buildParams(overrides: Record<string, string> = {}) {
 describe("ChooseTimeScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockVoiceLoopCallbacks = {};
     mockParams = buildParams();
     (useLocalSearchParams as jest.Mock).mockImplementation(() => mockParams);
   });
@@ -141,5 +174,40 @@ describe("ChooseTimeScreen", () => {
         timeType: "DEPARTURE",
       }),
     });
+  });
+
+  it("remove a dica central de voz e usa o microfone inferior", () => {
+    const screen = render(<ChooseTimeScreen />);
+
+    expect(screen.queryByText(/Você pode dizer/)).toBeNull();
+    expect(screen.queryByText("Ouvir opções")).toBeNull();
+    expect(screen.getByText("Responder por voz")).toBeTruthy();
+    expect(screen.getByText("Diga agora, hoje às oito ou amanhã às nove")).toBeTruthy();
+  });
+
+  it("mostra transcrição e estado de erro sem card grande", async () => {
+    const screen = render(<ChooseTimeScreen />);
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onRecognitionIssue?.({
+        type: "UNCLEAR_TRANSCRIPT",
+        transcript: "ah",
+        message: "Entendi \"ah\", mas isso parece muito curto.",
+      });
+      mockVoiceLoopCallbacks.onStatusChange?.("error");
+    });
+
+    expect(screen.getByText("Entendi: ah")).toBeTruthy();
+    expect(screen.getByText("Entendi \"ah\", mas isso parece muito curto.")).toBeTruthy();
+    expect(screen.getByText("Tocar para tentar novamente")).toBeTruthy();
+  });
+
+  it("permite reabrir o microfone manualmente segurando o botão", () => {
+    const screen = render(<ChooseTimeScreen />);
+
+    mockStartLoop.mockClear();
+    fireEvent(screen.getByLabelText("Responder por voz"), "pressIn");
+
+    expect(mockStartLoop).toHaveBeenCalledWith();
   });
 });

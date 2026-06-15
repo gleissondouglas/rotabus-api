@@ -5,21 +5,9 @@ import {
   StyleSheet,
   Text,
   View,
-  ActivityIndicator,
-  ScrollView,
-  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  withSequence,
-  interpolate,
-  Easing,
-  FadeInUp,
-} from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenContainer } from "../src/components/ScreenContainer";
@@ -34,9 +22,7 @@ import { sessionService } from "../src/services/session.service";
 import { journeyService } from "../src/services/journey.service";
 import { locationService } from "../src/services/location.service";
 import { vibrationService } from "../src/services/vibration.service";
-import {
-  stopListening,
-} from "../src/services/speech.service";
+import { stopListening } from "../src/services/speech.service";
 import { useThemeColors } from "../src/theme/colors";
 import { cleanVoiceTranscript } from "../src/utils/helpers";
 import {
@@ -51,11 +37,17 @@ import type {
   DestinationOption,
   ResolveDestinationResponse,
 } from "../src/types/journey.types";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import { VoiceVisualizer, type VoiceVisualizerState } from "../src/components/VoiceVisualizer";
+import { VoicePromptText } from "../src/components/VoicePromptText";
+import { LiveTranscript } from "../src/components/LiveTranscript";
+import { BottomActionBar } from "../src/components/BottomActionBar";
 
 type ScreenStatus = "idle" | "listening" | "processing" | "error" | "success";
 type VoiceScreenStatus = ScreenStatus | "speaking";
+
+/** Mensagem de fallback quando o usuário não fala nada */
+const SILENCE_FALLBACK_MESSAGE =
+  "Não entendi, toque no microfone para falar.";
 
 function isValidCoordinate(value: string) {
   return value.trim().length > 0 && Number.isFinite(Number(value));
@@ -95,31 +87,23 @@ function normalizeDestinationOptions(response: ResolveDestinationResponse): Dest
   }));
 }
 
-const BlinkingCursor = () => {
-  const theme = useThemeColors();
-  const opacity = useSharedValue(1);
-
-  useEffect(() => {
-    opacity.value = withRepeat(withTiming(0, { duration: 500 }), -1, true);
-  }, [opacity]);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    width: 2,
-    height: 24,
-    backgroundColor: theme.primary,
-    marginLeft: 2,
-  }));
-
-  return <Animated.View style={style} />;
-};
+/**
+ * Mapeia o status da tela para o estado do VoiceVisualizer.
+ */
+function toVisualizerState(status: VoiceScreenStatus): VoiceVisualizerState {
+  if (status === "speaking") return "speaking";
+  if (status === "listening") return "listening";
+  if (status === "processing") return "processing";
+  return "idle";
+}
 
 /**
  * A HomeScreen é o centro principal do aplicativo (Dashboard).
- * Ela gerencia o estado da assistente virtual (Ouvindo, Processando, etc) 
- * e coordena a interação por voz.
+ * Layout voice-first com 3 zonas:
+ *  1. Topo fixo: Ajuda + Configurações
+ *  2. Centro: VoiceVisualizer + VoicePromptText + LiveTranscript
+ *  3. Rodapé fixo: BottomActionBar
  */
-
 export default function HomeScreen() {
   const params = useLocalSearchParams();
   const theme = useThemeColors();
@@ -136,22 +120,27 @@ export default function HomeScreen() {
   /**
    * Máquina de Estados da Assistente:
    * - 'idle': Aguardando o usuário tocar no microfone.
+   * - 'speaking': Assistente está falando (TTS).
    * - 'listening': Microfone aberto capturando a fala.
-   * - 'processing': Enviando o texto para o backend para entender o destino.
+   * - 'processing': Enviando o texto para o backend.
    * - 'error': Algum erro na escuta ou no processamento.
    * - 'success': Destino encontrado e pronto para navegar.
    */
   const [status, setStatus] = useState<VoiceScreenStatus>("idle");
-  const [transcript, setTranscript] = useState(""); // Texto que aparece enquanto o usuário fala
+  const [transcript, setTranscript] = useState("");
   const [userName, setUserName] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isTranscriptFinal, setIsTranscriptFinal] = useState(false);
+  /**
+   * Controla se o texto da saudação deve animar progressivamente.
+   * true = primeira vez (anima palavra por palavra)
+   * false = retorno à tela (exibe completo de uma vez)
+   */
+  const [promptAnimated, setPromptAnimated] = useState(false);
+  const [promptText, setPromptText] = useState("");
+
   const lastHandledSearchTextRef = useRef<string | null>(null);
   const voiceIssueMessageRef = useRef("");
-
-  // Valores de animação para o "pulsar" do microfone e a expansão do painel
-  const micPulse = useSharedValue(1);
-  const panelTransition = useSharedValue(0);
 
   const getOriginCoords = useCallback(async () => {
     if (isValidCoordinate(originCoords.latitude) && isValidCoordinate(originCoords.longitude)) {
@@ -188,7 +177,7 @@ export default function HomeScreen() {
     setErrorMessage("");
     try {
       // Limpa a sessão conversacional anterior ao iniciar novo diálogo de busca
-      sessionService.clearSessionId();
+      sessionService.clearSessionId?.();
 
       const origin = await getOriginCoords();
 
@@ -204,7 +193,6 @@ export default function HomeScreen() {
 
       if (resolvedOptions.length > 0) {
         setStatus("success");
-        // Se encontrou opções, navega para a tela de confirmação de destino
         if (response.mode === "resolved" || response.mode === "suggestions") {
           const bestOption = resolvedOptions[0];
           vibrationService.success();
@@ -220,7 +208,6 @@ export default function HomeScreen() {
               options: JSON.stringify(resolvedOptions),
               mode: response.mode,
               message: response.message,
-              // --- Novos campos conversacionais ---
               speechText: response.speechText || "",
               screen: response.screen || "",
               displayData: response.displayData ? JSON.stringify(response.displayData) : "",
@@ -251,7 +238,6 @@ export default function HomeScreen() {
 
   /**
    * Loop de voz orquestrado.
-   * Substitui a lógica manual anterior para garantir o fluxo Fala -> Escuta.
    */
   const handleIntent = useCallback((intent: VoiceIntent) => {
     if (intent.type === "DESTINATION_TEXT") {
@@ -320,8 +306,14 @@ export default function HomeScreen() {
       setIsTranscriptFinal(true);
     }
 
-    voiceIssueMessageRef.current = issue.message;
-    setErrorMessage(issue.message);
+    // Quando é erro de silêncio (usuário não falou nada), usa a mensagem de fallback
+    const isSilentError =
+      issue.type === "EMPTY_TRANSCRIPT" || issue.type === "SPEECH_ERROR";
+
+    voiceIssueMessageRef.current = isSilentError
+      ? SILENCE_FALLBACK_MESSAGE
+      : issue.message;
+    setErrorMessage(isSilentError ? SILENCE_FALLBACK_MESSAGE : issue.message);
   }, []);
 
   const { startLoop, stopAll } = useVoiceConversationLoop({
@@ -329,6 +321,7 @@ export default function HomeScreen() {
     onStatusChange: handleLoopStatusChange,
     onTranscript: handleLoopTranscript,
     onRecognitionIssue: handleRecognitionIssue,
+    maxSilentRetries: 0,
   });
 
   useEffect(() => {
@@ -425,7 +418,15 @@ export default function HomeScreen() {
 
       if (!params.searchText && userName && shouldAutoStartHomeVoice()) {
         markHomeVoiceAutoStarted();
-        void startLoop(`Olá, ${userName}. Para onde você quer ir hoje?`);
+        // Primeira vez: texto anima progressivamente
+        setPromptAnimated(true);
+        const greetingText = `Olá, ${userName}. Bem-vindo ao Nuvem. Para onde você quer ir hoje?`;
+        setPromptText(greetingText);
+        void startLoop(greetingText);
+      } else if (userName) {
+        // Retorno à tela: texto aparece completo de uma vez
+        setPromptAnimated(false);
+        setPromptText(`Para onde você quer ir hoje?`);
       }
 
       return () => {
@@ -435,83 +436,53 @@ export default function HomeScreen() {
     }, [params.searchText, startLoop, stopAll, userName]),
   );
 
-  const isVoicePanelVisible = status === "listening" || status === "processing";
-
-  /**
-   * Este useEffect controla as animações baseadas no status da assistente.
-   */
+  // Atualiza o texto de boas-vindas quando o nome do usuário carrega (após o useFocusEffect inicial)
   useEffect(() => {
-    const transitionConfig = {
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-    };
-
-    if (status === "listening") {
-      micPulse.value = withRepeat(
-        withSequence(
-          withTiming(1.2, { duration: 800 }),
-          withTiming(1, { duration: 800 }),
-        ),
-        -1,
-        true,
-      );
-      panelTransition.value = withTiming(1, transitionConfig);
-    } else if (status === "processing") {
-      micPulse.value = withTiming(1);
-      panelTransition.value = withTiming(1, transitionConfig);
-    } else {
-      micPulse.value = withTiming(1);
-      panelTransition.value = withTiming(0, transitionConfig);
-    }
-  }, [status, micPulse, panelTransition]);
-
-  const micPulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: micPulse.value }],
-    opacity: interpolate(micPulse.value, [1, 1.2], [1, 0.4]),
-  }));
-
-  const containerAnimatedStyle = useAnimatedStyle(() => ({
-    height: interpolate(panelTransition.value, [0, 1], [88, 300]),
-    borderRadius: interpolate(panelTransition.value, [0, 1], [44, 32]),
-  }));
-
-  const idleContentStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(panelTransition.value, [0, 0.15], [1, 0]),
-    transform: [
-      { scale: interpolate(panelTransition.value, [0, 0.15], [1, 0.9]) },
-    ],
-  }));
-
-  const expandedContentStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(panelTransition.value, [0.85, 1], [0, 1]),
-    transform: [
-      { translateY: interpolate(panelTransition.value, [0.85, 1], [10, 0]) },
-    ],
-  }));
-
-  const bentoAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateY: interpolate(panelTransition.value, [0, 1], [0, -120]),
-      },
-    ],
-    opacity: interpolate(panelTransition.value, [0, 0.5], [1, 0.6]),
-  }));
+    if (!userName || promptText) return;
+    setPromptAnimated(false);
+    setPromptText("Para onde você quer ir hoje?");
+  }, [userName, promptText]);
 
   /**
-   * Gerencia o clique no botão de microfone (Toggle entre Iniciar e Parar).
+   * Gerencia o microfone no estilo pressionar e segurar.
    */
-  async function handleMicPress() {
+  function handleMicPressIn() {
+    if (status === "listening" || status === "processing" || status === "speaking") {
+      return;
+    }
+
     vibrationService.light();
-    if (status === "idle" || status === "error" || status === "speaking") {
-      setTranscript("");
-      setIsTranscriptFinal(false);
-      setErrorMessage("");
-      voiceIssueMessageRef.current = "";
-      void startLoop();
-    } else if (status === "listening") {
+    setTranscript("");
+    setIsTranscriptFinal(false);
+    setErrorMessage("");
+    voiceIssueMessageRef.current = "";
+    void startLoop();
+  }
+
+  function handleMicPressOut() {
+    if (status === "listening") {
       stopListening();
     }
+  }
+
+  function getMicActionLabel() {
+    if (status === "speaking") {
+      return "Aguarde";
+    }
+
+    if (status === "listening") {
+      return "Estou ouvindo";
+    }
+
+    if (status === "processing") {
+      return "Entendendo";
+    }
+
+    if (status === "error") {
+      return "Tentar de novo";
+    }
+
+    return "Falar destino";
   }
 
   async function handleTypeDestination() {
@@ -519,7 +490,6 @@ export default function HomeScreen() {
     void stopAll();
     const origin = await getOriginCoords();
 
-    // Pequeno delay para garantir que o TTS ou escuta parem antes da navegação
     setTimeout(() => {
       router.push({
         pathname: "/digitar-destino",
@@ -544,9 +514,17 @@ export default function HomeScreen() {
     router.push("/configuracoes");
   }
 
+  /** Mostra transcrição na área central quando está ouvindo ou processando */
+  const showLiveTranscript =
+    (status === "listening" || status === "processing") && !!transcript;
+
+  /** Mostra transcrição de erro (texto entendido mas rejeitado) */
+  const showErrorTranscript = status === "error" && !!transcript && !!errorMessage;
+  const showUserMessage = showLiveTranscript || showErrorTranscript;
+
   return (
     <ScreenContainer withPadding={false} style={{ backgroundColor: "#F6F8FA" }}>
-      {/* TOP HEADER */}
+      {/* ─── ZONA 1: TOPO ─── */}
       <View
         style={[styles.topHeader, { paddingTop: Math.max(insets.top, 16) }]}
       >
@@ -569,201 +547,80 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View
-          entering={FadeInUp.delay(100).duration(600)}
-          style={[styles.bentoContainer, bentoAnimatedStyle]}
-        >
-          {/* GREETING CARD */}
-          <View
-            style={styles.greetingCard}
-            accessible={true}
-            accessibilityRole="header"
-          >
-            <Text style={styles.greetingText}>
-              Olá, {userName || "Douglas"}
-            </Text>
-            <View style={styles.divider} />
-            <Text style={styles.mainTitle}>Para onde você quer ir hoje?</Text>
-          </View>
+      {/* ─── ZONA 2: CENTRO ─── */}
+      <View style={styles.centerZone} pointerEvents="none">
 
-          {/* INSTRUCTION CARD */}
-          <View
-            style={styles.instructionCard}
-            accessible={true}
-            accessibilityLabel="Me diga o endereço ou o lugar para onde você quer ir."
-          >
-            <View
-              style={[styles.iconBox, { backgroundColor: theme.primaryLight }]}
+        {/* Barrinhas de áudio animadas */}
+        <VoiceVisualizer state={toVisualizerState(status)} size="large" />
+
+        <View style={styles.conversationStack}>
+          {/* Mensagem da assistente */}
+          {!!promptText && (
+            <Animated.View
+              entering={FadeIn.duration(250)}
+              style={styles.assistantMessage}
             >
-              <Ionicons name="location" size={24} color={theme.primary} />
-            </View>
-            <Text style={styles.instructionText}>
-              Me diga o endereço ou o lugar para onde você quer ir.
-            </Text>
-          </View>
-        </Animated.View>
-      </ScrollView>
+              <Text style={styles.messageLabel}>Assistente</Text>
+              <View style={styles.assistantBubble}>
+                <VoicePromptText
+                  text={promptText}
+                  animated={promptAnimated && status === "speaking"}
+                  align="left"
+                  style={styles.promptTextWrapper}
+                  textStyle={styles.assistantPromptText}
+                />
+              </View>
+            </Animated.View>
+          )}
 
-      {/* FLOATING ACTION BAR */}
+          {/* Mensagem do usuário */}
+          {showUserMessage && (
+            <Animated.View
+              entering={FadeIn.duration(250)}
+              style={styles.userMessage}
+            >
+              <Text style={styles.userMessageLabel}>Você</Text>
+              <View style={[styles.userBubble, { backgroundColor: theme.primary }]}>
+                <LiveTranscript
+                  transcript={transcript}
+                  isFinal={isTranscriptFinal || showErrorTranscript}
+                  variant="conversation"
+                />
+              </View>
+            </Animated.View>
+          )}
+        </View>
+
+        {/* Banner de erro / fallback */}
+        {status === "error" && !!errorMessage && (
+          <Animated.View
+            entering={FadeIn.duration(300)}
+            style={styles.errorBanner}
+            pointerEvents="none"
+            accessible
+            accessibilityLiveRegion="assertive"
+          >
+            <Ionicons name="alert-circle" size={16} color="#9F1239" style={styles.errorIcon} />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </Animated.View>
+        )}
+      </View>
+
+      {/* ─── ZONA 3: BARRA INFERIOR FIXA ─── */}
       <View
         style={[
           styles.bottomContainer,
           { paddingBottom: Math.max(insets.bottom, 24) },
         ]}
+        pointerEvents="box-none"
       >
-        {status === "error" && !!errorMessage && (
-          <View style={styles.inlineErrorBanner} pointerEvents="none">
-            <Text style={styles.inlineErrorText}>{errorMessage}</Text>
-            {!!transcript && (
-              <Text style={styles.inlineTranscriptText}>
-                Texto entendido: {transcript}
-              </Text>
-            )}
-          </View>
-        )}
-
-        <Animated.View style={[styles.actionPill, containerAnimatedStyle]}>
-          {/* IDLE STATE */}
-          <Animated.View
-            style={[styles.idleRow, idleContentStyle]}
-            pointerEvents={isVoicePanelVisible ? "none" : "auto"}
-          >
-            <Pressable
-              style={styles.actionButton}
-              onPress={handleTypeDestination}
-              accessibilityLabel="Digitar destino"
-              accessibilityRole="button"
-            >
-              <Ionicons name="pencil" size={22} color="#011030" />
-              <Text style={styles.actionText}>Digitar destino</Text>
-            </Pressable>
-
-            <View style={styles.verticalDivider} />
-
-            <Pressable
-              style={[
-                styles.actionButton,
-                styles.primaryActionButton,
-                { backgroundColor: theme.primary },
-              ]}
-              onPress={handleMicPress}
-              accessibilityLabel="Falar destino"
-              accessibilityRole="button"
-            >
-              <Ionicons name="mic" size={24} color="white" />
-              <Text style={[styles.actionText, styles.primaryActionText]}>
-                Falar destino
-              </Text>
-            </Pressable>
-          </Animated.View>
-
-          {/* EXPANDED STATE */}
-          <Animated.View
-            style={[
-              styles.expandedContent,
-              expandedContentStyle,
-              { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
-            ]}
-            pointerEvents={isVoicePanelVisible ? "auto" : "none"}
-          >
-            <View style={styles.expandedTextContainer}>
-              <ScrollView contentContainerStyle={styles.transcriptScroll}>
-                <View
-                  style={styles.transcriptContainer}
-                  accessible={true}
-                  accessibilityLabel={
-                    transcript ||
-                    (status === "listening"
-                      ? "Estou ouvindo..."
-                      : "Entendendo...")
-                  }
-                  accessibilityLiveRegion="polite"
-                >
-                  {!!transcript && (
-                    <Text style={styles.transcriptLabel}>
-                      {isTranscriptFinal ? "Entendi:" : "Estou ouvindo:"}
-                    </Text>
-                  )}
-                  <View style={styles.transcriptTextRow}>
-                    <Text style={styles.transcriptText}>
-                      {transcript ||
-                        (status === "listening"
-                          ? "Estou ouvindo..."
-                          : "Entendendo...")}
-                    </Text>
-                    {status === "listening" && <BlinkingCursor />}
-                  </View>
-                </View>
-              </ScrollView>
-            </View>
-
-            <View style={styles.expandedBottomRow}>
-              <Pressable
-                onPress={() => {
-                  vibrationService.light();
-                  stopAll();
-                  setStatus("idle");
-                  setTranscript("");
-                  setIsTranscriptFinal(false);
-                  setErrorMessage("");
-                }}
-                style={styles.closeIcon}
-                accessibilityLabel="Cancelar e fechar painel"
-                accessibilityRole="button"
-              >
-                <Ionicons name="close-circle" size={36} color="#CCC" />
-              </Pressable>
-
-              <View style={styles.statusIndicator}>
-                {status === "processing" && (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                )}
-                <Text style={[styles.statusMiniText, { color: theme.primary }]}>
-                  {status === "listening"
-                    ? "Ouvindo"
-                    : status === "processing"
-                      ? "Processando"
-                      : ""}
-                </Text>
-              </View>
-
-              <View style={styles.micWrapper}>
-                {status === "listening" && (
-                  <Animated.View
-                    style={[
-                      styles.micPulse,
-                      { backgroundColor: theme.primary },
-                      micPulseStyle,
-                    ]}
-                  />
-                )}
-                <Pressable
-                  style={[
-                    styles.micButtonActive,
-                    { backgroundColor: theme.primary },
-                  ]}
-                  onPress={handleMicPress}
-                  accessibilityLabel={
-                    status === "listening"
-                      ? "Concluir fala e buscar"
-                      : "Falar destino"
-                  }
-                  accessibilityRole="button"
-                >
-                  <Ionicons
-                    name={status === "listening" ? "checkmark" : "mic"}
-                    size={32}
-                    color="white"
-                  />
-                </Pressable>
-              </View>
-            </View>
-          </Animated.View>
-        </Animated.View>
+        <BottomActionBar
+          status={status}
+          micLabel={getMicActionLabel()}
+          onTypeDestination={handleTypeDestination}
+          onMicPressIn={handleMicPressIn}
+          onMicPressOut={handleMicPressOut}
+        />
       </View>
     </ScreenContainer>
   );
@@ -776,6 +633,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 10,
     backgroundColor: "#F6F8FA",
+    zIndex: 10,
   },
   headerIconButton: {
     width: 48,
@@ -790,68 +648,102 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 16,
+  // Zona central: flex-grow ocupa todo o espaço entre topo e rodapé
+  centerZone: {
+    flex: 1,
+    alignItems: "center",
     justifyContent: "center",
-    paddingBottom: 100, // Ajuste para não colidir com a barra inferior
+    gap: 26,
+    paddingHorizontal: 16,
+    paddingBottom: 120, // Espaço para não colidir com a barra inferior
   },
-  bentoContainer: {
-    gap: 16,
-    marginTop: -40, // Pequeno offset para cima para centralização visual melhor
+  conversationStack: {
+    width: "100%",
+    maxWidth: 380,
+    gap: 18,
   },
-  greetingCard: {
+  assistantMessage: {
+    alignSelf: "flex-start",
+    maxWidth: "92%",
+  },
+  userMessage: {
+    alignSelf: "flex-end",
+    maxWidth: "88%",
+    alignItems: "flex-end",
+  },
+  messageLabel: {
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 6,
+    marginLeft: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  userMessageLabel: {
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 6,
+    marginRight: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  assistantBubble: {
     backgroundColor: "white",
-    padding: 24,
-    borderRadius: 28,
+    borderRadius: 26,
+    borderTopLeftRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
     elevation: 3,
   },
-  greetingText: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#000",
-    opacity: 0.5,
+  userBubble: {
+    borderRadius: 26,
+    borderTopRightRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  divider: {
-    height: 1,
-    backgroundColor: "#F0F0F0",
-    marginVertical: 16,
-    width: 40,
+  promptTextWrapper: {
+    paddingHorizontal: 0,
   },
-  mainTitle: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#000",
-    lineHeight: 38,
-    letterSpacing: -0.5,
+  assistantPromptText: {
+    color: "#011030",
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: "800",
+    letterSpacing: -0.2,
   },
-  instructionCard: {
-    backgroundColor: "white",
+  errorBanner: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 20,
-    borderRadius: 24,
-    gap: 16,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "#FFF1F2",
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: "#FECDD3",
+    maxWidth: "90%",
   },
-  iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
+  errorIcon: {
+    flexShrink: 0,
   },
-  instructionText: {
+  errorText: {
+    color: "#9F1239",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
     flex: 1,
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#444",
-    lineHeight: 22,
+    lineHeight: 20,
   },
   bottomContainer: {
     position: "absolute",
@@ -859,174 +751,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
-  },
-  inlineErrorBanner: {
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 18,
-    backgroundColor: "#FFF1F2",
-    borderWidth: 1,
-    borderColor: "#FECDD3",
-    maxWidth: SCREEN_WIDTH - 40,
-  },
-  inlineErrorText: {
-    color: "#9F1239",
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  inlineTranscriptText: {
-    color: "#4C0519",
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "center",
-    marginTop: 4,
-  },
-  actionPill: {
-    width: SCREEN_WIDTH - 24,
-    backgroundColor: "white",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 15,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-  idleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 88,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100%",
-    gap: 10,
-    borderRadius: 36,
-  },
-  primaryActionButton: {
-    // Background color set via theme.primary in JSX
-  },
-  actionText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#011030",
-    letterSpacing: -0.3,
-  },
-  primaryActionText: {
-    color: "white",
-  },
-  verticalDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: "#F0F0F0",
-    marginHorizontal: 4,
-  },
-  expandedContent: {
-    padding: 24,
-    justifyContent: "space-between",
-  },
-  expandedTextContainer: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  transcriptScroll: {
-    flexGrow: 1,
-    justifyContent: "center",
-  },
-  transcriptContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  transcriptLabel: {
-    marginBottom: 8,
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#2563EB",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-  },
-  transcriptTextRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  transcriptText: {
-    fontSize: 28,
-    fontWeight: "800",
-    textAlign: "center",
-    color: "#000",
-    lineHeight: 36,
-  },
-  expandedBottomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 20,
-  },
-  closeIcon: {
-    width: 60,
-    height: 60,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  statusMiniText: {
-    fontSize: 13,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  micWrapper: {
-    width: 72,
-    height: 72,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  micButtonActive: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 2,
-  },
-  micPulse: {
-    position: "absolute",
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    zIndex: 1,
-  },
-  errorContainer: {
-    alignItems: "center",
-    gap: 16,
-  },
-  errorMessage: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#000",
-    textAlign: "center",
-  },
-  retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-  },
-  retryButtonText: {
-    color: "white",
-    fontWeight: "800",
   },
 });

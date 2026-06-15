@@ -64,9 +64,16 @@ const CANCEL_PATTERNS = [
 ];
 
 const OPTION_PATTERNS: Record<number, string[]> = {
-  0: ["primeira", "opcao um", "numero um"],
-  1: ["segunda", "opcao dois", "numero dois"],
-  2: ["terceira", "opcao tres", "numero tres"],
+  0: ["primeira", "opcao um", "opcao 1", "numero um", "numero 1"],
+  1: ["segunda", "opcao dois", "opcao 2", "numero dois", "numero 2"],
+  2: ["terceira", "opcao tres", "opcao 3", "numero tres", "numero 3"],
+  3: ["quarta", "opcao quatro", "opcao 4", "numero quatro", "numero 4"],
+  4: ["quinta", "opcao cinco", "opcao 5", "numero cinco", "numero 5"],
+  5: ["sexta", "opcao seis", "opcao 6", "numero seis", "numero 6"],
+  6: ["setima", "opcao sete", "opcao 7", "numero sete", "numero 7"],
+  7: ["oitava", "opcao oito", "opcao 8", "numero oito", "numero 8"],
+  8: ["nona", "opcao nove", "opcao 9", "numero nove", "numero 9"],
+  9: ["decima", "opcao dez", "opcao 10", "numero dez", "numero 10"],
 };
 
 const NOISE_WORDS = new Set([

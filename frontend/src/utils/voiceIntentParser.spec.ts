@@ -135,6 +135,24 @@ describe("voiceIntentParser", () => {
       });
     });
 
+    it("mapeia seleção por número acima da terceira opção", () => {
+      expect(parseVoiceIntent("quarta")).toEqual({
+        type: "SELECT_OPTION",
+        optionIndex: 3,
+        transcript: "quarta",
+      });
+      expect(parseVoiceIntent("opção quatro")).toEqual({
+        type: "SELECT_OPTION",
+        optionIndex: 3,
+        transcript: "opcao quatro",
+      });
+      expect(parseVoiceIntent("número 4")).toEqual({
+        type: "SELECT_OPTION",
+        optionIndex: 3,
+        transcript: "numero 4",
+      });
+    });
+
     it("mapeia cancelamento global", () => {
       expect(parseVoiceIntent("cancelar")).toEqual({ type: "CANCEL", transcript: "cancelar" });
       expect(parseVoiceIntent("voltar ao início")).toEqual({

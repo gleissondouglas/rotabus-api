@@ -72,6 +72,21 @@ describe("useVoiceConversationLoop", () => {
     expect(result.current.status).toBe("listening");
   });
 
+  it("permite falar uma mensagem sem abrir o microfone automaticamente", async () => {
+    const onIntent = jest.fn();
+    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
+
+    await act(async () => {
+      await result.current.startLoop("Encontrei algumas opções.", {
+        autoListenAfterSpeech: false,
+      });
+    });
+
+    expect(SpeechService.speakAndWait).toHaveBeenCalledWith("Encontrei algumas opções.");
+    expect(SpeechService.startListening).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("idle");
+  });
+
   it("processa a intenção final capturada pelo microfone", async () => {
     const onIntent = jest.fn();
     const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
@@ -184,6 +199,26 @@ describe("useVoiceConversationLoop", () => {
     );
     expect(result.current.status).toBe("error");
     expect(vibrationService.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("permite desativar repetição automática quando há silêncio", async () => {
+    const onIntent = jest.fn();
+    const { result } = renderHook(() => (
+      useVoiceConversationLoop({ onIntent, maxSilentRetries: 0 })
+    ));
+
+    (SpeechService.startListening as jest.Mock).mockImplementationOnce(({ onError }) => {
+      onError({ error: "no-speech", isSilentError: true });
+    });
+
+    await act(async () => {
+      await result.current.startLoop("Pergunta original");
+    });
+
+    expect(SpeechService.startListening).toHaveBeenCalledTimes(1);
+    expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(1);
+    expect(SpeechService.speakAndWait).toHaveBeenCalledWith("Pergunta original");
+    expect(result.current.status).toBe("error");
   });
 
   it("repete a última fala quando recebe o comando repetir", async () => {

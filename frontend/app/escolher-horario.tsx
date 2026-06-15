@@ -15,14 +15,15 @@ import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeIn } from "react-native-reanimated";
 
 import { BackButton } from "../src/components/BackButton";
-import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
+import { BottomVoiceMicButton } from "../src/components/BottomVoiceMicButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { TextField } from "../src/components/TextField";
 import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
-import type { VoiceLoopStatus } from "../src/hooks/useVoiceConversationLoop";
+import type { VoiceLoopStatus, VoiceRecognitionIssue } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
 import { layout } from "../src/theme/layout";
 import { vibrationService } from "../src/services/vibration.service";
+import { stopListening } from "../src/services/speech.service";
 import {
   buildLocalDateTimeFromInputs,
   formatLocalDateTimeWithOffset,
@@ -64,6 +65,9 @@ export default function ChooseTimeScreen() {
   const [dateText, setDateText] = useState(getTodayDateText());
   const [timeText, setTimeText] = useState(getCurrentTimeText());
   const [voiceStatus, setVoiceStatus] = useState<VoiceLoopStatus>("idle");
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceErrorMessage, setVoiceErrorMessage] = useState("");
+  const isActionDisabled = voiceStatus === "speaking" || voiceStatus === "processing";
 
   const dateOptions = getNext7Days();
 
@@ -159,6 +163,7 @@ export default function ChooseTimeScreen() {
 
   const { startLoop, stopAll } = useVoiceConversationLoop({
     onIntent: async (intent) => {
+      setVoiceErrorMessage("");
       const timeIntent = parseVoiceTimeIntent(intent.transcript);
       
       switch (timeIntent.type) {
@@ -184,7 +189,30 @@ export default function ChooseTimeScreen() {
           break;
       }
     },
-    onStatusChange: setVoiceStatus,
+    onStatusChange: (nextStatus) => {
+      setVoiceStatus(nextStatus);
+
+      if (nextStatus === "listening" || nextStatus === "processing") {
+        setVoiceErrorMessage("");
+      }
+    },
+    onTranscript: (text, isFinal) => {
+      if (text) {
+        setVoiceTranscript(text);
+      }
+
+      if (!isFinal) {
+        setVoiceErrorMessage("");
+      }
+    },
+    onRecognitionIssue: (issue: VoiceRecognitionIssue) => {
+      if ("transcript" in issue && issue.transcript) {
+        setVoiceTranscript(issue.transcript);
+      }
+
+      setVoiceErrorMessage(issue.message);
+    },
+    maxSilentRetries: 0,
   });
 
   useEffect(() => {
@@ -266,6 +294,58 @@ export default function ChooseTimeScreen() {
     setIsModalOpen(false);
   }
 
+  function getMicLabel() {
+    if (voiceStatus === "speaking") {
+      return "Aguarde a assistente";
+    }
+
+    if (voiceStatus === "listening") {
+      return "Estou ouvindo";
+    }
+
+    if (voiceStatus === "processing") {
+      return "Entendendo...";
+    }
+
+    if (voiceStatus === "error") {
+      return "Tocar para tentar novamente";
+    }
+
+    return "Responder por voz";
+  }
+
+  function getMicHelperText() {
+    if (voiceErrorMessage) {
+      return "Não consegui ouvir. Toque e segure para tentar novamente.";
+    }
+
+    if (voiceStatus === "speaking") {
+      return "O microfone será liberado ao fim da fala.";
+    }
+
+    if (voiceStatus === "processing") {
+      return "Interpretando seu horário.";
+    }
+
+    return "Diga agora, hoje às oito ou amanhã às nove";
+  }
+
+  function handleMicPressIn() {
+    if (voiceStatus === "speaking" || voiceStatus === "processing" || voiceStatus === "listening") {
+      return;
+    }
+
+    vibrationService.light();
+    setVoiceErrorMessage("");
+    void startLoop();
+  }
+
+  function handleMicPressOut() {
+    if (voiceStatus === "listening") {
+      stopListening();
+    }
+  }
+
   return (
     <View style={styles.screen}>
       <View style={[styles.fixedHeader, { top: insets.top + 8 }]}>
@@ -278,7 +358,7 @@ export default function ChooseTimeScreen() {
           styles.scrollContent,
           { 
             paddingTop: insets.top + (isSmallHeight ? 50 : 70),
-            paddingBottom: insets.bottom + 120
+            paddingBottom: insets.bottom + 150
           }
         ]}
       >
@@ -315,16 +395,20 @@ export default function ChooseTimeScreen() {
             </Text>
           </View>
 
-          {voiceMode && voiceStatus === "listening" && (
+          {voiceMode && (!!voiceTranscript || !!voiceErrorMessage) && (
             <View
-              style={styles.voiceHintCard}
+              style={styles.voiceFeedback}
               accessible={true}
-              accessibilityLabel="Você pode responder por voz. Diga agora ou informe um horário."
+              accessibilityLiveRegion="polite"
             >
-              <Ionicons name="mic" size={18} color={theme.primary} />
-              <Text style={styles.voiceHintText}>
-                {'Você pode dizer: "agora", "hoje às oito" ou "amanhã às nove".'}
-              </Text>
+              {!!voiceTranscript && (
+                <Text style={styles.voiceTranscriptText}>
+                  Entendi: {voiceTranscript}
+                </Text>
+              )}
+              {!!voiceErrorMessage && (
+                <Text style={styles.voiceErrorText}>{voiceErrorMessage}</Text>
+              )}
             </View>
           )}
 
@@ -333,8 +417,9 @@ export default function ChooseTimeScreen() {
               style={({ pressed }) => [
                 styles.optionCard,
                 { padding: isSmallHeight ? layout.cardPaddingSmall : layout.cardPadding },
-                pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] },
+                (pressed || isActionDisabled) && { opacity: 0.7, transform: [{ scale: 0.98 }] },
               ]}
+              disabled={isActionDisabled}
               onPress={handleGoNow}
               accessibilityRole="button"
               accessibilityLabel="Agora. Buscar o próximo ônibus imediatamente."
@@ -373,8 +458,9 @@ export default function ChooseTimeScreen() {
               style={({ pressed }) => [
                 styles.optionCard,
                 { padding: isSmallHeight ? layout.cardPaddingSmall : layout.cardPadding },
-                pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] },
+                (pressed || isActionDisabled) && { opacity: 0.7, transform: [{ scale: 0.98 }] },
               ]}
+              disabled={isActionDisabled}
               onPress={() => handleOpenTimeSelector("DEPARTURE")}
               accessibilityRole="button"
               accessibilityLabel="Outro horário. Escolha dia e hora de saída."
@@ -413,8 +499,9 @@ export default function ChooseTimeScreen() {
               style={({ pressed }) => [
                 styles.optionCard,
                 { padding: isSmallHeight ? layout.cardPaddingSmall : layout.cardPadding },
-                pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] },
+                (pressed || isActionDisabled) && { opacity: 0.7, transform: [{ scale: 0.98 }] },
               ]}
+              disabled={isActionDisabled}
               onPress={() => handleOpenTimeSelector("ARRIVAL")}
               accessibilityRole="button"
               accessibilityLabel="Chegada prevista. Defina a hora que quer chegar."
@@ -452,12 +539,21 @@ export default function ChooseTimeScreen() {
         </Animated.View>
       </ScrollView>
 
-      {/* TTS HELP FIXED AT BOTTOM */}
-      <View style={[styles.bottomTtsContainer, { bottom: insets.bottom + 16 }]}>
-         <ListenOptionsButton 
-            textToSpeak={screenMessage} 
-            accessibilityLabel="Ouvir as opções de horário"
-          />
+      <View
+        style={[
+          styles.bottomVoiceContainer,
+          { bottom: insets.bottom + 16 },
+        ]}
+      >
+        <BottomVoiceMicButton
+          status={voiceStatus}
+          label={getMicLabel()}
+          helperText={getMicHelperText()}
+          mode="hold"
+          onPressIn={handleMicPressIn}
+          onPressOut={handleMicPressOut}
+          accessibilityLabel={getMicLabel()}
+        />
       </View>
 
       {/* TIME SELECTOR MODAL */}
@@ -658,23 +754,25 @@ const styles = StyleSheet.create({
   },
   optionsContainer: {
   },
-  voiceHintCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#E0ECFF",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: "row",
+  voiceFeedback: {
     alignItems: "center",
-    gap: 10,
+    paddingHorizontal: 12,
+    marginTop: -4,
+    marginBottom: -4,
   },
-  voiceHintText: {
-    flex: 1,
+  voiceTranscriptText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#011030",
+    textAlign: "center",
+  },
+  voiceErrorText: {
     fontSize: 14,
-    lineHeight: 19,
     fontWeight: "700",
-    color: "#475569",
+    color: "#9F1239",
+    lineHeight: 20,
+    marginTop: 6,
+    textAlign: "center",
   },
   optionCard: {
     flexDirection: "row",
@@ -710,7 +808,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     lineHeight: 18,
   },
-  bottomTtsContainer: {
+  bottomVoiceContainer: {
     position: "absolute",
     left: 0,
     right: 0,

@@ -50,6 +50,13 @@ interface VoiceConversationLoopOptions {
   onTranscript?: (transcript: string, isFinal: boolean) => void;
   /** Callback opcional para explicar falhas de reconhecimento sem misturar com falhas de rede */
   onRecognitionIssue?: (issue: VoiceRecognitionIssue) => void;
+  /** Quantas vezes a assistente deve repetir a pergunta quando não ouvir nada. */
+  maxSilentRetries?: number;
+}
+
+interface StartLoopOptions {
+  /** Quando false, a assistente fala e o ciclo volta para idle sem abrir o microfone. */
+  autoListenAfterSpeech?: boolean;
 }
 
 /**
@@ -61,6 +68,7 @@ export function useVoiceConversationLoop({
   onStatusChange,
   onTranscript,
   onRecognitionIssue,
+  maxSilentRetries = 1,
 }: VoiceConversationLoopOptions) {
   const [status, setStatus] = useState<VoiceLoopStatus>("idle");
   const isFocusedRef = useRef(true);
@@ -71,9 +79,9 @@ export function useVoiceConversationLoop({
   const onStatusChangeRef = useRef(onStatusChange);
   const onTranscriptRef = useRef(onTranscript);
   const onRecognitionIssueRef = useRef(onRecognitionIssue);
-  const startLoopRef = useRef<(speechText?: string) => Promise<void>>(async () => {});
+  const maxSilentRetriesRef = useRef(maxSilentRetries);
+  const startLoopRef = useRef<(speechText?: string, options?: StartLoopOptions) => Promise<void>>(async () => {});
   const openMicrophoneRef = useRef<(runId: number) => Promise<void>>(async () => {});
-  const MAX_RETRIES = 1;
 
   useEffect(() => {
     onIntentRef.current = onIntent;
@@ -90,6 +98,10 @@ export function useVoiceConversationLoop({
   useEffect(() => {
     onRecognitionIssueRef.current = onRecognitionIssue;
   }, [onRecognitionIssue]);
+
+  useEffect(() => {
+    maxSilentRetriesRef.current = maxSilentRetries;
+  }, [maxSilentRetries]);
 
   // Atualiza o estado interno e notifica o componente
   const updateStatus = useCallback((newStatus: VoiceLoopStatus) => {
@@ -199,7 +211,7 @@ export function useVoiceConversationLoop({
 
         const isSilent = err?.isSilentError || err?.error === "no-speech";
 
-        if (isSilent && retryCountRef.current < MAX_RETRIES) {
+        if (isSilent && retryCountRef.current < maxSilentRetriesRef.current) {
           retryCountRef.current += 1;
           vibrationService.light();
           updateStatus("speaking");
@@ -244,10 +256,15 @@ export function useVoiceConversationLoop({
    * Inicia o ciclo de conversa.
    * Se speechText for fornecido, a assistente fala antes de abrir o microfone.
    */
-  const startLoop = useCallback(async (speechText?: string) => {
+  const startLoop = useCallback(async (
+    speechText?: string,
+    options: StartLoopOptions = {},
+  ) => {
     if (!isFocusedRef.current) {
       return;
     }
+
+    const shouldAutoListen = options.autoListenAfterSpeech ?? true;
 
     if (speechText) {
       lastSpeechTextRef.current = speechText;
@@ -261,6 +278,14 @@ export function useVoiceConversationLoop({
       if (speechText) {
         updateStatus("speaking");
         await speakAndWait(speechText);
+
+        if (!shouldAutoListen) {
+          if (isRunActive(runId)) {
+            updateStatus("idle");
+          }
+          return;
+        }
+
         await wait(LISTEN_AFTER_SPEECH_DELAY_MS);
       }
 

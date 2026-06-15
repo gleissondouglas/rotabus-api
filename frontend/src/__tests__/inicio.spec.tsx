@@ -17,14 +17,16 @@ let mockVoiceLoopCallbacks: {
 
 jest.mock("react-native-reanimated", () => {
   const Reanimated = jest.requireActual("react-native-reanimated/mock");
-  const { View: MockView } = jest.requireActual("react-native");
+  const { View: MockView, Text: MockText } = jest.requireActual("react-native");
 
   Reanimated.default.View = MockView;
+  Reanimated.default.Text = MockText;
   Reanimated.useSharedValue = (value: number) => ({ value });
   Reanimated.useAnimatedStyle = (updater: () => object) => updater();
   Reanimated.withTiming = (value: number) => value;
   Reanimated.withRepeat = (value: number) => value;
   Reanimated.withSequence = (...values: number[]) => values[values.length - 1];
+  Reanimated.withDelay = (_delay: number, value: number) => value;
   Reanimated.interpolate = (
     value: number,
     input: number[],
@@ -35,11 +37,24 @@ jest.mock("react-native-reanimated", () => {
   Reanimated.Easing = {
     out: () => undefined,
     cubic: () => undefined,
+    inOut: () => () => undefined,
+    ease: undefined,
+  };
+  Reanimated.FadeIn = {
+    duration: () => ({}),
+    delay: () => ({ duration: () => ({}) }),
+  };
+  Reanimated.FadeInDown = {
+    duration: () => ({}),
+    delay: () => ({ duration: () => ({}) }),
   };
   Reanimated.FadeInUp = {
     delay: () => ({
       duration: () => ({}),
     }),
+  };
+  Reanimated.FadeOutUp = {
+    duration: () => ({}),
   };
 
   return Reanimated;
@@ -77,6 +92,67 @@ jest.mock("../components/ScreenContainer", () => ({
   },
 }));
 
+// Mock dos novos componentes.
+// O jest.mock resolve o path relativo ao arquivo de teste (src/__tests__/).
+// ../components/ daqui aponta para src/components/, que é o mesmo módulo
+// que app/inicio.tsx importa como ../src/components/
+jest.mock("../components/VoiceVisualizer", () => ({
+  VoiceVisualizer: ({ state }: { state: string }) => {
+    const { View: MockView } = jest.requireActual("react-native");
+    return <MockView testID={`voice-visualizer-${state}`} />;
+  },
+}));
+
+jest.mock("../components/VoicePromptText", () => ({
+  VoicePromptText: ({ text }: { text: string }) => {
+    const { Text: MockText } = jest.requireActual("react-native");
+    return <MockText>{text}</MockText>;
+  },
+}));
+
+jest.mock("../components/LiveTranscript", () => ({
+  LiveTranscript: ({ transcript, isFinal }: { transcript: string; isFinal: boolean }) => {
+    const { Text: MockText } = jest.requireActual("react-native");
+    return (
+      <MockText testID={isFinal ? "live-transcript-final" : "live-transcript-partial"}>
+        {transcript}
+      </MockText>
+    );
+  },
+}));
+
+jest.mock("../components/BottomActionBar", () => ({
+  BottomActionBar: ({
+    micLabel,
+    onTypeDestination,
+    onMicPressIn,
+    onMicPressOut,
+  }: {
+    status: string;
+    micLabel: string;
+    onTypeDestination: () => void;
+    onMicPressIn: () => void;
+    onMicPressOut: () => void;
+  }) => {
+    const { View: MockView, Text: MockText, Pressable: MockPressable } = jest.requireActual("react-native");
+    return (
+      <MockView>
+        <MockPressable onPress={onTypeDestination} accessibilityLabel="Digitar destino">
+          <MockText>Digitar destino</MockText>
+        </MockPressable>
+        <MockPressable
+          onPressIn={onMicPressIn}
+          onPressOut={onMicPressOut}
+          accessibilityLabel={micLabel}
+        >
+          <MockText>{micLabel}</MockText>
+        </MockPressable>
+      </MockView>
+    );
+  },
+}));
+
+
 jest.mock("../hooks/useVoiceConversationLoop", () => ({
   useVoiceConversationLoop: (options: typeof mockVoiceLoopCallbacks) => {
     mockVoiceLoopCallbacks = options;
@@ -93,6 +169,7 @@ jest.mock("../services/session.service", () => ({
   sessionService: {
     restoreSessionId: jest.fn().mockResolvedValue(null),
     getUser: jest.fn().mockResolvedValue({ name: "Douglas Oliveira" }),
+    clearSessionId: jest.fn(),
   },
 }));
 
@@ -116,6 +193,8 @@ jest.mock("../services/vibration.service", () => ({
     light: jest.fn(),
     success: jest.fn(),
     error: jest.fn(),
+    medium: jest.fn(),
+    selection: jest.fn(),
   },
 }));
 
@@ -127,6 +206,7 @@ jest.mock("../theme/colors", () => ({
   useThemeColors: () => ({
     primary: "#2563EB",
     primaryLight: "#DBEAFE",
+    white: "#FFFFFF",
   }),
 }));
 
@@ -151,7 +231,7 @@ describe("HomeScreen voice-first flow", () => {
 
     await waitFor(() => {
       expect(mockStartLoop).toHaveBeenCalledWith(
-        "Olá, Douglas. Para onde você quer ir hoje?",
+        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
       );
     });
   });
@@ -161,7 +241,7 @@ describe("HomeScreen voice-first flow", () => {
 
     await waitFor(() => {
       expect(mockStartLoop).toHaveBeenCalledWith(
-        "Olá, Douglas. Para onde você quer ir hoje?",
+        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
       );
     });
 
@@ -179,22 +259,31 @@ describe("HomeScreen voice-first flow", () => {
     expect(mockStartLoop).not.toHaveBeenCalled();
   });
 
-  it("só mostra o card de escuta quando o status é listening", async () => {
+  it("mantém digitação e microfone lado a lado quando está ouvindo", async () => {
     const screen = render(<HomeScreen />);
 
-    expect(screen.queryByText("Estou ouvindo...")).toBeNull();
+    await waitFor(() => {
+      expect(mockStartLoop).toHaveBeenCalledWith(
+        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
+      );
+    });
+
+    expect(screen.getByText("Digitar destino")).toBeTruthy();
+    expect(screen.getByText("Falar destino")).toBeTruthy();
 
     await act(async () => {
       mockVoiceLoopCallbacks.onStatusChange?.("speaking");
     });
 
-    expect(screen.queryByText("Estou ouvindo...")).toBeNull();
+    expect(screen.getByText("Digitar destino")).toBeTruthy();
+    expect(screen.getByText("Aguarde")).toBeTruthy();
 
     await act(async () => {
       mockVoiceLoopCallbacks.onStatusChange?.("listening");
     });
 
-    expect(screen.getByText("Estou ouvindo...")).toBeTruthy();
+    expect(screen.getByText("Digitar destino")).toBeTruthy();
+    expect(screen.getByText("Estou ouvindo")).toBeTruthy();
   });
 
   it("mantém o botão de digitar funcionando depois de erro de voz", async () => {
@@ -223,11 +312,17 @@ describe("HomeScreen voice-first flow", () => {
   it("permite reabrir o microfone manualmente depois de erro", async () => {
     const screen = render(<HomeScreen />);
 
+    await waitFor(() => {
+      expect(mockStartLoop).toHaveBeenCalledWith(
+        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
+      );
+    });
+
     await act(async () => {
       mockVoiceLoopCallbacks.onStatusChange?.("error");
     });
 
-    fireEvent.press(screen.getByText("Falar destino"));
+    fireEvent(screen.getByLabelText("Tentar de novo"), "pressIn");
 
     expect(vibrationService.light).toHaveBeenCalled();
     expect(mockStartLoop).toHaveBeenCalledWith();
@@ -238,7 +333,7 @@ describe("HomeScreen voice-first flow", () => {
 
     await waitFor(() => {
       expect(mockStartLoop).toHaveBeenCalledWith(
-        "Olá, Douglas. Para onde você quer ir hoje?",
+        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
       );
     });
 
@@ -252,6 +347,80 @@ describe("HomeScreen voice-first flow", () => {
     });
 
     expect(screen.getByText("Entendi \"ah\", mas isso parece muito curto.")).toBeTruthy();
-    expect(screen.getByText("Texto entendido: ah")).toBeTruthy();
+    // Transcrição "ah" deve aparecer no LiveTranscript
+    expect(screen.getByTestId("live-transcript-final")).toBeTruthy();
+  });
+
+  it("exibe mensagem de fallback de silêncio quando usuário não fala nada", async () => {
+    const screen = render(<HomeScreen />);
+
+    await waitFor(() => {
+      expect(mockStartLoop).toHaveBeenCalledWith(
+        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
+      );
+    });
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onRecognitionIssue?.({
+        type: "EMPTY_TRANSCRIPT",
+        message: "Não consegui entender sua fala. Toque no microfone e tente novamente.",
+      });
+      mockVoiceLoopCallbacks.onStatusChange?.("error");
+    });
+
+    expect(screen.getByText("Não entendi, toque no microfone para falar.")).toBeTruthy();
+  });
+
+  it("reflete o estado speaking no label do botão mic enquanto assistente fala", async () => {
+    const screen = render(<HomeScreen />);
+
+    // Estado inicial: deve mostrar "Falar destino"
+    await waitFor(() => {
+      expect(screen.getByText("Falar destino")).toBeTruthy();
+    });
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onStatusChange?.("speaking");
+    });
+
+    // Durante speaking o botão deve mostrar "Aguarde"
+    await waitFor(() => {
+      expect(screen.getByText("Aguarde")).toBeTruthy();
+    });
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onStatusChange?.("listening");
+    });
+
+    // Durante listening o botão deve mostrar "Estou ouvindo"
+    await waitFor(() => {
+      expect(screen.getByText("Estou ouvindo")).toBeTruthy();
+    });
+  });
+
+  it("exibe a transcrição parcial na área central durante a escuta", async () => {
+    const screen = render(<HomeScreen />);
+
+    // Aguarda o componente montar e registrar os callbacks
+    await waitFor(() => {
+      expect(screen.getByText("Falar destino")).toBeTruthy();
+    });
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onStatusChange?.("listening");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Estou ouvindo")).toBeTruthy();
+    });
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onTranscript?.("Terminal central", false);
+    });
+
+    // O texto transcrito deve aparecer na tela
+    await waitFor(() => {
+      expect(screen.getByText("Terminal central")).toBeTruthy();
+    });
   });
 });
