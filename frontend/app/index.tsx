@@ -4,17 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Pressable,
   StyleSheet,
   Text,
   View,
   Dimensions,
 } from "react-native";
 
+import { PrimaryButton } from "../src/components/PrimaryButton";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { sessionService } from "../src/services/session.service";
 import { speak, stopSpeaking } from "../src/services/speech.service";
-import { colors } from "../src/theme/colors";
+import { useThemeColors } from "../src/theme/colors";
 
 const { width } = Dimensions.get("window");
 
@@ -28,6 +28,7 @@ const welcomeMessage =
  */
 
 export default function WelcomeScreen() {
+  const theme = useThemeColors();
   // Estado para controlar se ainda estamos verificando o token no storage
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   // Estado para decidir se mostramos a UI de boas-vindas após a verificação
@@ -42,28 +43,32 @@ export default function WelcomeScreen() {
   const buttonOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    let isActive = true;
+    const timeout = setTimeout(() => {
+      if (!isActive) return;
+
+      setIsCheckingSession((current) => {
+        if (current) {
+          console.log("[Index] Forçando tela de boas-vindas por timeout.");
+          setShouldShowWelcome(true);
+          return false;
+        }
+        return false;
+      });
+    }, 3500);
+
     /**
      * Lógica de Verificação de Sessão:
      * Verifica se existe um token salvo e se o usuário já aceitou as permissões.
      */
     async function checkSession() {
       console.log("[Index] Verificando sessão...");
-      
-      // Timeout de segurança: se a verificação demorar demais, libera a tela de boas-vindas
-      const timeout = setTimeout(() => {
-        setIsCheckingSession((current) => {
-          if (current) {
-            console.log("[Index] Forçando tela de boas-vindas por timeout.");
-            setShouldShowWelcome(true);
-            return false;
-          }
-          return false;
-        });
-      }, 3500);
 
       try {
         const token = await sessionService.getToken();
         const hasSeenPermissions = await sessionService.getHasSeenPermissions();
+
+        if (!isActive) return;
 
         console.log("[Index] Resultado:", {
           hasToken: !!token,
@@ -87,6 +92,8 @@ export default function WelcomeScreen() {
         setShouldShowWelcome(true);
         setIsCheckingSession(false);
       } catch (error) {
+        if (!isActive) return;
+
         console.log("[Index] Erro crítico:", error);
         clearTimeout(timeout);
         setShouldShowWelcome(true);
@@ -95,6 +102,11 @@ export default function WelcomeScreen() {
     }
 
     checkSession();
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeout);
+    };
   }, []);
 
   useEffect(() => {
@@ -150,7 +162,15 @@ export default function WelcomeScreen() {
     return () => {
       stopSpeaking();
     };
-  }, [shouldShowWelcome]);
+  }, [
+    shouldShowWelcome,
+    busOpacity,
+    busTranslateX,
+    routeWidth,
+    pinScale,
+    textOpacity,
+    buttonOpacity,
+  ]);
 
   function handleStart() {
     stopSpeaking();
@@ -159,26 +179,34 @@ export default function WelcomeScreen() {
 
   if (isCheckingSession) {
     return (
-      <ScreenContainer backgroundColor={colors.background}>
+      <ScreenContainer backgroundColor={theme.background}>
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>Entrando no Nuvem...</Text>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.text }]}>Entrando no Nuvem...</Text>
         </View>
       </ScreenContainer>
     );
   }
 
   return (
-    <ScreenContainer backgroundColor={colors.background}>
+    <ScreenContainer backgroundColor={theme.background}>
       <View style={styles.content}>
         <View style={styles.mainContent}>
-          {/* Bus Animation Area */}
           <View style={styles.illustrationContainer} accessibilityElementsHidden={true} importantForAccessibility="no">
-            <View style={styles.animationWrapper}>
-              {/* Route Line */}
-              <Animated.View style={[styles.routeLine, { width: routeWidth }]} />
-              
-              {/* Bus */}
+            <View style={[styles.heroGlow, { backgroundColor: theme.primaryLight }]} />
+            <View style={[styles.routeCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={[styles.routeDot, styles.routeDotStart, { backgroundColor: theme.primaryLight }]} />
+              <View style={[styles.routeDot, styles.routeDotEnd, { backgroundColor: theme.primaryLight }]} />
+              <Animated.View
+                style={[
+                  styles.routeLine,
+                  {
+                    width: routeWidth,
+                    backgroundColor: theme.primaryLight,
+                  },
+                ]}
+              />
+
               <Animated.View 
                 style={[
                   styles.busWrapper, 
@@ -188,10 +216,11 @@ export default function WelcomeScreen() {
                   }
                 ]}
               >
-                <MaterialCommunityIcons name="bus-side" size={70} color={colors.primary} />
+                <View style={[styles.busBadge, { backgroundColor: theme.primary }]}>
+                  <MaterialCommunityIcons name="bus-side" size={66} color={theme.white} />
+                </View>
               </Animated.View>
 
-              {/* Pin */}
               <Animated.View 
                 style={[
                   styles.pinWrapper, 
@@ -200,29 +229,34 @@ export default function WelcomeScreen() {
                   }
                 ]}
               >
-                <Ionicons name="location" size={36} color={colors.danger} />
+                <View style={[styles.pinBadge, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <Ionicons name="location" size={38} color={theme.danger} />
+                </View>
               </Animated.View>
             </View>
           </View>
 
-          {/* Text Content */}
           <Animated.View style={[styles.textContent, { opacity: textOpacity }]}>
-            <Text style={styles.title}>Bem-vindo ao Nuvem</Text>
-            <Text style={styles.subtitle}>Sua assistente de mobilidade por voz.</Text>
-            <Text style={styles.supportingText}>Encontre rotas de ônibus de forma simples.</Text>
+            <Text style={[styles.kicker, { color: theme.primary }]}>Mobilidade por voz</Text>
+            <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.25}>
+              Bem-vindo ao Nuvem
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.text }]} maxFontSizeMultiplier={1.25}>
+              Sua assistente de mobilidade por voz.
+            </Text>
+            <Text style={[styles.supportingText, { color: theme.textMuted }]} maxFontSizeMultiplier={1.35}>
+              Encontre rotas de ônibus de forma simples.
+            </Text>
           </Animated.View>
         </View>
 
-        {/* Action Button */}
         <Animated.View style={[styles.buttonWrapper, { opacity: buttonOpacity }]}>
-          <Pressable 
-            style={styles.button} 
+          <PrimaryButton
+            title="Entrar ou criar conta"
             onPress={handleStart}
             accessibilityLabel="Entrar ou criar conta"
-            accessibilityRole="button"
-          >
-            <Text style={styles.buttonText}>Entrar ou criar conta</Text>
-          </Pressable>
+            style={styles.button}
+          />
         </Animated.View>
       </View>
     </ScreenContainer>
@@ -232,78 +266,121 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
   loadingText: { fontSize: 16, fontWeight: "600" },
-  content: { flex: 1, justifyContent: "space-between", paddingVertical: 40 },
-  mainContent: { flex: 1, alignItems: "center", justifyContent: "center" },
+  content: { flex: 1, justifyContent: "space-between", paddingVertical: 28 },
+  mainContent: { flex: 1, alignItems: "center", justifyContent: "center", gap: 30 },
   illustrationContainer: {
-    height: 200,
+    height: 248,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
   },
-  animationWrapper: {
-    flexDirection: "row",
+  heroGlow: {
+    position: "absolute",
+    width: 230,
+    height: 230,
+    borderRadius: 115,
+    opacity: 0.55,
+  },
+  routeCard: {
+    width: "86%",
+    maxWidth: 330,
+    height: 164,
+    borderRadius: 8,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    width: 200,
-    height: 100,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.14,
+    shadowRadius: 28,
+    elevation: 6,
+  },
+  routeDot: {
+    position: "absolute",
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  routeDotStart: {
+    left: 42,
+    top: 46,
+  },
+  routeDotEnd: {
+    right: 48,
+    bottom: 42,
   },
   routeLine: {
     position: "absolute",
-    height: 4,
-    backgroundColor: colors.primaryLight,
-    borderRadius: 2,
-    left: "30%",
+    height: 6,
+    borderRadius: 3,
+    left: "34%",
+    top: 80,
   },
   busWrapper: {
     zIndex: 2,
   },
+  busBadge: {
+    width: 112,
+    height: 92,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   pinWrapper: {
     position: "absolute",
-    right: "20%",
+    right: "18%",
     zIndex: 1,
-    marginTop: -10,
+    top: 48,
+  },
+  pinBadge: {
+    width: 62,
+    height: 62,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   textContent: {
     alignItems: "center",
-    paddingHorizontal: 30,
+    paddingHorizontal: 22,
+    maxWidth: 360,
+  },
+  kicker: {
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0,
   },
   title: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: "800",
-    color: colors.text,
     textAlign: "center",
     marginBottom: 12,
-    letterSpacing: -0.5,
+    lineHeight: 40,
+    letterSpacing: 0,
   },
   subtitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: colors.text,
+    fontWeight: "700",
     textAlign: "center",
     marginBottom: 8,
+    lineHeight: 25,
   },
   supportingText: {
     fontSize: 16,
-    fontWeight: "400",
-    color: colors.textMuted,
+    fontWeight: "500",
     textAlign: "center",
     lineHeight: 24,
   },
-  buttonWrapper: { width: "100%", paddingHorizontal: 24, paddingBottom: 20 },
+  buttonWrapper: { width: "100%", paddingHorizontal: 24, paddingBottom: 16 },
   button: {
-    width: "100%",
-    height: 64,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    minHeight: 66,
+    borderRadius: 18,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 5,
   },
-  buttonText: { fontSize: 18, fontWeight: "700", color: colors.white },
 });
-

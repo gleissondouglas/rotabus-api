@@ -1,6 +1,6 @@
 export const VOICE_CONFIG = {
   // Escolha o provedor: "GOOGLE" ou "LOCAL"
-  provider: "LOCAL", 
+  provider: "LOCAL",
   // A chave agora deve ficar apenas no Back-end
   googleApiKey: "",
 
@@ -14,7 +14,7 @@ export const VOICE_CONFIG = {
   // Configurações da voz local (fallback) - OTIMIZADA
   localVoice: {
     language: "pt-BR",
-    rate: 0.8, // Um pouco mais calmo (antes era 0.85 ou 0.9)
+    rate: 0.9, // Um pouco mais calmo (antes era 0.85 ou 0.9)
     pitch: 1.1, // Um tom levemente mais agudo costuma soar menos metálico/robótico
   },
 };
