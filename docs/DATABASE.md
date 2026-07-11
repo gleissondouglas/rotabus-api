@@ -44,7 +44,7 @@ O `DATABASE.md` tem como finalidade documentar como o sistema armazena e gerenci
 *   **Índices:** Índice composto em `tokenHash` e `userId` para buscas rápidas.
 
 ### 3.3 Tabela: `RouteCache`
-**Finalidade:** Cache estratégico para reduzir chamadas às APIs do Google (ADR-005).
+**Status:** Legada e mantida temporariamente apenas para compatibilidade do schema. O fluxo de jornadas não lê nem grava mais nesta tabela; desde a ADR-015, o cache de rotas reside na memória do backend.
 *   **Campos:**
     *   `id` (Int): Chave primária.
     *   `cacheKey` (String): Hash único baseado em origem, destino e preferências.
@@ -69,10 +69,10 @@ O `DATABASE.md` tem como finalidade documentar como o sistema armazena e gerenci
 ## 4. Estratégias de Dados
 
 ### 4.1 Proteção Financeira (Cache)
-A tabela `RouteCache` é vital para a sobrevivência do projeto. Ela armazena o `googleResponse` para que requisições idênticas em um curto espaço de tempo não gerem novas cobranças na Google Cloud.
+O backend mantém respostas de rotas idênticas em memória por **2 minutos**. Isso evita cobranças duplicadas em buscas imediatamente repetidas sem adicionar tráfego ao PostgreSQL. O conteúdo é descartado em reinicializações e não é compartilhado entre instâncias do backend.
 
 ### 4.2 Controle de Uso
-A tabela `ApiUsage` permite ao middleware `dailyJourneyLimit` consultar quantas jornadas um usuário ou IP solicitou nas últimas 24 horas, bloqueando o acesso caso o limite seja atingido.
+A tabela `ApiUsage` contabiliza chamadas externas de rota concluídas com sucesso. Respostas do cache e falhas não são registradas. O `dailyJourneyLimit` bloqueia a partir de 10 chamadas por usuário ou IP desde a meia-noite no fuso horário do processo do backend.
 
 ---
 
@@ -86,7 +86,7 @@ A tabela `ApiUsage` permite ao middleware `dailyJourneyLimit` consultar quantas 
 
 ## 6. Evoluções Futuras (Planejado)
 
-*   **`ConversationSession`:** Tabela para manter o estado atual de um diálogo voice-first.
+*   **`ConversationSession`:** Implementada para manter o estado atual de um diálogo voice-first com TTL deslizante.
 *   **`ConversationTurn`:** Histórico de falas (transcrições) de uma sessão.
 *   **`CityConfig / LocalIntelligence`:** Persistência de aliases e regras por cidade (Uberaba, etc.).
 *   **`AuditLog` / `ProviderUsageLog`:** Logs mais granulares para monitoramento de erros de APIs externas.
@@ -95,9 +95,7 @@ A tabela `ApiUsage` permite ao middleware `dailyJourneyLimit` consultar quantas 
 
 ## 7. Pendências de Confirmação
 
-*   [ ] **TTL do Cache:** Qual o tempo de vida padrão definido no código para o `RouteCache`?
-*   [ ] **Janela de Reset:** O `dailyJourneyLimit` reseta à meia-noite (UTC ou Local) ou em janela deslizante de 24h?
-*   [ ] **Limpeza:** Existe algum job (Cron) para remover registros antigos de `ApiUsage` ou `RouteCache` expirados?
+*   [ ] **Limpeza:** Existe algum job (Cron) para remover registros antigos de `ApiUsage`?
 *   [ ] **Deleção Física:** Confirmar se o sistema utiliza apenas deleção física ou se há planos para Soft Delete (`deletedAt`).
 
 ---

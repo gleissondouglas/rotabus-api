@@ -55,7 +55,7 @@ Este documento segue o formato ADR para registrar decisões arquiteturais import
 ---
 
 ### [ADR-005] Proteção Financeira com Cache e Rate Limit
-*   **Status:** Aceita
+*   **Status:** Parcialmente substituída pela ADR-015 (a proteção e o rate limit permanecem; o armazenamento do cache mudou)
 *   **Data:** 13/06/2026
 *   **Contexto:** O uso de APIs externas gera custos significativos.
 *   **Decisão:** Implementar e manter camadas de `RouteCache` no banco e middlewares de `dailyJourneyLimit`.
@@ -63,6 +63,17 @@ Este documento segue o formato ADR para registrar decisões arquiteturais import
 *   **Consequências positivas:** Previsibilidade de custos e proteção contra abusos ou ataques que poderiam esgotar o orçamento.
 *   **Riscos:** Usuários podem receber dados ligeiramente desatualizados se o TTL do cache for muito longo.
 *   **Impacto no roadmap:** Decisão consolidada, monitoramento contínuo na Fase 8.
+
+### [ADR-015] Cache de Rotas Efêmero na Memória do Backend
+*   **Status:** Implementada
+*   **Data:** 11/07/2026
+*   **Contexto:** As rotas precisam ser reutilizadas somente durante uma janela curta de dois minutos. A persistência no PostgreSQL adicionava tráfego e manutenção sem benefício relevante para esse período.
+*   **Decisão:** Armazenar as respostas brutas do provedor em um `Map` no processo do backend, com TTL fixo de 2 minutos e remoção de entradas expiradas durante a leitura. Manter o `dailyJourneyLimit` como proteção complementar de custos.
+*   **Alternativas consideradas:** PostgreSQL (durabilidade desnecessária para o TTL definido) e Redis (infraestrutura adicional desproporcional ao estágio atual).
+*   **Consequências positivas:** Menor latência, nenhuma consulta ao banco no caminho do cache e implementação simples.
+*   **Riscos:** O cache é perdido em reinícios e não é compartilhado entre múltiplas instâncias. Esses comportamentos são aceitos enquanto o TTL permanecer curto e o backend operar sem exigência de cache distribuído.
+*   **Contabilização de uso:** Apenas chamadas externas de rota concluídas com sucesso geram `ApiUsage`; acertos de cache e falhas não consomem a cota diária.
+*   **Impacto no roadmap:** Simplifica a proteção de custo atual; uma solução distribuída deve ser reavaliada antes de escalabilidade horizontal.
 
 ---
 
@@ -193,4 +204,3 @@ Este documento segue o formato ADR para registrar decisões arquiteturais import
 ---
 
 *Nota: Estas decisões podem ser revisadas conforme a evolução do projeto. Qualquer mudança significativa deve gerar uma nova ADR ou a atualização do status das anteriores.*
-

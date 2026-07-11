@@ -68,6 +68,14 @@ app.use("/journeys", journeysRoutes);
 app.use("/users", usersRoutes);
 app.use("/auth", authRoutes);
 
+// Mantém o contrato JSON da API também para endpoints inexistentes.
+app.use((req, res) => {
+  return res.status(404).json({
+    error: true,
+    message: "Rota não encontrada.",
+  });
+});
+
 /**
  * Middleware de Erro Global:
  * Deve ser o ÚLTIMO a ser registrado. Ele captura erros jogados (throw)

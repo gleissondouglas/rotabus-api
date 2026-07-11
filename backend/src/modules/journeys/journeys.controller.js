@@ -3,6 +3,7 @@ const conversationalMapper = require("./conversational.mapper");
 const sessionManager = require("./dialog/session.manager");
 const dialogManager = require("./dialog/dialog.manager");
 const conversationCommandHandler = require("./dialog/conversation-command.handler");
+const { recordDailyJourneyUsage } = require("../../shared/middlewares/dailyLimit.middleware");
 
 
 async function planJourney(req, res, next) {
@@ -16,7 +17,12 @@ async function planJourney(req, res, next) {
     }
 
     // req.body já vem validado e normalizado pelo validateMiddleware
-    const result = await journeysService.planJourney(req.body);
+    const planResult = await journeysService.planJourney(req.body);
+    const result = planResult.journey;
+
+    if (planResult.source === "PROVIDER") {
+      await recordDailyJourneyUsage(req);
+    }
 
     // Transição de estado FSM
     let event = dialogManager.EVENTS.DESTINATION_RESOLVED;

@@ -10,6 +10,7 @@ jest.mock('../../../src/modules/auth/auth.middleware', () => ({
 
 jest.mock('../../../src/shared/middlewares/dailyLimit.middleware', () => ({
   dailyJourneyLimit: (req, res, next) => next(),
+  recordDailyJourneyUsage: jest.fn().mockResolvedValue(true),
 }));
 
 jest.mock('../../../src/shared/middlewares/rateLimiter.middleware', () => ({
@@ -26,6 +27,7 @@ jest.mock('../../../src/modules/journeys/journeys.service', () => ({
 
 const app = require('../../../src/app');
 const { planJourney, resolveDestinationService } = require('../../../src/modules/journeys/journeys.service');
+const { recordDailyJourneyUsage } = require('../../../src/shared/middlewares/dailyLimit.middleware');
 
 describe('Journeys Routes (Integration)', () => {
   const validOrigin = { lat: -19.747, lng: -47.939 };
@@ -61,7 +63,7 @@ describe('Journeys Routes (Integration)', () => {
 
     test('deve aceitar payload válido e chamar o service mockado', async () => {
       const mockResponse = { summary: { busLines: ['10'] }, routes: [] };
-      planJourney.mockResolvedValue(mockResponse);
+      planJourney.mockResolvedValue({ journey: mockResponse, source: 'PROVIDER' });
 
       const response = await request(app)
         .post('/journeys/plan')
@@ -82,11 +84,12 @@ describe('Journeys Routes (Integration)', () => {
       expect(response.body.displayData).toBeDefined();
       expect(response.body.metadata.sessionId).toBeDefined(); // sessionId gerado!
       expect(planJourney).toHaveBeenCalled();
+      expect(recordDailyJourneyUsage).toHaveBeenCalledTimes(1);
     });
 
     test('deve reutilizar sessionId se fornecido no cabeçalho X-Session-ID', async () => {
       const mockResponse = { summary: { busLines: ['10'] }, routes: [] };
-      planJourney.mockResolvedValue(mockResponse);
+      planJourney.mockResolvedValue({ journey: mockResponse, source: 'CACHE' });
 
       // 1. Faz a primeira requisição para gerar a sessão
       const firstResponse = await request(app)
@@ -110,11 +113,12 @@ describe('Journeys Routes (Integration)', () => {
 
       expect(secondResponse.status).toBe(200);
       expect(secondResponse.body.metadata.sessionId).toBe(generatedSessionId);
+      expect(recordDailyJourneyUsage).not.toHaveBeenCalled();
     });
 
     test('deve preservar suporte ao campo legado departureTime', async () => {
       const departureTime = new Date().toISOString();
-      planJourney.mockResolvedValue({ ok: true });
+      planJourney.mockResolvedValue({ journey: { ok: true }, source: 'CACHE' });
 
       const response = await request(app)
         .post('/journeys/plan')
@@ -132,7 +136,7 @@ describe('Journeys Routes (Integration)', () => {
     });
 
     test('deve normalizar routingPreference para UPPERCASE', async () => {
-      planJourney.mockResolvedValue({ ok: true });
+      planJourney.mockResolvedValue({ journey: { ok: true }, source: 'CACHE' });
 
       await request(app)
         .post('/journeys/plan')
@@ -333,6 +337,19 @@ describe('Journeys Routes (Integration)', () => {
       expect(response.status).toBe(200);
       expect(response.body.speechText).toBe('Opção selecionada. Exibindo a melhor rota.');
       expect(response.body.conversationState).toBe('JOURNEY_DISPLAYED');
+    });
+  });
+});
+
+describe('Fallback HTTP', () => {
+  test('deve retornar JSON padronizado para rota inexistente', async () => {
+    const response = await request(app).get('/rota-inexistente');
+
+    expect(response.status).toBe(404);
+    expect(response.type).toMatch(/json/);
+    expect(response.body).toEqual({
+      error: true,
+      message: 'Rota não encontrada.',
     });
   });
 });
