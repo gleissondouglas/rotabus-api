@@ -1,21 +1,17 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { 
   Pressable, 
   StyleSheet, 
   Text, 
   View, 
-  Dimensions, 
   Modal, 
   Animated, 
-  Easing, 
   ScrollView, 
-  ActivityIndicator,
-  Platform
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
-import { FontAwesome6, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { FontAwesome6, Ionicons } from "@expo/vector-icons";
 
 import { BackButton } from "../src/components/BackButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
@@ -23,13 +19,10 @@ import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { useThemeColors } from "../src/theme/colors";
 import Map from "../src/components/Map";
 import { speak } from "../src/services/speech.service";
-import { MapData, MapFocusMode } from "../src/types/journey.types";
-import { formatMinutesToFriendlyText, formatBusWaitingTimeToFriendlyTextShort } from "../src/utils/date-time";
+import { MapData } from "../src/types/journey.types";
+import { formatBusWaitingTimeToFriendlyTextShort } from "../src/utils/date-time";
 import { formatWalkingInstruction } from "../src/utils/navigationInstructionFormatter";
 import { parseJsonParam, calculateDistance } from "../src/utils/helpers";
-import { ScreenContainer } from "../src/components/ScreenContainer";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface Coords { 
   latitude: number; 
@@ -63,7 +56,6 @@ export default function NavigatingScreen() {
   const direction = String(params.direction || "--");
   const stopName = String(params.stopName || "ponto indicado");
   const walkTimeMinutes = String(params.walkTimeMinutes || "--");
-  const destination = String(params.destination || "destino");
 
   const walkTimeNum = useMemo(() => Number(walkTimeMinutes) || 0, [walkTimeMinutes]);
 
@@ -81,7 +73,6 @@ export default function NavigatingScreen() {
   // Estados de controle da tela
   const [stage, setStage] = useState<NavigationStage>("walking_to_stop");
   const [userLocation, setUserLocation] = useState<Coords | null>(null);
-  const [currentDistanceToStop, setCurrentDistanceToStop] = useState<number | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState(0); // Qual "passo" da caminhada o usuário está executando
   const [busCountdown, setBusCountdown] = useState<string>(""); // Tempo para o ônibus chegar
   const [busCountdownDiff, setBusCountdownDiff] = useState<number | null>(null);
@@ -103,6 +94,21 @@ export default function NavigatingScreen() {
   const lastSpokenAtRef = useRef(0);
   const lastSpokenStepIndexRef = useRef(-1);
   const lastSpokenStageRef = useRef<NavigationStage | null>(null);
+
+  const speakControlled = useCallback((text: string, force = false) => {
+    const now = Date.now();
+    if (force || stage !== lastSpokenStageRef.current || (stage === "walking_to_stop" && currentStepIndex !== lastSpokenStepIndexRef.current)) {
+      speak(text);
+      lastSpokenAtRef.current = now;
+      lastSpokenStepIndexRef.current = currentStepIndex;
+      lastSpokenStageRef.current = stage;
+      return;
+    }
+    if ((now - lastSpokenAtRef.current) > 45000) {
+      speak(text);
+      lastSpokenAtRef.current = now;
+    }
+  }, [currentStepIndex, stage]);
 
   // Filtra apenas os passos de caminhada até o primeiro ponto de ônibus
   const walkSteps = useMemo(() => {
@@ -200,7 +206,7 @@ export default function NavigatingScreen() {
         speakControlled(`Você chegou ao ponto. Agora aguarde o ônibus ${busLine}.`);
       }
     }
-  }, [userLocation, currentStepIndex, walkSteps, stage, boardingMarker, busLine]);
+  }, [userLocation, currentStepIndex, walkSteps, stage, boardingMarker, busLine, speakControlled]);
 
   // Animations trigger
   useEffect(() => {
@@ -227,7 +233,7 @@ export default function NavigatingScreen() {
         ])
       ]).start();
     }
-  }, [stage]);
+  }, [stage, fadeAnim, slideAnim, scaleAnim, buttonFadeAnim]);
 
   // Navigation Instruction Formatting
   const formattedInstruction = useMemo(() => {
@@ -275,23 +281,7 @@ export default function NavigatingScreen() {
       distanceMeters: distToNext, 
       maneuver: currentStep?.maneuver 
     });
-  }, [stage, hasValidWalkRoute, walkSteps, currentStepIndex, stopName, userLocation, busLine]);
-
-  const speakControlled = (text: string, force = false) => {
-    const now = Date.now();
-    // Só fala se for forçado, se mudou de estágio, se mudou de passo ou se passou 45s
-    if (force || stage !== lastSpokenStageRef.current || (stage === "walking_to_stop" && currentStepIndex !== lastSpokenStepIndexRef.current)) {
-      speak(text);
-      lastSpokenAtRef.current = now;
-      lastSpokenStepIndexRef.current = currentStepIndex;
-      lastSpokenStageRef.current = stage;
-      return;
-    }
-    if ((now - lastSpokenAtRef.current) > 45000) {
-      speak(text);
-      lastSpokenAtRef.current = now;
-    }
-  };
+  }, [stage, hasValidWalkRoute, walkSteps, currentStepIndex, stopName, userLocation, busLine, lineDetails]);
 
   // Initial announcement
   useEffect(() => {
@@ -302,7 +292,7 @@ export default function NavigatingScreen() {
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [formattedInstruction, walkSteps]);
+  }, [formattedInstruction, walkSteps, speakControlled]);
 
   // Countdown timer
   useEffect(() => {
@@ -416,7 +406,7 @@ export default function NavigatingScreen() {
     longitude: currentLocation?.longitude || -47.9392, 
     latitudeDelta: 0.005, 
     longitudeDelta: 0.005 
-  }), []);
+  }), [currentLocation?.latitude, currentLocation?.longitude]);
 
   return (
     <View style={styles.container}>

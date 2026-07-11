@@ -1,8 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { ReactNode, useCallback } from "react";
-import { StyleSheet, View, ViewStyle, StatusBar } from "react-native";
+import { StyleSheet, View, ViewStyle, StatusBar , useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useColorScheme } from "react-native";
 
 import { stopSpeaking } from "../services/speech.service";
 import { useThemeColors } from "../theme/colors";

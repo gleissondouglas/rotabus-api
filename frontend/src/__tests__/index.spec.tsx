@@ -2,6 +2,7 @@ import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 
 import WelcomeScreen from "../../app";
+import { hasSeenOnboarding } from "../services/onboardingStorage";
 import { sessionService } from "../services/session.service";
 import { speak, stopSpeaking } from "../services/speech.service";
 
@@ -41,6 +42,10 @@ jest.mock("../services/session.service", () => ({
   },
 }));
 
+jest.mock("../services/onboardingStorage", () => ({
+  hasSeenOnboarding: jest.fn(),
+}));
+
 jest.mock("../services/speech.service", () => ({
   speak: jest.fn(),
   stopSpeaking: jest.fn(),
@@ -68,12 +73,25 @@ jest.mock("../theme/colors", () => ({
 }));
 
 const mockedSessionService = jest.mocked(sessionService);
+const mockedHasSeenOnboarding = jest.mocked(hasSeenOnboarding);
 
 describe("WelcomeScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedHasSeenOnboarding.mockResolvedValue(true);
     mockedSessionService.getToken.mockResolvedValue(null);
     mockedSessionService.getHasSeenPermissions.mockResolvedValue(false);
+  });
+
+  it("redireciona o primeiro acesso para o onboarding", async () => {
+    mockedHasSeenOnboarding.mockResolvedValue(false);
+
+    render(<WelcomeScreen />);
+
+    await waitFor(() => {
+      expect(router.replace).toHaveBeenCalledWith("/onboarding");
+    });
+    expect(mockedSessionService.getToken).not.toHaveBeenCalled();
   });
 
   it("mostra o estado de carregamento enquanto verifica a sessão", () => {
@@ -113,11 +131,12 @@ describe("WelcomeScreen", () => {
       expect(screen.getByText("Bem-vindo ao Nuvem")).toBeTruthy();
     });
 
-    expect(screen.getByText("Mobilidade por voz")).toBeTruthy();
-    expect(screen.getByText("Sua assistente de mobilidade por voz.")).toBeTruthy();
-    expect(screen.getByText("Encontre rotas de ônibus de forma simples.")).toBeTruthy();
+    expect(screen.getByText("Encontre sua rota de ônibus falando para onde deseja ir.")).toBeTruthy();
+    expect(screen.queryByText("Mobilidade por voz")).toBeNull();
+    expect(screen.queryByText("Sua assistente de mobilidade por voz.")).toBeNull();
+    expect(screen.queryByText("Encontre rotas de ônibus de forma simples.")).toBeNull();
     expect(speak).toHaveBeenCalledWith(
-      "Bem-vindo ao Nuvem. Sua assistente de mobilidade por voz. Encontre rotas de ônibus de forma simples.",
+      "Bem-vindo ao Nuvem. Encontre sua rota de ônibus falando para onde deseja ir.",
     );
   });
 

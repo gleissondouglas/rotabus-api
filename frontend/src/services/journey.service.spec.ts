@@ -74,7 +74,7 @@ describe("JourneyService & SessionId Flow", () => {
       metadata: { sessionId: "uuid-789" }
     });
 
-    const result = await journeyService.executeCommand({
+    await journeyService.executeCommand({
       sessionId: "uuid-789",
       command: "CONFIRM"
     });

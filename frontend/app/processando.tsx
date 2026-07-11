@@ -1,22 +1,19 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View, Pressable, useWindowDimensions } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { ScreenContainer } from "../src/components/ScreenContainer";
 import { AssistantLoadingState, LoadingStep } from "../src/components/AssistantLoadingState";
 import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
 import { journeyService } from "../src/services/journey.service";
 import { locationService } from "../src/services/location.service";
-import { useThemeColors } from "../src/theme/colors";
 import { formatLocalDateTimeWithOffset } from "../src/utils/date-time";
 import { layout } from "../src/theme/layout";
 
 export default function ProcessingScreen() {
   const params = useLocalSearchParams();
-  const theme = useThemeColors();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
 
@@ -32,8 +29,9 @@ export default function ProcessingScreen() {
   const voiceMode = String(params.voiceMode || "") === "true";
 
   const timeType: "DEPARTURE" | "ARRIVAL" = params.timeType === "ARRIVAL" ? "ARRIVAL" : "DEPARTURE";
-  const dateTime = String(
-    params.dateTime || formatLocalDateTimeWithOffset(new Date()),
+  const dateTime = useMemo(
+    () => String(params.dateTime || formatLocalDateTimeWithOffset(new Date())),
+    [params.dateTime],
   );
 
   const [steps, setSteps] = useState<LoadingStep[]>([
@@ -43,19 +41,19 @@ export default function ProcessingScreen() {
     { id: '4', label: 'Montando instruções simples', status: 'pending' },
   ]);
 
-  const updateStep = (id: string, status: 'loading' | 'completed') => {
+  const updateStep = useCallback((id: string, status: 'loading' | 'completed') => {
     setSteps(prev => prev.map(step => {
       if (step.id === id) return { ...step, status };
       if (status === 'loading' && Number(step.id) < Number(id)) return { ...step, status: 'completed' };
       return step;
     }));
-  };
+  }, []);
 
   const screenMessage = `Estamos encontrando o melhor caminho até ${destination}. Aguarde um momento enquanto verifico os ônibus disponíveis.`;
 
   useAutoSpeak(screenMessage);
 
-  async function getFreshCurrentLocation() {
+  const getFreshCurrentLocation = useCallback(async () => {
     const hasPermission = await locationService.requestLocationPermission();
     if (!hasPermission) throw new Error("Permissão de localização negada.");
     const currentLocation = await locationService.getCurrentLocation();
@@ -63,9 +61,11 @@ export default function ProcessingScreen() {
       latitude: currentLocation.latitude,
       longitude: currentLocation.longitude,
     };
-  }
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadJourney() {
       try {
         if (!destination) {
@@ -83,10 +83,12 @@ export default function ProcessingScreen() {
 
         updateStep('1', 'loading');
         const origin = await getFreshCurrentLocation();
+        if (cancelled) return;
         updateStep('1', 'completed');
         
         updateStep('2', 'loading');
         await new Promise(resolve => setTimeout(resolve, 800));
+        if (cancelled) return;
         updateStep('2', 'completed');
 
         updateStep('3', 'loading');
@@ -120,10 +122,12 @@ export default function ProcessingScreen() {
         };
 
         const journey = await journeyService.planJourney(requestBody);
+        if (cancelled) return;
         updateStep('3', 'completed');
 
         updateStep('4', 'loading');
         await new Promise(resolve => setTimeout(resolve, 600));
+        if (cancelled) return;
         updateStep('4', 'completed');
 
         router.replace({
@@ -152,6 +156,7 @@ export default function ProcessingScreen() {
           },
         });
       } catch (error) {
+        if (cancelled) return;
         console.log("Erro ao buscar rota:", error);
         router.replace({
           pathname: "/rota-nao-encontrada",
@@ -166,8 +171,11 @@ export default function ProcessingScreen() {
     }
 
     const timer = setTimeout(loadJourney, 500);
-    return () => clearTimeout(timer);
-  }, []);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [dateTime, destination, destinationLat, destinationLng, getFreshCurrentLocation, latitudeParam, longitudeParam, selectedDestination, sessionId, timeType, updateStep, voiceMode]);
 
   function handleCancel() {
     router.replace({

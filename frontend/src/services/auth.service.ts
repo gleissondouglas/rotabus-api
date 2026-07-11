@@ -20,7 +20,7 @@ async function login(data: LoginRequest): Promise<AuthResponse> {
 }
 
 async function createAccount(data: CreateAccountRequest): Promise<AuthResponse> {
-  const result = await request<AuthResponse>(`${API_BASE_URL}/users`, {
+  await request<AuthResponse>(`${API_BASE_URL}/users`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

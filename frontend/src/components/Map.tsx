@@ -80,7 +80,6 @@ const Map: React.FC<MapProps> = ({
   const [isFollowingUser, setIsFollowingUser] = React.useState(isNavigating);
   const colorScheme = useColorScheme();
   const theme = useThemeColors();
-  const isAndroid = Platform.OS === 'android';
 
   /**
    * Centraliza o mapa no usuário.
@@ -126,6 +125,7 @@ const Map: React.FC<MapProps> = ({
    */
   useEffect(() => {
     if (!mapRef.current) return;
+    let fitTimer: ReturnType<typeof setTimeout> | undefined;
 
     // Se estiver no modo de navegação ativa, a câmera segue o usuário como um GPS
     if (isNavigating && userLocation && isFollowingUser) {
@@ -181,7 +181,7 @@ const Map: React.FC<MapProps> = ({
     // Aplica o ajuste de visão (fitToCoordinates) com um padding para não cortar os ícones
     if (coordinatesToFit.length >= 1) {
       const uniqueCoords = coordinatesToFit.filter((c, i, self) => i === self.findIndex(t => t.latitude === c.latitude && t.longitude === c.longitude));
-      setTimeout(() => {
+      fitTimer = setTimeout(() => {
         if (uniqueCoords.length === 1) {
           mapRef.current?.animateToRegion({ ...uniqueCoords[0], latitudeDelta: 0.005, longitudeDelta: 0.005 }, 1000);
         } else if (uniqueCoords.length > 1) {
@@ -192,7 +192,11 @@ const Map: React.FC<MapProps> = ({
         }
       }, 1000);
     }
-  }, [mapData, userLocation, focusMode, controlsBottomOffset, currentStepIndex, walkSteps]);
+
+    return () => {
+      if (fitTimer) clearTimeout(fitTimer);
+    };
+  }, [mapData, userLocation, focusMode, controlsBottomOffset, currentStepIndex, walkSteps, isFollowingUser, isNavigating]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

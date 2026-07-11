@@ -3,6 +3,10 @@ import { StatusBar } from "expo-status-bar";
 import * as Sentry from "@sentry/react-native";
 import "fast-text-encoding";
 
+import { AccessibilityProvider } from "../src/contexts/AccessibilityContext";
+import { initSentry } from "../src/config/sentry.config";
+import { useConnectivity } from "../src/hooks/useConnectivity";
+
 // Polyfill para DOMException (necessário para algumas libs no Hermes)
 if (typeof global.DOMException === "undefined") {
   (global as any).DOMException = class DOMException extends Error {
@@ -12,10 +16,6 @@ if (typeof global.DOMException === "undefined") {
     }
   };
 }
-
-import { AccessibilityProvider } from "../src/contexts/AccessibilityContext";
-import { initSentry } from "../src/config/sentry.config";
-import { useConnectivity } from "../src/hooks/useConnectivity";
 
 /**
  * O RootLayout é o componente "pai" de toda a aplicação. 

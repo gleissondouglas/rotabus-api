@@ -45,7 +45,7 @@ export function BusIntroAnimation({ onFinish }: BusIntroAnimationProps) {
     opacity.value = withDelay(1700, withTiming(0, { duration: 300 }, () => {
       runOnJS(onFinish)();
     }));
-  }, []);
+  }, [busTranslateX, onFinish, opacity, scale]);
 
   const animatedBusStyle = useAnimatedStyle(() => ({
     transform: [

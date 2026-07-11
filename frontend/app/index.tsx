@@ -1,4 +1,3 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -6,20 +5,21 @@ import {
   Animated,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
-  Dimensions,
 } from "react-native";
 
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { ScreenContainer } from "../src/components/ScreenContainer";
+import { AssistantPresence } from "../src/components/AssistantPresence";
+import { hasSeenOnboarding } from "../src/services/onboardingStorage";
 import { sessionService } from "../src/services/session.service";
 import { speak, stopSpeaking } from "../src/services/speech.service";
 import { useThemeColors } from "../src/theme/colors";
-
-const { width } = Dimensions.get("window");
+import { layout } from "../src/theme/layout";
 
 const welcomeMessage =
-  "Bem-vindo ao Nuvem. Sua assistente de mobilidade por voz. Encontre rotas de ônibus de forma simples.";
+  "Bem-vindo ao Nuvem. Encontre sua rota de ônibus falando para onde deseja ir.";
 
 /**
  * Esta é a tela de entrada (WelcomeScreen). 
@@ -29,16 +29,16 @@ const welcomeMessage =
 
 export default function WelcomeScreen() {
   const theme = useThemeColors();
+  const { height, fontScale } = useWindowDimensions();
+  const isCompact = height < 700 || fontScale > 1.15;
   // Estado para controlar se ainda estamos verificando o token no storage
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   // Estado para decidir se mostramos a UI de boas-vindas após a verificação
   const [shouldShowWelcome, setShouldShowWelcome] = useState(false);
 
-  // Valores animados para criar a sequência de entrada visual
-  const busOpacity = useRef(new Animated.Value(0)).current;
-  const busTranslateX = useRef(new Animated.Value(-width * 0.2)).current;
-  const routeWidth = useRef(new Animated.Value(0)).current;
-  const pinScale = useRef(new Animated.Value(0)).current;
+  // Valores animados para uma entrada breve e discreta
+  const visualOpacity = useRef(new Animated.Value(0)).current;
+  const visualScale = useRef(new Animated.Value(0.92)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
   const buttonOpacity = useRef(new Animated.Value(0)).current;
 
@@ -65,6 +65,15 @@ export default function WelcomeScreen() {
       console.log("[Index] Verificando sessão...");
 
       try {
+        const onboardingSeen = await hasSeenOnboarding();
+        if (!isActive) return;
+
+        if (!onboardingSeen) {
+          clearTimeout(timeout);
+          router.replace("/onboarding");
+          return;
+        }
+
         const token = await sessionService.getToken();
         const hasSeenPermissions = await sessionService.getHasSeenPermissions();
 
@@ -116,45 +125,29 @@ export default function WelcomeScreen() {
     // Aciona a voz de boas-vindas
     speak(welcomeMessage);
 
-    // Sequência de Animações: Ônibus -> Linha -> Pin -> Texto -> Botão
+    // Sequência curta: assistente -> mensagem -> ação
     Animated.sequence([
-      // 1. Ônibus surge com fade-in e desliza levemente
       Animated.parallel([
-        Animated.timing(busOpacity, {
+        Animated.timing(visualOpacity, {
           toValue: 1,
-          duration: 600,
+          duration: 450,
           useNativeDriver: true,
         }),
-        Animated.timing(busTranslateX, {
-          toValue: -40,
-          duration: 600,
+        Animated.spring(visualScale, {
+          toValue: 1,
+          friction: 8,
+          tension: 50,
           useNativeDriver: true,
         }),
       ]),
-      // 2. A linha da rota "cresce" e o pin de destino aparece com efeito mola
-      Animated.parallel([
-        Animated.timing(routeWidth, {
-          toValue: 80,
-          duration: 400,
-          useNativeDriver: false, // width não suporta native driver
-        }),
-        Animated.spring(pinScale, {
-          toValue: 1,
-          friction: 6,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-      ]),
-      // 3. O título e subtítulo aparecem
       Animated.timing(textOpacity, {
         toValue: 1,
-        duration: 600,
+        duration: 400,
         useNativeDriver: true,
       }),
-      // 4. Por fim, o botão principal de ação aparece
       Animated.timing(buttonOpacity, {
         toValue: 1,
-        duration: 600,
+        duration: 350,
         useNativeDriver: true,
       }),
     ]).start();
@@ -164,10 +157,8 @@ export default function WelcomeScreen() {
     };
   }, [
     shouldShowWelcome,
-    busOpacity,
-    busTranslateX,
-    routeWidth,
-    pinScale,
+    visualOpacity,
+    visualScale,
     textOpacity,
     buttonOpacity,
   ]);
@@ -189,68 +180,32 @@ export default function WelcomeScreen() {
   }
 
   return (
-    <ScreenContainer backgroundColor={theme.background}>
-      <View style={styles.content}>
-        <View style={styles.mainContent}>
-          <View style={styles.illustrationContainer} accessibilityElementsHidden={true} importantForAccessibility="no">
-            <View style={[styles.heroGlow, { backgroundColor: theme.primaryLight }]} />
-            <View style={[styles.routeCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={[styles.routeDot, styles.routeDotStart, { backgroundColor: theme.primaryLight }]} />
-              <View style={[styles.routeDot, styles.routeDotEnd, { backgroundColor: theme.primaryLight }]} />
-              <Animated.View
-                style={[
-                  styles.routeLine,
-                  {
-                    width: routeWidth,
-                    backgroundColor: theme.primaryLight,
-                  },
-                ]}
-              />
-
-              <Animated.View 
-                style={[
-                  styles.busWrapper, 
-                  { 
-                    opacity: busOpacity,
-                    transform: [{ translateX: busTranslateX }]
-                  }
-                ]}
-              >
-                <View style={[styles.busBadge, { backgroundColor: theme.primary }]}>
-                  <MaterialCommunityIcons name="bus-side" size={66} color={theme.white} />
-                </View>
-              </Animated.View>
-
-              <Animated.View 
-                style={[
-                  styles.pinWrapper, 
-                  { 
-                    transform: [{ scale: pinScale }]
-                  }
-                ]}
-              >
-                <View style={[styles.pinBadge, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Ionicons name="location" size={38} color={theme.danger} />
-                </View>
-              </Animated.View>
-            </View>
-          </View>
-
-          <Animated.View style={[styles.textContent, { opacity: textOpacity }]}>
-            <Text style={[styles.kicker, { color: theme.primary }]}>Mobilidade por voz</Text>
-            <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.25}>
-              Bem-vindo ao Nuvem
-            </Text>
-            <Text style={[styles.subtitle, { color: theme.text }]} maxFontSizeMultiplier={1.25}>
-              Sua assistente de mobilidade por voz.
-            </Text>
-            <Text style={[styles.supportingText, { color: theme.textMuted }]} maxFontSizeMultiplier={1.35}>
-              Encontre rotas de ônibus de forma simples.
-            </Text>
+    <ScreenContainer backgroundColor={theme.background} withPadding={false}>
+      <View style={[styles.content, isCompact && styles.contentCompact]}>
+        <View style={[styles.visualRegion, isCompact && styles.visualRegionCompact]}>
+          <Animated.View
+            style={[
+              styles.assistantVisual,
+              isCompact && styles.assistantVisualCompact,
+              { backgroundColor: theme.primaryLight, opacity: visualOpacity, transform: [{ scale: visualScale }] },
+            ]}
+          >
+            <AssistantPresence compact={isCompact} />
           </Animated.View>
         </View>
 
-        <Animated.View style={[styles.buttonWrapper, { opacity: buttonOpacity }]}>
+        <Animated.View style={[styles.textRegion, { opacity: textOpacity }]}>
+          <View style={styles.textContent}>
+            <Text style={[styles.title, isCompact && styles.titleCompact, { color: theme.text }]} maxFontSizeMultiplier={1.3}>
+              Bem-vindo ao Nuvem
+            </Text>
+            <Text style={[styles.description, { color: theme.textMuted }]} maxFontSizeMultiplier={1.45}>
+              Encontre sua rota de ônibus falando para onde deseja ir.
+            </Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View style={[styles.buttonRegion, { opacity: buttonOpacity }]}>
           <PrimaryButton
             title="Entrar ou criar conta"
             onPress={handleStart}
@@ -266,121 +221,77 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
   loadingText: { fontSize: 16, fontWeight: "600" },
-  content: { flex: 1, justifyContent: "space-between", paddingVertical: 28 },
-  mainContent: { flex: 1, alignItems: "center", justifyContent: "center", gap: 30 },
-  illustrationContainer: {
-    height: 248,
+  content: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingHorizontal: layout.screenHorizontalPadding,
+    paddingTop: 24,
+    paddingBottom: 8,
+  },
+  contentCompact: {
+    paddingHorizontal: layout.screenHorizontalPaddingSmall,
+    paddingTop: 12,
+  },
+  visualRegion: {
+    flex: 0.8,
+    minHeight: 150,
+    maxHeight: 210,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
-  heroGlow: {
-    position: "absolute",
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    opacity: 0.55,
+  visualRegionCompact: {
+    minHeight: 112,
+    maxHeight: 150,
   },
-  routeCard: {
-    width: "86%",
-    maxWidth: 330,
-    height: 164,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.14,
-    shadowRadius: 28,
-    elevation: 6,
-  },
-  routeDot: {
-    position: "absolute",
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-  },
-  routeDotStart: {
-    left: 42,
-    top: 46,
-  },
-  routeDotEnd: {
-    right: 48,
-    bottom: 42,
-  },
-  routeLine: {
-    position: "absolute",
-    height: 6,
-    borderRadius: 3,
-    left: "34%",
-    top: 80,
-  },
-  busWrapper: {
-    zIndex: 2,
-  },
-  busBadge: {
-    width: 112,
-    height: 92,
-    borderRadius: 8,
+  assistantVisual: {
+    width: 176,
+    height: 176,
+    borderRadius: 88,
     alignItems: "center",
     justifyContent: "center",
   },
-  pinWrapper: {
-    position: "absolute",
-    right: "18%",
-    zIndex: 1,
-    top: 48,
+  assistantVisualCompact: {
+    width: 124,
+    height: 124,
+    borderRadius: 62,
   },
-  pinBadge: {
-    width: 62,
-    height: 62,
-    borderRadius: 8,
-    borderWidth: 1,
+  textRegion: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   textContent: {
-    alignItems: "center",
-    paddingHorizontal: 22,
+    width: "100%",
     maxWidth: 360,
-  },
-  kicker: {
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 10,
-    textTransform: "uppercase",
-    letterSpacing: 0,
+    alignItems: "center",
   },
   title: {
-    fontSize: 34,
+    fontSize: layout.titleFontSize,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: 12,
-    lineHeight: 40,
-    letterSpacing: 0,
+    lineHeight: 39,
+    marginBottom: 16,
   },
-  subtitle: {
-    fontSize: 18,
-    fontWeight: "700",
+  titleCompact: {
+    fontSize: layout.titleFontSizeSmall,
+    lineHeight: 34,
+  },
+  description: {
+    fontSize: layout.subtitleFontSize,
+    fontWeight: "400",
     textAlign: "center",
-    marginBottom: 8,
-    lineHeight: 25,
+    lineHeight: 27,
   },
-  supportingText: {
-    fontSize: 16,
-    fontWeight: "500",
-    textAlign: "center",
-    lineHeight: 24,
+  buttonRegion: {
+    width: "100%",
+    maxWidth: 360,
+    alignSelf: "center",
+    paddingTop: 20,
+    paddingBottom: 8,
   },
-  buttonWrapper: { width: "100%", paddingHorizontal: 24, paddingBottom: 16 },
   button: {
-    minHeight: 66,
-    borderRadius: 18,
-    shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    elevation: 5,
+    minHeight: layout.primaryButtonHeightSmall,
+    borderRadius: layout.buttonBorderRadius,
   },
 });
