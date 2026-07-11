@@ -5,7 +5,6 @@ import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { useAutoSpeakOnce } from "../src/hooks/useAutoSpeakOnce";
 import { useAccessibility } from "../src/contexts/AccessibilityContext";
-import { colors } from "../src/theme/colors";
 
 export default function AccessibilityScreen() {
   const {

@@ -10,6 +10,8 @@ import { STORAGE_KEYS } from "../constants/storage";
 let SpeechRecognitionModule: any = null;
 try {
   if (Platform.OS !== "web") {
+    // O require condicional evita carregar o módulo nativo durante a avaliação web.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const speechLib = require("expo-speech-recognition");
     SpeechRecognitionModule = speechLib.ExpoSpeechRecognitionModule || speechLib.default || speechLib;
   }
@@ -219,7 +221,7 @@ export async function stopSpeaking() {
         await sound.stopAsync();
         await sound.unloadAsync();
       }
-    } catch (e) {
+    } catch {
       // Ignora erro ao tentar parar som já descarregado
     } finally {
       sound = null;

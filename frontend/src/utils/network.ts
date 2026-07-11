@@ -5,7 +5,10 @@ import { API_BASE_URL } from "../config/api.config";
 let NetInfo: any = null;
 try {
   if (Platform.OS !== "web") {
-    NetInfo = require("@react-native-community/netinfo").default || require("@react-native-community/netinfo");
+    // O require condicional impede a avaliação do módulo nativo na web.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const netInfoModule = require("@react-native-community/netinfo");
+    NetInfo = netInfoModule.default || netInfoModule;
   }
 } catch (error) {
   console.warn("[NetworkUtil] Falha ao carregar NetInfo:", error);

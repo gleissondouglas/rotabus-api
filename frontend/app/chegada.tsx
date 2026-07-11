@@ -1,11 +1,11 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Ionicons, FontAwesome6, MaterialCommunityIcons } from "@expo/vector-icons";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { ScreenContainer } from "../src/components/ScreenContainer";
-import { colors, useThemeColors } from "../src/theme/colors";
+import { useThemeColors } from "../src/theme/colors";
 import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
 import { formatBusWaitingTimeToFriendlyTextShort } from "../src/utils/date-time";
 

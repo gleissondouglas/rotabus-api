@@ -1,35 +1,9 @@
-import { Platform } from "react-native";
-import * as SecureStore from "expo-secure-store";
-
 import { AuthResponse, AuthUser } from "../types/auth.types";
+import { appStorage } from "./storage.service";
 
 const TOKEN_KEY = "nuvem_token";
 const USER_KEY = "nuvem_user";
 const PERMISSIONS_SEEN_KEY = "nuvem_permissions_seen";
-
-// Helper para lidar com armazenamento na web vs nativo
-const storage = {
-  async setItem(key: string, value: string) {
-    if (Platform.OS === "web") {
-      localStorage.setItem(key, value);
-      return;
-    }
-    await SecureStore.setItemAsync(key, value);
-  },
-  async getItem(key: string) {
-    if (Platform.OS === "web") {
-      return localStorage.getItem(key);
-    }
-    return await SecureStore.getItemAsync(key);
-  },
-  async deleteItem(key: string) {
-    if (Platform.OS === "web") {
-      localStorage.removeItem(key);
-      return;
-    }
-    await SecureStore.deleteItemAsync(key);
-  },
-};
 
 async function saveAuthSession(auth: AuthResponse) {
   try {
@@ -41,8 +15,8 @@ async function saveAuthSession(auth: AuthResponse) {
       throw new Error("Usuário não recebido.");
     }
 
-    await storage.setItem(TOKEN_KEY, auth.token);
-    await storage.setItem(USER_KEY, JSON.stringify(auth.user));
+    await appStorage.setItem(TOKEN_KEY, auth.token);
+    await appStorage.setItem(USER_KEY, JSON.stringify(auth.user));
   } catch (error) {
     throw error;
   }
@@ -50,7 +24,7 @@ async function saveAuthSession(auth: AuthResponse) {
 
 async function updateUserSession(user: AuthUser) {
   try {
-    await storage.setItem(USER_KEY, JSON.stringify(user));
+    await appStorage.setItem(USER_KEY, JSON.stringify(user));
   } catch (error) {
     throw error;
   }
@@ -58,40 +32,40 @@ async function updateUserSession(user: AuthUser) {
 
 async function getToken() {
   try {
-    return await storage.getItem(TOKEN_KEY);
-  } catch (error) {
+    return await appStorage.getItem(TOKEN_KEY);
+  } catch {
     return null;
   }
 }
 
 async function getUser(): Promise<AuthUser | null> {
   try {
-    const user = await storage.getItem(USER_KEY);
+    const user = await appStorage.getItem(USER_KEY);
 
     if (!user) {
       return null;
     }
 
     return JSON.parse(user);
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
 async function setHasSeenPermissions(value: boolean) {
   try {
-    await storage.setItem(PERMISSIONS_SEEN_KEY, String(value));
-  } catch (error) {
+    await appStorage.setItem(PERMISSIONS_SEEN_KEY, String(value));
+  } catch {
     // ignore
   }
 }
 
 async function getHasSeenPermissions() {
   try {
-    const value = await storage.getItem(PERMISSIONS_SEEN_KEY);
+    const value = await appStorage.getItem(PERMISSIONS_SEEN_KEY);
 
     return value === "true";
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -101,22 +75,22 @@ let currentSessionId: string | null = null;
 
 async function clearSession() {
   try {
-    await storage.deleteItem(TOKEN_KEY);
-    await storage.deleteItem(USER_KEY);
-    await storage.deleteItem(PERMISSIONS_SEEN_KEY);
-    await storage.deleteItem(SESSION_ID_KEY);
+    await appStorage.deleteItem(TOKEN_KEY);
+    await appStorage.deleteItem(USER_KEY);
+    await appStorage.deleteItem(PERMISSIONS_SEEN_KEY);
+    await appStorage.deleteItem(SESSION_ID_KEY);
     currentSessionId = null;
-  } catch (error) {
+  } catch {
     // ignore
   }
 }
 
 async function restoreSessionId(): Promise<string | null> {
   try {
-    const id = await storage.getItem(SESSION_ID_KEY);
+    const id = await appStorage.getItem(SESSION_ID_KEY);
     currentSessionId = id;
     return id;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -132,16 +106,15 @@ export const sessionService = {
   setSessionId: (id: string | null) => {
     currentSessionId = id;
     if (id) {
-      storage.setItem(SESSION_ID_KEY, id).catch(() => {});
+      appStorage.setItem(SESSION_ID_KEY, id).catch(() => {});
     } else {
-      storage.deleteItem(SESSION_ID_KEY).catch(() => {});
+      appStorage.deleteItem(SESSION_ID_KEY).catch(() => {});
     }
   },
   getSessionId: () => currentSessionId,
   clearSessionId: () => {
     currentSessionId = null;
-    storage.deleteItem(SESSION_ID_KEY).catch(() => {});
+    appStorage.deleteItem(SESSION_ID_KEY).catch(() => {});
   },
   restoreSessionId,
 };
-

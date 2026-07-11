@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { StyleSheet, Text, View, ScrollView } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { BackButton } from "../src/components/BackButton";
 import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
