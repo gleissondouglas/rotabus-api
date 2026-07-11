@@ -40,7 +40,7 @@ A separação de responsabilidades é clara e segue o padrão:
 *   **Limpeza de Código:** Comentários explicativos de alta qualidade e estrutura semântica.
 *   **Prevenção de Custos:** Sistema de `RouteCache` robusto que evita chamadas repetitivas e caras às APIs do Google.
 *   **Segurança de Negócio:** Middleware `dailyLimit` que protege o orçamento das APIs externas por usuário.
-*   **Tratamento de Erros:** Middleware de erro global e uso de `AppError` para respostas padronizadas.
+*   **Tratamento de Erros:** Middleware de erro global para respostas padronizadas.
 
 ### Pontos de Atenção (Débito Técnico)
 *   **Acúmulo de Lógica (God Object):** O arquivo `journey.mapper.js` concentra responsabilidades demais (tradução de dados, formatação de fala, cálculos de tempo), dificultando a manutenção.

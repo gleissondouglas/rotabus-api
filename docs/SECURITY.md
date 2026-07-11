@@ -45,9 +45,9 @@ A proteção financeira é implementada através de camadas complementares:
 
 *   **Rate Limit Global:** Limite de 150 requisições a cada 15 minutos por IP (evita DoS e spam).
 *   **Login Limiter (`loginLimiter`):** Limite de 10 tentativas a cada 15 minutos por IP (proteção contra força bruta).
-*   **Daily Journey Limit:** Limite estrito de **10 jornadas por dia** por usuário ou IP nas rotas de planejamento (Isenta usuários `ADMIN`).
-*   **Route Cache:** Persistência de respostas do Google na tabela `RouteCache` para evitar cobranças duplicadas em requisições idênticas.
-*   **ApiUsage:** Registro de cada acesso crítico para auditoria e controle de limites.
+*   **Daily Journey Limit:** Limite estrito de **10 chamadas externas de rota bem-sucedidas por dia** por usuário ou IP (isenta usuários `ADMIN`). Cache, validações rejeitadas e falhas do provider não consomem cota.
+*   **Route Cache:** Respostas do Google são mantidas por 2 minutos na memória do backend para evitar cobranças duplicadas em requisições idênticas. Reinícios limpam o cache e instâncias diferentes não o compartilham.
+*   **ApiUsage:** Registro de cada chamada externa de rota concluída para auditoria e controle de limites.
 
 ---
 
@@ -93,7 +93,7 @@ O Nuvem coleta e armazena os seguintes dados sensíveis sob proteções específ
 ## 8. Melhorias Futuras
 
 *   **Limites de Payload:** Implementação de validação rigorosa para o tamanho máximo do `audioBase64`.
-*   **Cleanup Jobs:** Automatização da limpeza de tokens de reset e caches de rotas expirados.
+*   **Cleanup Jobs:** Automatização da limpeza de tokens de reset expirados. O cache de rotas em memória remove entradas vencidas durante a leitura.
 *   **Auditoria Estruturada:** Criação de logs de auditoria para mudanças de privilégios e acessos administrativos.
 *   **Armazenamento Seguro:** Formalização da política de persistência do JWT no aplicativo móvel para evitar vazamentos em aparelhos desbloqueados (root/jailbreak).
 

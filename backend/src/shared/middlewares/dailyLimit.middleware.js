@@ -1,7 +1,7 @@
 const apiUsageRepository = require("../repositories/apiUsage.repository");
 
 /**
- * Middleware para impor o limite estrito de 5 buscas de rota por dia.
+ * Middleware para impor o limite estrito de 10 chamadas externas de rota por dia.
  * Considera tanto o IP quanto o ID do usuário autenticado.
  */
 async function dailyJourneyLimit(req, res, next) {
@@ -36,12 +36,13 @@ async function dailyJourneyLimit(req, res, next) {
       });
     }
 
-    // Registra este novo uso
-    await apiUsageRepository.createUsage({
+    // O registro só será efetuado pelo controller se o provider externo responder
+    // com sucesso. Respostas do cache e falhas não consomem a cota.
+    req.dailyJourneyUsage = {
       userId,
       ipAddress: ip,
       endpoint,
-    });
+    };
 
     next();
   } catch (error) {
@@ -50,4 +51,17 @@ async function dailyJourneyLimit(req, res, next) {
   }
 }
 
-module.exports = { dailyJourneyLimit };
+async function recordDailyJourneyUsage(req) {
+  if (!req.dailyJourneyUsage) return false;
+
+  try {
+    await apiUsageRepository.createUsage(req.dailyJourneyUsage);
+    return true;
+  } catch (error) {
+    // O controle de custo não deve transformar uma rota já calculada em erro 500.
+    console.error("[DailyLimit] Erro ao registrar uso:", error.message);
+    return false;
+  }
+}
+
+module.exports = { dailyJourneyLimit, recordDailyJourneyUsage };

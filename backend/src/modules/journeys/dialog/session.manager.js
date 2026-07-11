@@ -25,7 +25,7 @@ function mapToSession(dbSession) {
 
 // Retorna se o sistema está configurado para persistência durável no Postgres
 function usePostgres() {
-  return process.env.PERSISTENCE_DRIVER === "postgres";
+  return process.env.PERSISTENCE_DRIVER === "postgres" && process.env.NODE_ENV !== "test";
 }
 
 async function createSession({ userId, initialState = "IDLE", metadata = {}, sessionId }) {

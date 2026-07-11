@@ -7,7 +7,7 @@ const {
   computeWalkingRoute,
 } = require("./providers/routes.provider");
 const { mapGoogleRouteToJourney } = require("./journey.mapper");
-const { findCachedRoute, createRouteCache } = require("./journeys.repository");
+const { findCachedRoute, createRouteCache } = require("./route-cache");
 const {
   getAddressFromCoordinates,
   geocodeAddress,
@@ -178,17 +178,20 @@ async function planJourney({
   const cacheKey = `${validatedData.origin.lat},${validatedData.origin.lng}-${validatedData.destination.text}-${validatedData.timePreference.type}-${validatedData.timePreference.dateTime}`;
 
   // Tentar buscar do cache primeiro para economizar chamadas à API do Google
-  const cachedResult = await findCachedRoute(cacheKey);
+  const cachedResult = findCachedRoute(cacheKey);
 
   if (cachedResult) {
     if (process.env.NODE_ENV !== "production") {
       console.log("Retornando rota do cache para a chave:", cacheKey);
     }
-    return mapGoogleRouteToJourney(
-      cachedResult.googleResponse,
-      validatedData.origin,
-      cachedResult.timePreference,
-    );
+    return {
+      journey: mapGoogleRouteToJourney(
+        cachedResult.googleResponse,
+        validatedData.origin,
+        cachedResult.timePreference,
+      ),
+      source: "CACHE",
+    };
   }
 
   // Se não estiver no cache, chama a API do Google
@@ -269,18 +272,21 @@ async function planJourney({
     // Continua com a rota original se o enriquecimento falhar
   }
 
-  // Salva no banco de dados para consultas futuras
-  await createRouteCache({
+  // Mantém a resposta por dois minutos na memória do processo.
+  createRouteCache({
     cacheKey,
     googleResponse,
     timePreference: validatedData.timePreference,
   });
 
-  return mapGoogleRouteToJourney(
-    googleResponse,
-    validatedData.origin,
-    validatedData.timePreference,
-  );
+  return {
+    journey: mapGoogleRouteToJourney(
+      googleResponse,
+      validatedData.origin,
+      validatedData.timePreference,
+    ),
+    source: "PROVIDER",
+  };
 }
 
 async function reverseGeocodeService({ lat, lng }) {
