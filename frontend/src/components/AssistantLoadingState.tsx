@@ -44,7 +44,7 @@ const RouteAnimation = () => {
       -1,
       true
     );
-  }, []);
+  }, [busPos, pulse]);
 
   const busStyle = useAnimatedStyle(() => ({
     transform: [

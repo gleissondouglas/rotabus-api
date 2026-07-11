@@ -99,7 +99,7 @@ export function useThemeColors() {
   try {
     const context = useAccessibility();
     highContrast = context?.highContrast || false;
-  } catch (e) {
+  } catch {
     // ignore
   }
 

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Text,
   View,
-  Dimensions,
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,8 +28,6 @@ import { useThemeColors } from "../src/theme/colors";
 import { journeyService } from "../src/services/journey.service";
 import { sessionService } from "../src/services/session.service";
 import { vibrationService } from "../src/services/vibration.service";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type ScreenStatus = "listening" | "processing" | "success" | "error";
 
@@ -117,7 +114,7 @@ const BlinkingCursor = () => {
 
   useEffect(() => {
     opacity.value = withRepeat(withTiming(0, { duration: 500 }), -1, true);
-  }, []);
+  }, [opacity]);
 
   const style = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -167,6 +164,8 @@ export default function ListeningScreen() {
     return () => {
       stopListening();
     };
+    // A sessão deve iniciar apenas uma vez por montagem; callbacks usam os parâmetros iniciais da tela.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -182,7 +181,7 @@ export default function ListeningScreen() {
     } else {
       micPulse.value = withTiming(1);
     }
-  }, [status]);
+  }, [status, micPulse]);
 
   const micPulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: micPulse.value }],

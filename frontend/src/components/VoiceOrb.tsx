@@ -7,7 +7,6 @@ import Animated, {
   withTiming,
   withDelay,
   interpolate,
-  Extrapolation,
   withSpring,
   cancelAnimation,
 } from 'react-native-reanimated';
@@ -36,7 +35,7 @@ const PulseRing = ({ delay, state, size }: { delay: number; state: VoiceOrbState
     } else {
       pulse.value = withTiming(0, { duration: 300 });
     }
-  }, [state, delay]);
+  }, [state, delay, pulse]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -75,7 +74,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({ state, size = 120 }) => {
       cancelAnimation(rotation);
       rotation.value = 0;
     }
-  }, [state]);
+  }, [state, rotation, scale]);
 
   const mainOrbStyle = useAnimatedStyle(() => {
     return {
