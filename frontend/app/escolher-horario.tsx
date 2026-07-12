@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Alert,
   Pressable,
@@ -31,6 +31,7 @@ import {
   getNext7Days,
 } from "../src/utils/date-time";
 import { parseVoiceTimeIntent } from "../src/utils/voiceTimeParser";
+import { getInteractionMode } from "../src/types/interaction.types";
 
 type TimeMode = "NOW" | "DEPARTURE" | "ARRIVAL";
 
@@ -57,7 +58,8 @@ export default function ChooseTimeScreen() {
   const destinationLng = String(params.destinationLng || "");
   const selectedDestination = String(params.selectedDestination || "");
   const sessionId = String(params.sessionId || "");
-  const voiceMode = String(params.voiceMode || "") === "true";
+  const interactionMode = getInteractionMode(params.interactionMode);
+  const isVoiceMode = interactionMode === "voice";
 
   const [mode, setMode] = useState<TimeMode>("NOW");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -110,13 +112,13 @@ export default function ChooseTimeScreen() {
       destinationLng: String(destLng),
       selectedDestination,
       sessionId,
-      voiceMode: voiceMode ? "true" : "false",
+      interactionMode,
       timeType: type,
       dateTime,
     };
   }
 
-  const { startLoop, stopAll } = useVoiceConversationLoop({
+  const { startLoop } = useVoiceConversationLoop({
     onIntent: async (intent) => {
       setVoiceErrorMessage("");
       const timeIntent = parseVoiceTimeIntent(intent.transcript);
@@ -173,17 +175,6 @@ export default function ChooseTimeScreen() {
     },
     maxSilentRetries: 0,
   });
-
-  useEffect(() => {
-    if (!voiceMode) {
-      return;
-    }
-
-    void startLoop(screenMessage);
-    return () => {
-      void stopAll();
-    };
-  }, [screenMessage, startLoop, stopAll, voiceMode]);
 
   function handleGoNow() {
     vibrationService.selection();
@@ -354,7 +345,7 @@ export default function ChooseTimeScreen() {
             </Text>
           </View>
 
-          {voiceMode && (!!voiceTranscript || !!voiceErrorMessage) && (
+          {isVoiceMode && (!!voiceTranscript || !!voiceErrorMessage) && (
             <View
               style={styles.voiceFeedback}
               accessible={true}
@@ -498,22 +489,24 @@ export default function ChooseTimeScreen() {
         </Animated.View>
       </ScrollView>
 
-      <View
-        style={[
-          styles.bottomVoiceContainer,
-          { bottom: insets.bottom + 16 },
-        ]}
-      >
-        <BottomVoiceMicButton
-          status={voiceStatus}
-          label={getMicLabel()}
-          helperText={getMicHelperText()}
-          mode="hold"
-          onPressIn={handleMicPressIn}
-          onPressOut={handleMicPressOut}
-          accessibilityLabel={getMicLabel()}
-        />
-      </View>
+      {isVoiceMode && (
+        <View
+          style={[
+            styles.bottomVoiceContainer,
+            { bottom: insets.bottom + 16 },
+          ]}
+        >
+          <BottomVoiceMicButton
+            status={voiceStatus}
+            label={getMicLabel()}
+            helperText={getMicHelperText()}
+            mode="hold"
+            onPressIn={handleMicPressIn}
+            onPressOut={handleMicPressOut}
+            accessibilityLabel={getMicLabel()}
+          />
+        </View>
+      )}
 
       {/* TIME SELECTOR MODAL */}
       <Modal

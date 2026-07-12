@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
@@ -9,8 +9,6 @@ import { BackButton } from "../src/components/BackButton";
 import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { RouteStep } from "../src/components/RouteStep";
-import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
-import type { VoiceLoopStatus } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
 import { journeyService } from "../src/services/journey.service";
 import { sessionService } from "../src/services/session.service";
@@ -20,6 +18,7 @@ import { isConnected } from "../src/utils/network";
 import { JourneyStep, JourneySummary } from "../src/types/journey.types";
 import { formatMinutesToFriendlyText } from "../src/utils/date-time";
 import { parseJsonParam } from "../src/utils/helpers";
+import { getInteractionMode } from "../src/types/interaction.types";
 
 function getTransitSteps(steps: JourneyStep[]) {
   return steps.filter((step) => step.type === "transit");
@@ -89,8 +88,7 @@ export default function BestRouteScreen() {
   const destinationLng = String(params.destinationLng || "");
   const selectedDestination = String(params.selectedDestination || "");
   const fullBackendMessage = String(params.message || "");
-  const expectedInput = String(params.expectedInput || "");
-  const voiceMode = String(params.voiceMode || "") === "true";
+  const interactionMode = getInteractionMode(params.interactionMode);
 
   const summary = parseJsonParam<JourneySummary | null>(params.summary, null);
   const alerts = parseJsonParam<string[]>(params.alerts, []);
@@ -98,7 +96,6 @@ export default function BestRouteScreen() {
 
   const [isLoadingCommand, setIsLoadingCommand] = useState(false);
   const [showSteps, setShowSteps] = useState(false);
-  const [voiceStatus, setVoiceStatus] = useState<VoiceLoopStatus>("idle");
 
   const transitSteps = getTransitSteps(steps);
   const firstTransitStep = transitSteps[0];
@@ -135,50 +132,6 @@ export default function BestRouteScreen() {
   });
 
   const voiceText = speechTextParam || voiceSummary;
-  const shouldAutoListen = voiceMode && (expectedInput === "VOICE_OR_TOUCH" || voiceText.includes("?"));
-
-  const { startLoop, stopAll } = useVoiceConversationLoop({
-    onIntent: async (intent) => {
-      switch (intent.type) {
-        case "CONFIRM":
-        case "START_NAVIGATION":
-          handleStartNavigation();
-          break;
-        case "REPEAT":
-          handleHearRoute();
-          break;
-        case "SHOW_DETAILS":
-          vibrationService.light();
-          setShowSteps(true);
-          if (voiceMode) {
-            void startLoop("Detalhes da rota abertos. Quer iniciar a navegação?");
-          }
-          break;
-        case "HIDE_DETAILS":
-          vibrationService.light();
-          setShowSteps(false);
-          if (voiceMode) {
-            void startLoop("Detalhes da rota fechados. Vamos começar?");
-          }
-          break;
-        case "CANCEL":
-          handleGoHome();
-          break;
-      }
-    },
-    onStatusChange: setVoiceStatus,
-  });
-
-  useEffect(() => {
-    if (!shouldAutoListen) {
-      return;
-    }
-
-    void startLoop(voiceText);
-    return () => {
-      void stopAll();
-    };
-  }, [shouldAutoListen, voiceText, startLoop, stopAll]);
 
   async function handleGoHome() {
     setIsLoadingCommand(true);
@@ -206,13 +159,8 @@ export default function BestRouteScreen() {
 
   const handleHearRoute = useCallback(() => {
     vibrationService.selection();
-    if (voiceMode) {
-      void startLoop(voiceText);
-      return;
-    }
-
     speak(voiceText);
-  }, [voiceMode, voiceText, startLoop]);
+  }, [voiceText]);
 
   function handleStartNavigation() {
     setIsLoadingCommand(true);
@@ -226,7 +174,7 @@ export default function BestRouteScreen() {
         destinationLat,
         destinationLng,
         selectedDestination,
-        voiceMode: voiceMode ? "true" : "false",
+        interactionMode,
         message: fullBackendMessage,
         shortMessage,
         summary: JSON.stringify(summary),
@@ -269,19 +217,6 @@ export default function BestRouteScreen() {
             <Text style={[styles.title, { color: "#000" }]} maxFontSizeMultiplier={1.2}>Sua melhor rota</Text>
             <Text style={[styles.subtitle, { color: "#666" }]} maxFontSizeMultiplier={1.1}>Para {destination}</Text>
           </View>
-
-          {voiceMode && voiceStatus === "listening" && (
-            <View
-              style={styles.voiceHintCard}
-              accessible={true}
-              accessibilityLabel="Você pode dizer iniciar, repetir ou ver detalhes."
-            >
-              <Ionicons name="mic" size={18} color={theme.primary} />
-              <Text style={styles.voiceHintText}>
-                Você pode dizer: iniciar, repetir ou ver detalhes.
-              </Text>
-            </View>
-          )}
 
           {/* COMPACT SUMMARY */}
           <View style={styles.compactSummary}>

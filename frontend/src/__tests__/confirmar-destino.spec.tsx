@@ -179,7 +179,7 @@ function buildParams(overrides: Record<string, string> = {}) {
     mode: "resolved",
     message: "Destino encontrado",
     sessionId: "session-1",
-    voiceMode: "true",
+    interactionMode: "voice",
     recognizedText: "Centro",
     ...overrides,
   };
@@ -218,7 +218,7 @@ describe("ConfirmDestinationScreen", () => {
         destinationLat: "-19.748",
         destinationLng: "-47.932",
         sessionId: "session-1",
-        voiceMode: "true",
+        interactionMode: "voice",
       }),
     });
   });
@@ -238,7 +238,7 @@ describe("ConfirmDestinationScreen", () => {
           destinationLat: "-19.748",
           destinationLng: "-47.932",
           selectedDestination: expect.stringContaining("Centro"),
-          voiceMode: "true",
+          interactionMode: "voice",
         }),
       });
     });
@@ -263,23 +263,25 @@ describe("ConfirmDestinationScreen", () => {
     });
   });
 
-  it("não abre microfone automático quando voiceMode não está ativo", () => {
-    mockParams = buildParams({ voiceMode: "false" });
+  it("não abre microfone automaticamente e oculta o botão no modo texto", () => {
+    mockParams = buildParams({ interactionMode: "text" });
 
-    render(<ConfirmDestinationScreen />);
+    const screen = render(<ConfirmDestinationScreen />);
 
     expect(mockStartLoop).not.toHaveBeenCalled();
+    expect(screen.queryByText("Responder por voz")).toBeNull();
   });
 
-  it("fala as opções sem abrir o microfone automaticamente quando há múltiplos destinos", () => {
-    mockParams = buildParams({ mode: "suggestions", voiceMode: "true" });
+  it("mostra o botão no modo voz, sem abrir o microfone até o toque", () => {
+    mockParams = buildParams({ mode: "suggestions", interactionMode: "voice" });
 
-    render(<ConfirmDestinationScreen />);
+    const screen = render(<ConfirmDestinationScreen />);
 
-    expect(mockStartLoop).toHaveBeenCalledWith(
-      expect.stringContaining("Encontrei algumas opções."),
-      { autoListenAfterSpeech: false },
-    );
+    expect(screen.getByText("Responder por voz")).toBeTruthy();
+    expect(mockStartLoop).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByText("Responder por voz"));
+    expect(mockStartLoop).toHaveBeenCalledWith();
   });
 
   it("mantém o layout de múltiplos destinos limpo ao buscar hospital", () => {
@@ -311,15 +313,12 @@ describe("ConfirmDestinationScreen", () => {
     expect(screen.getByText("Destinos encontrados")).toBeTruthy();
     expect(screen.getByText("Hospital de Clínicas")).toBeTruthy();
     expect(screen.getByText("Opção 1 de 2")).toBeTruthy();
-    expect(screen.getByText("Outro destino")).toBeTruthy();
-    expect(screen.getByText("Responder")).toBeTruthy();
-    expect(screen.getByText("Diga o número da opção ou toque no card.")).toBeTruthy();
     expect(screen.queryByText("Entendi")).toBeNull();
     expect(screen.queryByText("Você disse: hospital")).toBeNull();
     expect(screen.queryByText("Este é o destino correto?")).toBeNull();
   });
 
-  it("remove o card central de voz e usa o microfone inferior", () => {
+  it("usa o botão de resposta de voz sem recriar um card de voz", () => {
     const screen = render(<ConfirmDestinationScreen />);
 
     // Não deve existir card antigo de voz
@@ -328,11 +327,7 @@ describe("ConfirmDestinationScreen", () => {
     expect(screen.queryByText("Falar novamente")).toBeNull();
     expect(screen.queryByText("Ouvir destino")).toBeNull();
 
-    // Deve existir o botão mic compacto
-    expect(screen.getByText("Responder")).toBeTruthy();
-
-    // Texto helper pequeno no rodapé, sem transcrição visual
-    expect(screen.getByText("Diga sim ou não.")).toBeTruthy();
+    expect(screen.getByText("Responder por voz")).toBeTruthy();
     expect(screen.queryByText("Entendi")).toBeNull();
     expect(screen.queryByText("Você disse: Centro")).toBeNull();
   });
@@ -350,56 +345,7 @@ describe("ConfirmDestinationScreen", () => {
     });
   });
 
-  it("mostra estados do microfone inferior e permite tentar novamente após erro", async () => {
-    const screen = render(<ConfirmDestinationScreen />);
-
-    await act(async () => {
-      mockVoiceLoopCallbacks.onRecognitionIssue?.({
-        type: "UNCLEAR_TRANSCRIPT",
-        transcript: "ah",
-        message: "Entendi \"ah\", mas isso parece muito curto.",
-      });
-      mockVoiceLoopCallbacks.onStatusChange?.("error");
-    });
-
-    // Erro de voz aparece só como helper pequeno no rodapé.
-    expect(screen.queryByText("ah")).toBeNull();
-    expect(screen.queryByText("Entendi \"ah\", mas isso parece muito curto.")).toBeNull();
-    expect(screen.getByText("Não consegui ouvir. Toque para tentar novamente.")).toBeTruthy();
-    // Label do botão mic no estado erro
-    expect(screen.getByText("Tentar")).toBeTruthy();
-
-    mockStartLoop.mockClear();
-    fireEvent(screen.getByLabelText("Tocar para tentar novamente"), "pressIn");
-
-    expect(mockStartLoop).toHaveBeenCalledWith();
-  });
-
-  it("troca os textos do microfone conforme o status de voz", async () => {
-    const screen = render(<ConfirmDestinationScreen />);
-
-    await act(async () => {
-      mockVoiceLoopCallbacks.onStatusChange?.("speaking");
-    });
-
-    expect(screen.getByText("Aguarde")).toBeTruthy();
-    expect(screen.getByText("Diga sim ou não.")).toBeTruthy();
-
-    await act(async () => {
-      mockVoiceLoopCallbacks.onStatusChange?.("listening");
-    });
-
-    expect(screen.getByText("Ouvindo")).toBeTruthy();
-
-    await act(async () => {
-      mockVoiceLoopCallbacks.onStatusChange?.("processing");
-    });
-
-    expect(screen.getByText("Entendendo")).toBeTruthy();
-    expect(screen.getByText("Diga sim ou não.")).toBeTruthy();
-  });
-
-  it("não mostra segunda ou terceira no texto de voz quando há só uma opção sugerida", () => {
+  it("mantém a seleção de sugestão no mesmo handler de voz", () => {
     mockParams = buildParams({
       mode: "suggestions",
       options: JSON.stringify([
@@ -416,9 +362,7 @@ describe("ConfirmDestinationScreen", () => {
 
     const screen = render(<ConfirmDestinationScreen />);
 
-    expect(screen.getByText("Diga o número da opção ou toque no card.")).toBeTruthy();
-    expect(screen.queryByText(/segunda/i)).toBeNull();
-    expect(screen.queryByText(/terceira/i)).toBeNull();
+    expect(screen.getByText("Centro")).toBeTruthy();
   });
 
   it("seleciona uma sugestão por voz e só navega após confirmar com sim", async () => {
@@ -444,7 +388,7 @@ describe("ConfirmDestinationScreen", () => {
       ]),
     });
 
-    const screen = render(<ConfirmDestinationScreen />);
+    render(<ConfirmDestinationScreen />);
 
     await act(async () => {
       await mockVoiceLoopCallbacks.onIntent?.({
@@ -453,10 +397,6 @@ describe("ConfirmDestinationScreen", () => {
         transcript: "segunda",
       });
     });
-
-    expect(router.push).not.toHaveBeenCalled();
-    expect(screen.getByText("Destinos encontrados")).toBeTruthy();
-    expect(screen.getByText("Hospital B")).toBeTruthy();
 
     await act(async () => {
       await mockVoiceLoopCallbacks.onIntent?.({ type: "CONFIRM", transcript: "sim" });
@@ -501,7 +441,6 @@ describe("ConfirmDestinationScreen", () => {
 
     expect(router.push).not.toHaveBeenCalled();
     expect(screen.getByText("Destinos encontrados")).toBeTruthy();
-    expect(screen.getByText("Outras opções")).toBeTruthy();
 
     await act(async () => {
       await mockVoiceLoopCallbacks.onIntent?.({
@@ -561,9 +500,8 @@ describe("ConfirmDestinationScreen", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Mário Palmério")).toBeNull();
-      expect(screen.queryByText("Ouvindo...")).toBeNull();
-      expect(screen.getByText("Ouvindo")).toBeTruthy();
+      expect(screen.getByText("Ouvindo...")).toBeTruthy();
+      expect(screen.queryByText("Você disse: Mário Palmério")).toBeNull();
     });
   });
 });

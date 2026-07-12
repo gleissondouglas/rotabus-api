@@ -11,6 +11,7 @@ import { journeyService } from "../src/services/journey.service";
 import { locationService } from "../src/services/location.service";
 import { formatLocalDateTimeWithOffset } from "../src/utils/date-time";
 import { layout } from "../src/theme/layout";
+import { getInteractionMode } from "../src/types/interaction.types";
 
 export default function ProcessingScreen() {
   const params = useLocalSearchParams();
@@ -26,7 +27,7 @@ export default function ProcessingScreen() {
   const destinationLng = String(params.destinationLng || "");
   const selectedDestination = String(params.selectedDestination || "");
   const sessionId = String(params.sessionId || "");
-  const voiceMode = String(params.voiceMode || "") === "true";
+  const interactionMode = getInteractionMode(params.interactionMode);
 
   const timeType: "DEPARTURE" | "ARRIVAL" = params.timeType === "ARRIVAL" ? "ARRIVAL" : "DEPARTURE";
   const dateTime = useMemo(
@@ -152,7 +153,7 @@ export default function ProcessingScreen() {
             conversationState: journey.conversationState || "",
             actions: journey.actions ? JSON.stringify(journey.actions) : "",
             sessionId: journey.metadata?.sessionId || sessionId,
-            voiceMode: voiceMode ? "true" : "false",
+            interactionMode,
           },
         });
       } catch (error) {
@@ -175,7 +176,7 @@ export default function ProcessingScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [dateTime, destination, destinationLat, destinationLng, getFreshCurrentLocation, latitudeParam, longitudeParam, selectedDestination, sessionId, timeType, updateStep, voiceMode]);
+  }, [dateTime, destination, destinationLat, destinationLng, getFreshCurrentLocation, interactionMode, latitudeParam, longitudeParam, selectedDestination, sessionId, timeType, updateStep]);
 
   function handleCancel() {
     router.replace({

@@ -226,24 +226,15 @@ describe("HomeScreen voice-first flow", () => {
     jest.useRealTimers();
   });
 
-  it("dispara a saudação automática ao entrar na tela", async () => {
-    render(<HomeScreen />);
+  it("não abre o microfone automaticamente ao entrar na tela", () => {
+    const screen = render(<HomeScreen />);
 
-    await waitFor(() => {
-      expect(mockStartLoop).toHaveBeenCalledWith(
-        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
-      );
-    });
+    expect(mockStartLoop).not.toHaveBeenCalled();
+    expect(screen.getByText("Falar destino")).toBeTruthy();
   });
 
-  it("não repete a saudação automática ao voltar para a tela na mesma sessão", async () => {
+  it("mantém a saudação visual ao voltar para a tela sem abrir o microfone", async () => {
     const firstRender = render(<HomeScreen />);
-
-    await waitFor(() => {
-      expect(mockStartLoop).toHaveBeenCalledWith(
-        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
-      );
-    });
 
     await act(async () => {
       firstRender.unmount();
@@ -262,11 +253,7 @@ describe("HomeScreen voice-first flow", () => {
   it("mantém digitação e microfone lado a lado quando está ouvindo", async () => {
     const screen = render(<HomeScreen />);
 
-    await waitFor(() => {
-      expect(mockStartLoop).toHaveBeenCalledWith(
-        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
-      );
-    });
+    await waitFor(() => expect(screen.getByText("Para onde você quer ir hoje?")).toBeTruthy());
 
     expect(screen.getByText("Digitar destino")).toBeTruthy();
     expect(screen.getByText("Falar destino")).toBeTruthy();
@@ -312,11 +299,7 @@ describe("HomeScreen voice-first flow", () => {
   it("permite reabrir o microfone manualmente depois de erro", async () => {
     const screen = render(<HomeScreen />);
 
-    await waitFor(() => {
-      expect(mockStartLoop).toHaveBeenCalledWith(
-        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
-      );
-    });
+    await waitFor(() => expect(screen.getByText("Falar destino")).toBeTruthy());
 
     await act(async () => {
       mockVoiceLoopCallbacks.onStatusChange?.("error");
@@ -331,11 +314,7 @@ describe("HomeScreen voice-first flow", () => {
   it("mostra claramente a transcrição descartada por ruído curto", async () => {
     const screen = render(<HomeScreen />);
 
-    await waitFor(() => {
-      expect(mockStartLoop).toHaveBeenCalledWith(
-        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
-      );
-    });
+    await waitFor(() => expect(screen.getByText("Falar destino")).toBeTruthy());
 
     await act(async () => {
       mockVoiceLoopCallbacks.onRecognitionIssue?.({
@@ -354,11 +333,7 @@ describe("HomeScreen voice-first flow", () => {
   it("exibe mensagem de fallback de silêncio quando usuário não fala nada", async () => {
     const screen = render(<HomeScreen />);
 
-    await waitFor(() => {
-      expect(mockStartLoop).toHaveBeenCalledWith(
-        "Olá, Douglas. Bem-vindo ao Nuvem. Para onde você quer ir hoje?",
-      );
-    });
+    await waitFor(() => expect(screen.getByText("Falar destino")).toBeTruthy());
 
     await act(async () => {
       mockVoiceLoopCallbacks.onRecognitionIssue?.({

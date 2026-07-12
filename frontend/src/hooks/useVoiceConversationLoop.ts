@@ -264,7 +264,9 @@ export function useVoiceConversationLoop({
       return;
     }
 
-    const shouldAutoListen = options.autoListenAfterSpeech ?? true;
+    // Speech never opens the microphone by itself. A screen must wait for an
+    // explicit user action before requesting a new capture.
+    const shouldAutoListen = options.autoListenAfterSpeech ?? false;
 
     if (speechText) {
       lastSpeechTextRef.current = speechText;

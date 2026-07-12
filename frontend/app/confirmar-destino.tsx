@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -9,23 +9,28 @@ import {
   useWindowDimensions,
   Alert,
 } from "react-native";
-import { Ionicons, FontAwesome6 } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "../src/components/BackButton";
-import { BottomVoiceMicButton } from "../src/components/BottomVoiceMicButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
+import { DestinationCategoryIcon } from "../src/components/DestinationCategoryIcon";
+import { VoiceResponseButton } from "../src/components/VoiceResponseButton";
 import { VoiceVisualizer } from "../src/components/VoiceVisualizer";
 import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
 import { journeyService } from "../src/services/journey.service";
 import { sessionService } from "../src/services/session.service";
 import { vibrationService } from "../src/services/vibration.service";
-import { stopListening } from "../src/services/speech.service";
 import { isConnected } from "../src/utils/network";
 import { parseJsonParam } from "../src/utils/helpers";
 import { layout } from "../src/theme/layout";
+import { getInteractionMode } from "../src/types/interaction.types";
+import {
+  getDestinationCategoryLabel,
+  resolveDestinationCategory,
+} from "../src/utils/destinationCategory.mapper";
 import type {
   VoiceLoopStatus,
   VoiceRecognitionIssue,
@@ -64,26 +69,25 @@ export default function ConfirmDestinationScreen() {
     ? layout.screenHorizontalPaddingSmall
     : layout.screenHorizontalPadding;
   const carouselCardWidth = width - screenHorizontalPadding * 2 - 48; // 48 = paddingHorizontal 24*2
-  const cardMinHeight = height > 800 ? 380 : height > 700 ? 340 : 300;
+  const usableHeight = height - insets.top - insets.bottom;
+  const cardMinHeight = Math.max(210, Math.min(usableHeight * 0.38, 340));
 
   const latitude = getSingleParam(params.latitude);
   const longitude = getSingleParam(params.longitude);
   const destination = getSingleParam(params.destination);
   const address = getSingleParam(params.address);
   const city = getSingleParam(params.city, "Uberaba - MG");
-  const confirmationQuestion = getSingleParam(params.confirmationQuestion);
   const backendMode = getSingleParam(params.mode);
-  const voiceMode = getSingleParam(params.voiceMode) === "true";
+  const interactionMode = getInteractionMode(params.interactionMode);
+  const isVoiceMode = interactionMode === "voice";
 
   const [sessionId] = useState(getSingleParam(params.sessionId));
-  const [speechText] = useState(getSingleParam(params.speechText));
   const [displayData] = useState<any>(
     params.displayData ? JSON.parse(String(params.displayData)) : null,
   );
   const [conversationState] = useState(getSingleParam(params.conversationState));
   const [isLoadingCommand, setIsLoadingCommand] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<VoiceLoopStatus>("idle");
-  const [voiceErrorMessage, setVoiceErrorMessage] = useState("");
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
 
@@ -115,41 +119,6 @@ export default function ConfirmDestinationScreen() {
   const displayDestination =
     displayData?.title || destination || bestOption.name || "Destino informado";
 
-  const getDestinationIcon = (name: string, addr: string) => {
-    const text = (name + " " + addr).toLowerCase();
-    if (
-      text.includes("hospital") ||
-      text.includes("upa") ||
-      text.includes("saúde") ||
-      text.includes("clínica")
-    ) {
-      return { name: "hospital", type: "FontAwesome6" as const };
-    }
-    if (/\d+/.test(name) || /\d+/.test(addr)) {
-      return { name: "home", type: "Ionicons" as const };
-    }
-    if (name.length > 5 && !addr.includes(",")) {
-      return { name: "map", type: "Ionicons" as const };
-    }
-    return { name: "location", type: "Ionicons" as const };
-  };
-
-  const getPlaceTypeLabel = (name: string, addr: string) => {
-    const text = `${name} ${addr}`.toLowerCase();
-    if (
-      text.includes("hospital") ||
-      text.includes("upa") ||
-      text.includes("saúde") ||
-      text.includes("clínica")
-    ) {
-      return "Saúde";
-    }
-    if (/\d+/.test(name) || /\d+/.test(addr)) {
-      return "Endereço";
-    }
-    return "Local";
-  };
-
   const getAddressDetails = (addr: string) => {
     const parts = addr
       .split(",")
@@ -161,38 +130,21 @@ export default function ConfirmDestinationScreen() {
     };
   };
 
-  const getSuggestionsSpeech = (items: any[]) => {
-    if (!items || items.length === 0) return "Encontrei algumas opções. Qual delas você quer?";
-    const maxOptions = 3;
-    const ordinals = ["Primeira", "Segunda", "Terceira"];
-    let speech = "Encontrei algumas opções. ";
-    items.slice(0, maxOptions).forEach((item, index) => {
-      speech += `${ordinals[index]}: ${item.name}. `;
-    });
-    speech += "Qual você quer?";
-    return speech;
-  };
-
   const activeDestinationName = selectedSuggestion?.name || displayDestination;
   const activeDestinationAddress = selectedSuggestion?.address || address;
   const activeDestination = selectedSuggestion || bestOption;
-  const activeDestinationIcon = getDestinationIcon(activeDestinationName, activeDestinationAddress);
+  const activeDestinationCategory = resolveDestinationCategory({
+    ...activeDestination,
+    name: activeDestinationName,
+    address: activeDestinationAddress,
+  });
   const activeAddressDetails = getAddressDetails(activeDestinationAddress || "");
   const activeHasCoordinates =
     parseRequiredCoordinate(String(activeDestination?.lat ?? "")) !== null &&
     parseRequiredCoordinate(String(activeDestination?.lng ?? "")) !== null;
 
-  const voiceText =
-    selectedSuggestion
-      ? `Destino selecionado: ${selectedSuggestion.name}. Este é o destino correto?`
-      : speechText ||
-        (showSuggestions
-          ? getSuggestionsSpeech(options)
-          : confirmationQuestion ||
-            `Destino encontrado: ${displayDestination}, ${address}. É para este lugar que você quer ir?`);
-
-  const isVoiceSpeaking = voiceMode && voiceStatus === "speaking";
-  const isVoiceProcessing = voiceMode && voiceStatus === "processing";
+  const isVoiceSpeaking = isVoiceMode && voiceStatus === "speaking";
+  const isVoiceProcessing = isVoiceMode && voiceStatus === "processing";
   const isActionDisabled = isLoadingCommand || isVoiceSpeaking || isVoiceProcessing;
 
   const navigateWithSelectedDestination = useCallback(
@@ -232,11 +184,11 @@ export default function ConfirmDestinationScreen() {
           destinationLng: String(destLng),
           selectedDestination: JSON.stringify(selected),
           sessionId,
-          voiceMode: voiceMode ? "true" : "false",
+          interactionMode,
         },
       });
     },
-    [displayDestination, latitude, longitude, sessionId, voiceMode],
+    [displayDestination, interactionMode, latitude, longitude, sessionId],
   );
 
   const handleSelectSuggestion = useCallback(
@@ -245,7 +197,6 @@ export default function ConfirmDestinationScreen() {
       vibrationService.selection();
       setCurrentSuggestionIndex(index);
       setSelectedOptionIndex(index);
-      setVoiceErrorMessage("");
     },
     [],
   );
@@ -256,7 +207,6 @@ export default function ConfirmDestinationScreen() {
 
       if (showSuggestions && !selectedSuggestion && !option) {
         vibrationService.light();
-        setVoiceErrorMessage("Escolha uma opção antes de confirmar.");
         return;
       }
 
@@ -288,7 +238,6 @@ export default function ConfirmDestinationScreen() {
   const handleRejectSelectedSuggestion = useCallback(() => {
     vibrationService.light();
     setSelectedOptionIndex(null);
-    setVoiceErrorMessage("");
   }, []);
 
   const handleChangeDestination = useCallback(async () => {
@@ -315,18 +264,22 @@ export default function ConfirmDestinationScreen() {
     }
   }, [latitude, longitude, sessionId]);
 
+  const handlePrimaryAction = useCallback(async () => {
+    if (isChoosingSuggestion) {
+      const currentOption = options[currentSuggestionIndex];
+      if (!currentOption) return;
+      handleSelectSuggestion(currentOption, currentSuggestionIndex);
+      await handleConfirmDestination(currentOption);
+      return;
+    }
+    await handleConfirmDestination();
+  }, [currentSuggestionIndex, handleConfirmDestination, handleSelectSuggestion, isChoosingSuggestion, options]);
+
   const { startLoop, stopAll } = useVoiceConversationLoop({
     onIntent: async (intent) => {
-      setVoiceErrorMessage("");
       switch (intent.type) {
         case "CONFIRM":
-          if (showSuggestions && !selectedSuggestion) {
-            vibrationService.light();
-            setVoiceErrorMessage("Escolha uma opção antes de confirmar.");
-            void startLoop("Escolha uma opção primeiro. Qual destino você quer?");
-            break;
-          }
-          await handleConfirmDestination();
+          await handlePrimaryAction();
           break;
         case "CANCEL_THEN_ASK_DESTINATION":
           if (selectedSuggestion) {
@@ -340,7 +293,6 @@ export default function ConfirmDestinationScreen() {
             handleSelectSuggestion(options[intent.optionIndex], intent.optionIndex);
           } else {
             vibrationService.light();
-            void startLoop("Não encontrei essa opção. Qual você deseja?");
           }
           break;
         case "CANCEL":
@@ -354,7 +306,7 @@ export default function ConfirmDestinationScreen() {
               latitude,
               longitude,
               searchText: intent.text,
-              voiceMode: voiceMode ? "true" : "false",
+              interactionMode,
             },
           });
           break;
@@ -362,64 +314,17 @@ export default function ConfirmDestinationScreen() {
     },
     onStatusChange: (nextStatus) => {
       setVoiceStatus(nextStatus);
-      if (nextStatus === "listening" || nextStatus === "processing") {
-        setVoiceErrorMessage("");
-      }
+      // O botão reflete o estado do loop; nenhuma captura é iniciada aqui.
     },
-    onTranscript: (_text, isFinal) => {
-      if (!isFinal) setVoiceErrorMessage("");
-    },
-    onRecognitionIssue: (issue: VoiceRecognitionIssue) => {
-      setVoiceErrorMessage(issue.message);
-    },
+    onTranscript: () => {},
+    onRecognitionIssue: (_issue: VoiceRecognitionIssue) => {},
     maxSilentRetries: 0,
   });
 
-  useEffect(() => {
-    if (!voiceMode) return;
-    if (isChoosingSuggestion) {
-      void startLoop(voiceText, { autoListenAfterSpeech: false });
-    } else {
-      void startLoop(voiceText);
-    }
-    return () => { void stopAll(); };
-  }, [isChoosingSuggestion, voiceMode, voiceText, startLoop, stopAll]);
-
-  function getCompactMicLabel() {
-    if (voiceStatus === "speaking") return "Aguarde";
-    if (voiceStatus === "listening") return "Ouvindo";
-    if (voiceStatus === "processing") return "Entendendo";
-    if (voiceStatus === "error") return "Tentar";
-    return "Responder";
-  }
-
-  function getMicAccessibilityLabel() {
-    if (voiceStatus === "speaking") return "Aguarde a assistente";
-    if (voiceStatus === "listening") return "Estou ouvindo";
-    if (voiceStatus === "processing") return "Entendendo...";
-    if (voiceStatus === "error") return "Tocar para tentar novamente";
-    return "Responder por voz";
-  }
-
-  function getMicHelperText() {
-    if (voiceErrorMessage) {
-      return "Não consegui ouvir. Toque para tentar novamente.";
-    }
-    if (isChoosingSuggestion) {
-      return "Diga o número da opção ou toque no card.";
-    }
-    return "Diga sim ou não.";
-  }
-
-  function handleMicPressIn() {
+  function handleVoiceResponse() {
     if (voiceStatus === "speaking" || voiceStatus === "processing" || voiceStatus === "listening") return;
     vibrationService.light();
-    setVoiceErrorMessage("");
     void startLoop();
-  }
-
-  function handleMicPressOut() {
-    if (voiceStatus === "listening") stopListening();
   }
 
   const handleHelp = () => router.push("/ajuda");
@@ -447,7 +352,7 @@ export default function ConfirmDestinationScreen() {
           styles.scrollContent,
           {
             paddingTop: insets.top + 70,
-            paddingBottom: insets.bottom + 172, // Ajustado para gap de ~24px dos botões
+            paddingBottom: insets.bottom + (isVoiceMode ? 190 : 112),
           },
         ]}
       >
@@ -469,7 +374,7 @@ export default function ConfirmDestinationScreen() {
           </View>
 
           {/* VoiceVisualizer — apenas em modo voz */}
-          {voiceMode && (
+          {isVoiceMode && (
             <Animated.View entering={FadeIn.duration(300)} style={styles.visualizerWrapper}>
               <VoiceVisualizer state={toVisualizerState(voiceStatus)} size="compact" />
             </Animated.View>
@@ -495,7 +400,7 @@ export default function ConfirmDestinationScreen() {
               >
                 {options.map((option: any, index: number) => {
                   const isCurrent = index === currentSuggestionIndex;
-                  const optionIcon = getDestinationIcon(option.name, option.address);
+                  const optionCategory = resolveDestinationCategory(option);
                   const addressDetails = getAddressDetails(option.address || "");
                   const hasCoordinates =
                     parseRequiredCoordinate(String(option.lat ?? "")) !== null &&
@@ -519,78 +424,78 @@ export default function ConfirmDestinationScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={`Selecionar ${index + 1}: ${option.name}, ${option.address}`}
                       >
-                        {/* Contador */}
-                        <View style={styles.cardTopRow}>
-                          <View
-                            style={[
-                              styles.numberBadge,
-                              { backgroundColor: isCurrent ? theme.primary : theme.primaryLight },
-                            ]}
-                          >
-                            <Text style={[styles.numberBadgeText, { color: isCurrent ? "#fff" : theme.primary }]}>
-                              {index + 1}
-                            </Text>
-                          </View>
-                          <Text style={styles.cardCountText}>
-                            Opção {index + 1} de {options.length}
-                          </Text>
-                          {isCurrent && (
-                            <Ionicons name="checkmark-circle" size={22} color={theme.primary} />
-                          )}
-                        </View>
-
-                        {/* Ícone + nome */}
-                        <View style={styles.cardPlaceRow}>
-                          <View style={[styles.placeIconBox, { backgroundColor: theme.primaryLight }]}>
-                            {optionIcon.type === "FontAwesome6" ? (
-                              <FontAwesome6 name={optionIcon.name as any} size={20} color={theme.primary} />
-                            ) : (
-                              <Ionicons name={optionIcon.name as any} size={22} color={theme.primary} />
-                            )}
-                          </View>
-                          <View style={styles.placeTextBox}>
-                            <Text style={styles.placeName} numberOfLines={2}>
-                              {option.name}
-                            </Text>
-                            <Text style={styles.placeType}>
-                              {getPlaceTypeLabel(option.name || "", option.address || "")}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {/* Detalhes */}
-                        <View style={styles.cardDetails}>
-                          <View style={styles.cardDetailRow}>
-                            <Ionicons name="location-outline" size={16} color={theme.primary} />
-                            <Text style={styles.cardDetailText} numberOfLines={1}>
-                              {addressDetails.main}
-                            </Text>
-                          </View>
-                          {!!addressDetails.area && (
-                            <View style={styles.cardDetailRow}>
-                              <Ionicons name="business-outline" size={16} color={theme.primary} />
-                              <Text style={styles.cardDetailText} numberOfLines={1}>
-                                {addressDetails.area}
+                        <View style={styles.cardContent}>
+                          <View>
+                            {/* Contador */}
+                            <View style={styles.cardTopRow}>
+                              <View
+                                style={[
+                                  styles.numberBadge,
+                                  { backgroundColor: isCurrent ? theme.primary : theme.primaryLight },
+                                ]}
+                              >
+                                <Text style={[styles.numberBadgeText, { color: isCurrent ? "#fff" : theme.primary }]}>
+                                  {index + 1}
+                                </Text>
+                              </View>
+                              <Text style={styles.cardCountText}>
+                                Opção {index + 1} de {options.length}
                               </Text>
+                              {isCurrent && (
+                                <Ionicons name="checkmark-circle" size={22} color={theme.primary} />
+                              )}
                             </View>
-                          )}
-                        </View>
 
-                        {/* Chips */}
-                        <View style={styles.chipsRow}>
-                          <View style={styles.chip}>
-                            <Ionicons name="map-outline" size={13} color={theme.primary} />
-                            <Text style={styles.chipText} numberOfLines={1}>{city}</Text>
+                            {/* Ícone + nome */}
+                            <View style={styles.cardPlaceRow}>
+                              <DestinationCategoryIcon category={optionCategory} />
+                              <View style={styles.placeTextBox}>
+                                <Text style={styles.placeName} numberOfLines={2}>
+                                  {option.name}
+                                </Text>
+                                <Text style={styles.placeType}>
+                                  {getDestinationCategoryLabel(optionCategory)}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {/* Detalhes */}
+                            <View style={styles.cardDetails}>
+                              <View style={styles.cardDetailRow}>
+                                <Ionicons name="location-outline" size={16} color={theme.primary} />
+                                <Text style={styles.cardDetailText} numberOfLines={2}>
+                                  {addressDetails.main}
+                                </Text>
+                              </View>
+                              {!!addressDetails.area && (
+                                <View style={styles.cardDetailRow}>
+                                  <Ionicons name="business-outline" size={16} color={theme.primary} />
+                                  <Text style={styles.cardDetailText} numberOfLines={1}>
+                                    {addressDetails.area}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
                           </View>
-                          <View style={styles.chip}>
-                            <Ionicons
-                              name={hasCoordinates ? "navigate-circle-outline" : "alert-circle-outline"}
-                              size={13}
-                              color={theme.primary}
-                            />
-                            <Text style={styles.chipText} numberOfLines={1}>
-                              {hasCoordinates ? "Localização ok" : "Pendente"}
-                            </Text>
+
+                          {/* Chips */}
+                          <View style={styles.chipsContainer}>
+                            <View style={styles.chipsRow}>
+                              <View style={styles.chip}>
+                                <Ionicons name="map-outline" size={13} color={theme.primary} />
+                                <Text style={styles.chipText} numberOfLines={1}>{city}</Text>
+                              </View>
+                              <View style={styles.chip}>
+                                <Ionicons
+                                  name={hasCoordinates ? "navigate-circle-outline" : "alert-circle-outline"}
+                                  size={13}
+                                  color={theme.primary}
+                                />
+                                <Text style={styles.chipText} numberOfLines={1}>
+                                  {hasCoordinates ? "Localização ok" : "Pendente"}
+                                </Text>
+                              </View>
+                            </View>
                           </View>
                         </View>
                       </Pressable>
@@ -620,68 +525,68 @@ export default function ConfirmDestinationScreen() {
             /* ── CARD ÚNICO — mesmo estilo compactSummary da rota pronta ── */
             <Animated.View
               entering={FadeInUp.delay(150).duration(400)}
-              style={[styles.destCard, { minHeight: cardMinHeight, flex: 1 }]}
+              style={[styles.destCard, { minHeight: cardMinHeight }]}
             >
-              <View style={styles.cardPlaceRow}>
-                <View style={[styles.placeIconBox, { backgroundColor: theme.primaryLight }]}>
-                  {activeDestinationIcon.type === "FontAwesome6" ? (
-                    <FontAwesome6 name={activeDestinationIcon.name as any} size={20} color={theme.primary} />
-                  ) : (
-                    <Ionicons name={activeDestinationIcon.name as any} size={22} color={theme.primary} />
+              <View style={styles.cardContent}>
+                <View>
+                  <View style={styles.cardPlaceRow}>
+                    <DestinationCategoryIcon category={activeDestinationCategory} />
+                    <View style={styles.placeTextBox}>
+                      <Text style={styles.placeName} numberOfLines={2}>
+                        {activeDestinationName}
+                      </Text>
+                      <Text style={styles.placeType}>
+                        {getDestinationCategoryLabel(activeDestinationCategory)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.cardDetails}>
+                    <View style={styles.cardDetailRow}>
+                      <Ionicons name="location-outline" size={16} color={theme.primary} />
+                      <Text style={styles.cardDetailText} numberOfLines={2}>
+                        {activeAddressDetails.main}
+                      </Text>
+                    </View>
+                    {!!activeAddressDetails.area && (
+                      <View style={styles.cardDetailRow}>
+                        <Ionicons name="business-outline" size={16} color={theme.primary} />
+                        <Text style={styles.cardDetailText} numberOfLines={1}>
+                          {activeAddressDetails.area}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {!selectedSuggestion && confidence === "medium" && (
+                    <View style={[styles.statusBox, styles.statusBoxWarning, { marginTop: 12 }]}>
+                      <Ionicons name="alert-circle" size={18} color={theme.warning} />
+                      <Text style={[styles.statusDesc, { color: theme.warning, marginLeft: 8 }]}>
+                        Confira o endereço com atenção.
+                      </Text>
+                    </View>
                   )}
                 </View>
-                <View style={styles.placeTextBox}>
-                  <Text style={styles.placeName} numberOfLines={2}>
-                    {activeDestinationName}
-                  </Text>
-                  <Text style={styles.placeType}>
-                    {getPlaceTypeLabel(activeDestinationName, activeDestinationAddress || "")}
-                  </Text>
-                </View>
-              </View>
 
-              <View style={styles.cardDetails}>
-                <View style={styles.cardDetailRow}>
-                  <Ionicons name="location-outline" size={16} color={theme.primary} />
-                  <Text style={styles.cardDetailText} numberOfLines={2}>
-                    {activeAddressDetails.main}
-                  </Text>
-                </View>
-                {!!activeAddressDetails.area && (
-                  <View style={styles.cardDetailRow}>
-                    <Ionicons name="business-outline" size={16} color={theme.primary} />
-                    <Text style={styles.cardDetailText} numberOfLines={1}>
-                      {activeAddressDetails.area}
-                    </Text>
+                <View style={styles.chipsContainer}>
+                  <View style={styles.chipsRow}>
+                    <View style={styles.chip}>
+                      <Ionicons name="map-outline" size={13} color={theme.primary} />
+                      <Text style={styles.chipText} numberOfLines={1}>{city}</Text>
+                    </View>
+                    <View style={styles.chip}>
+                      <Ionicons
+                        name={activeHasCoordinates ? "navigate-circle-outline" : "alert-circle-outline"}
+                        size={13}
+                        color={theme.primary}
+                      />
+                      <Text style={styles.chipText} numberOfLines={1}>
+                        {activeHasCoordinates ? "Localização ok" : "Pendente"}
+                      </Text>
+                    </View>
                   </View>
-                )}
-              </View>
-
-              <View style={styles.chipsRow}>
-                <View style={styles.chip}>
-                  <Ionicons name="map-outline" size={13} color={theme.primary} />
-                  <Text style={styles.chipText} numberOfLines={1}>{city}</Text>
-                </View>
-                <View style={styles.chip}>
-                  <Ionicons
-                    name={activeHasCoordinates ? "navigate-circle-outline" : "alert-circle-outline"}
-                    size={13}
-                    color={theme.primary}
-                  />
-                  <Text style={styles.chipText} numberOfLines={1}>
-                    {activeHasCoordinates ? "Localização ok" : "Pendente"}
-                  </Text>
                 </View>
               </View>
-
-              {!selectedSuggestion && confidence === "medium" && (
-                <View style={[styles.statusBox, styles.statusBoxWarning]}>
-                  <Ionicons name="alert-circle" size={18} color={theme.warning} />
-                  <Text style={[styles.statusDesc, { color: theme.warning, marginLeft: 8 }]}>
-                    Confira o endereço com atenção.
-                  </Text>
-                </View>
-              )}
             </Animated.View>
           )}
 
@@ -692,17 +597,7 @@ export default function ConfirmDestinationScreen() {
       <View style={[styles.fixedBottomActions, { paddingBottom: insets.bottom + 16 }]}>
         <PrimaryButton
           title={isChoosingSuggestion ? "Confirmar destino" : "Buscar rota para este lugar"}
-          onPress={() => {
-            if (isChoosingSuggestion) {
-              const currentOption = options[currentSuggestionIndex];
-              if (currentOption) {
-                handleSelectSuggestion(currentOption, currentSuggestionIndex);
-                handleConfirmDestination(currentOption);
-              }
-            } else {
-              handleConfirmDestination();
-            }
-          }}
+          onPress={handlePrimaryAction}
           isLoading={isLoadingCommand}
           disabled={isActionDisabled}
           style={styles.mainButton}
@@ -710,39 +605,8 @@ export default function ConfirmDestinationScreen() {
             isChoosingSuggestion ? "Confirmar destino selecionado" : "Buscar rota para este lugar"
           }
         />
+        {isVoiceMode && <VoiceResponseButton status={voiceStatus} onPress={handleVoiceResponse} />}
 
-        <View style={styles.secondaryWrapper}>
-          {voiceMode && (
-            <View style={{ alignItems: "center", marginBottom: 12 }}>
-              <BottomVoiceMicButton
-                status={voiceStatus}
-                label={getCompactMicLabel()}
-                mode="hold"
-                onPressIn={handleMicPressIn}
-                onPressOut={handleMicPressOut}
-                accessibilityLabel={getMicAccessibilityLabel()}
-                compact
-                tone="primary"
-              />
-              <Text style={styles.bottomMicHelper}>{getMicHelperText()}</Text>
-            </View>
-          )}
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              (pressed || isActionDisabled) && { opacity: 0.7 },
-            ]}
-            onPress={selectedSuggestion ? handleRejectSelectedSuggestion : handleChangeDestination}
-            disabled={isActionDisabled}
-            accessibilityRole="button"
-            accessibilityLabel={selectedSuggestion ? "Ver outras opções" : "Buscar outro destino"}
-          >
-            <Text style={styles.secondaryBtnText}>
-              {selectedSuggestion ? "Outras opções" : "Outro destino"}
-            </Text>
-          </Pressable>
-        </View>
       </View>
     </View>
   );
@@ -850,6 +714,13 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
     borderColor: "rgba(37,99,235,0.15)",
+  },
+
+  cardContent: {
+    gap: 16,
+  },
+  chipsContainer: {
+    paddingTop: 16,
   },
 
   // ─── Linha contador ─────────────────────────────────────────────────
@@ -970,7 +841,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: "white",
-    paddingTop: 16,
+    paddingTop: 12,
     paddingHorizontal: 24,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
@@ -979,6 +850,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 10,
+    gap: 10,
   },
   mainButton: {
     borderRadius: 32,

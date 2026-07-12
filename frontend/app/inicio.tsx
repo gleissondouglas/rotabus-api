@@ -26,10 +26,6 @@ import { stopListening } from "../src/services/speech.service";
 import { useThemeColors } from "../src/theme/colors";
 import { cleanVoiceTranscript } from "../src/utils/helpers";
 import {
-  markHomeVoiceAutoStarted,
-  shouldAutoStartHomeVoice,
-} from "../src/state/homeVoiceSession";
-import {
   isLikelyNoiseTranscript,
   type VoiceIntent,
 } from "../src/utils/voiceIntentParser";
@@ -215,7 +211,7 @@ export default function HomeScreen() {
               conversationState: response.conversationState || "",
               actions: response.actions ? JSON.stringify(response.actions) : "",
               sessionId: response.metadata?.sessionId || "",
-              voiceMode: "true",
+              interactionMode: "voice",
             },
           });
         } else {
@@ -416,13 +412,11 @@ export default function HomeScreen() {
       setErrorMessage("");
       voiceIssueMessageRef.current = "";
 
-      if (!params.searchText && userName && shouldAutoStartHomeVoice()) {
-        markHomeVoiceAutoStarted();
+      if (!params.searchText && userName) {
         // Primeira vez: texto anima progressivamente
         setPromptAnimated(true);
         const greetingText = `Olá, ${userName}. Bem-vindo ao Nuvem. Para onde você quer ir hoje?`;
         setPromptText(greetingText);
-        void startLoop(greetingText);
       } else if (userName) {
         // Retorno à tela: texto aparece completo de uma vez
         setPromptAnimated(false);
@@ -433,7 +427,7 @@ export default function HomeScreen() {
         void stopAll();
         lastHandledSearchTextRef.current = null;
       };
-    }, [params.searchText, startLoop, stopAll, userName]),
+    }, [params.searchText, stopAll, userName]),
   );
 
   // Atualiza o texto de boas-vindas quando o nome do usuário carrega (após o useFocusEffect inicial)

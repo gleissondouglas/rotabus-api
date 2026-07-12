@@ -1,16 +1,8 @@
-import { act, render } from "@testing-library/react-native";
+import { render } from "@testing-library/react-native";
 import { useLocalSearchParams } from "expo-router";
 
 import BestRouteScreen from "../../app/melhor-rota";
-import type { VoiceLoopStatus } from "../hooks/useVoiceConversationLoop";
-
-const mockStartLoop = jest.fn().mockResolvedValue(undefined);
-const mockStopAll = jest.fn().mockResolvedValue(undefined);
-
 let mockParams: Record<string, string> = {};
-let mockVoiceLoopCallbacks: {
-  onStatusChange?: (status: VoiceLoopStatus) => void;
-} = {};
 
 jest.mock("react-native-reanimated", () => {
   const Reanimated = jest.requireActual("react-native-reanimated/mock");
@@ -80,17 +72,6 @@ jest.mock("../components/RouteStep", () => ({
   },
 }));
 
-jest.mock("../hooks/useVoiceConversationLoop", () => ({
-  useVoiceConversationLoop: (options: typeof mockVoiceLoopCallbacks) => {
-    mockVoiceLoopCallbacks = options;
-
-    return {
-      startLoop: mockStartLoop,
-      stopAll: mockStopAll,
-    };
-  },
-}));
-
 jest.mock("../services/speech.service", () => ({
   speak: jest.fn(),
 }));
@@ -141,7 +122,7 @@ function buildParams(overrides: Record<string, string> = {}) {
     }),
     alerts: JSON.stringify([]),
     steps: JSON.stringify([]),
-    voiceMode: "false",
+    interactionMode: "text",
     ...overrides,
   };
 }
@@ -149,27 +130,14 @@ function buildParams(overrides: Record<string, string> = {}) {
 describe("BestRouteScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockVoiceLoopCallbacks = {};
     mockParams = buildParams();
     (useLocalSearchParams as jest.Mock).mockImplementation(() => mockParams);
   });
 
-  it("não abre o microfone automaticamente no fluxo manual", () => {
-    render(<BestRouteScreen />);
-
-    expect(mockStartLoop).not.toHaveBeenCalled();
-  });
-
-  it("mostra dica de voz apenas quando o loop está ouvindo", async () => {
-    mockParams = buildParams({ voiceMode: "true" });
+  it("não exibe dica de escuta sem uma captura iniciada pelo usuário", () => {
+    mockParams = buildParams({ interactionMode: "voice" });
     const screen = render(<BestRouteScreen />);
 
     expect(screen.queryByText("Você pode dizer: iniciar, repetir ou ver detalhes.")).toBeNull();
-
-    await act(async () => {
-      mockVoiceLoopCallbacks.onStatusChange?.("listening");
-    });
-
-    expect(screen.getByText("Você pode dizer: iniciar, repetir ou ver detalhes.")).toBeTruthy();
   });
 });

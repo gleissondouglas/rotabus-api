@@ -115,6 +115,7 @@ export default function TypeDestinationScreen() {
             conversationState: response.conversationState || "",
             actions: response.actions ? JSON.stringify(response.actions) : "",
             sessionId: response.metadata?.sessionId || "",
+            interactionMode: "text",
           },
         });
       } else {

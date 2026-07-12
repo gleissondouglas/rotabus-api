@@ -297,6 +297,7 @@ export default function ListeningScreen() {
             conversationState: response.conversationState || "",
             actions: response.actions ? JSON.stringify(response.actions) : "",
             sessionId: response.metadata?.sessionId || "",
+            interactionMode: "voice",
           },
         });
       } else {

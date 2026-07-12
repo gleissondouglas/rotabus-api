@@ -134,7 +134,7 @@ function buildParams(overrides: Record<string, string> = {}) {
     destinationLng: "-47.932",
     selectedDestination: JSON.stringify({ name: "Centro" }),
     sessionId: "session-1",
-    voiceMode: "true",
+    interactionMode: "voice",
     ...overrides,
   };
 }
@@ -147,15 +147,15 @@ describe("ChooseTimeScreen", () => {
     (useLocalSearchParams as jest.Mock).mockImplementation(() => mockParams);
   });
 
-  it("não abre o microfone automaticamente quando voiceMode não está ativo", () => {
-    mockParams = buildParams({ voiceMode: "false" });
+  it("não abre o microfone automaticamente quando interactionMode é texto", () => {
+    mockParams = buildParams({ interactionMode: "text" });
 
     render(<ChooseTimeScreen />);
 
     expect(mockStartLoop).not.toHaveBeenCalled();
   });
 
-  it("preserva origem, destino e voiceMode ao escolher agora por toque", () => {
+  it("preserva origem, destino e interactionMode ao escolher agora por toque", () => {
     const screen = render(<ChooseTimeScreen />);
 
     fireEvent.press(screen.getByText("Agora"));
@@ -170,7 +170,7 @@ describe("ChooseTimeScreen", () => {
         destinationLng: "-47.932",
         selectedDestination: JSON.stringify({ name: "Centro" }),
         sessionId: "session-1",
-        voiceMode: "true",
+        interactionMode: "voice",
         timeType: "DEPARTURE",
       }),
     });

@@ -30,6 +30,9 @@ export type DestinationOption = {
   lat: number;
   lng: number;
   source: string;
+  type?: string;
+  primaryType?: string;
+  category?: string;
 };
 
 

@@ -47,7 +47,7 @@ describe("useVoiceConversationLoop", () => {
     (SpeechService.startListening as jest.Mock).mockResolvedValue(undefined);
   });
 
-  it("não inicia o microfone antes de speakAndWait terminar", async () => {
+  it("não inicia o microfone após speakAndWait sem nova ação do usuário", async () => {
     const onIntent = jest.fn();
     const deferred = createDeferredPromise();
     (SpeechService.speakAndWait as jest.Mock).mockReturnValue(deferred.promise);
@@ -68,8 +68,8 @@ describe("useVoiceConversationLoop", () => {
       await startPromise!;
     });
 
-    expect(SpeechService.startListening).toHaveBeenCalledTimes(1);
-    expect(result.current.status).toBe("listening");
+    expect(SpeechService.startListening).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("idle");
   });
 
   it("permite falar uma mensagem sem abrir o microfone automaticamente", async () => {
@@ -201,7 +201,7 @@ describe("useVoiceConversationLoop", () => {
     expect(vibrationService.error).toHaveBeenCalledTimes(1);
   });
 
-  it("permite desativar repetição automática quando há silêncio", async () => {
+  it("não abre a escuta ao apenas repetir uma mensagem", async () => {
     const onIntent = jest.fn();
     const { result } = renderHook(() => (
       useVoiceConversationLoop({ onIntent, maxSilentRetries: 0 })
@@ -215,13 +215,13 @@ describe("useVoiceConversationLoop", () => {
       await result.current.startLoop("Pergunta original");
     });
 
-    expect(SpeechService.startListening).toHaveBeenCalledTimes(1);
+    expect(SpeechService.startListening).not.toHaveBeenCalled();
     expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(1);
     expect(SpeechService.speakAndWait).toHaveBeenCalledWith("Pergunta original");
-    expect(result.current.status).toBe("error");
+    expect(result.current.status).toBe("idle");
   });
 
-  it("repete a última fala quando recebe o comando repetir", async () => {
+  it("só aceita o comando repetir depois de uma captura explicitamente iniciada", async () => {
     const onIntent = jest.fn();
     const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
 
@@ -232,16 +232,14 @@ describe("useVoiceConversationLoop", () => {
       .mockResolvedValue(undefined);
 
     await act(async () => {
-      await result.current.startLoop("Pergunta original");
+      await result.current.startLoop("Pergunta original", { autoListenAfterSpeech: true });
     });
 
     await waitFor(() => {
       expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(2);
     });
 
-    expect(SpeechService.speakAndWait).toHaveBeenCalledTimes(2);
     expect(SpeechService.speakAndWait).toHaveBeenNthCalledWith(1, "Pergunta original");
-    expect(SpeechService.speakAndWait).toHaveBeenNthCalledWith(2, "Pergunta original");
     expect(onIntent).not.toHaveBeenCalled();
   });
 

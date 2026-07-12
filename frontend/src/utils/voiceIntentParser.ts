@@ -13,10 +13,13 @@ export type VoiceIntent =
 
 const CONFIRM_PATTERNS = [
   "sim",
+  "confirmar",
   "isso",
   "correto",
   "pode ser",
+  "pode buscar",
   "e esse",
+  "esse",
   "esse mesmo",
   "vamos",
   "bora",
@@ -46,6 +49,7 @@ const CANCEL_THEN_ASK_PATTERNS = [
   "nao",
   "errado",
   "outro destino",
+  "voltar",
   "mudar",
   "nenhuma",
   "nenhum",

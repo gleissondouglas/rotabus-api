@@ -16,6 +16,8 @@ describe("voiceIntentParser", () => {
   describe("parseVoiceIntent", () => {
     it("mapeia confirmações com e sem acento", () => {
       expect(parseVoiceIntent("sim")).toEqual({ type: "CONFIRM", transcript: "sim" });
+      expect(parseVoiceIntent("confirmar")).toEqual({ type: "CONFIRM", transcript: "confirmar" });
+      expect(parseVoiceIntent("pode buscar")).toEqual({ type: "CONFIRM", transcript: "pode buscar" });
       expect(parseVoiceIntent("Isso.")).toEqual({ type: "CONFIRM", transcript: "isso" });
       expect(parseVoiceIntent("correto")).toEqual({ type: "CONFIRM", transcript: "correto" });
       expect(parseVoiceIntent("pode ser")).toEqual({ type: "CONFIRM", transcript: "pode ser" });
@@ -59,6 +61,10 @@ describe("voiceIntentParser", () => {
       expect(parseVoiceIntent("outro destino")).toEqual({
         type: "CANCEL_THEN_ASK_DESTINATION",
         transcript: "outro destino",
+      });
+      expect(parseVoiceIntent("voltar")).toEqual({
+        type: "CANCEL_THEN_ASK_DESTINATION",
+        transcript: "voltar",
       });
       expect(parseVoiceIntent("mudar")).toEqual({
         type: "CANCEL_THEN_ASK_DESTINATION",
