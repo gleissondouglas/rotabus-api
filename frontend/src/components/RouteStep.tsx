@@ -24,9 +24,9 @@ export const RouteStep = ({
 }: JourneyStepProps) => {
   const getIcon = () => {
     switch (type) {
-      case 'bus': return <Ionicons name="bus" size={16} color={colors.white} />;
-      case 'finish': return <Ionicons name="flag" size={16} color={colors.white} />;
-      case 'start': return <Ionicons name="walk" size={14} color={colors.white} />;
+      case 'bus': return <Ionicons name="bus" size={18} color={colors.white} />;
+      case 'finish': return <Ionicons name="flag" size={18} color={colors.white} />;
+      case 'start': return <Ionicons name="walk" size={16} color={colors.white} />;
       default: return null;
     }
   };
@@ -41,35 +41,48 @@ export const RouteStep = ({
 
   return (
     <View style={[styles.stepRow, isLast && { marginBottom: 0 }]}>
+      {/* Timeline indicator */}
       <View style={styles.stepIndicator}>
         {!isLast && <View style={styles.stepLine} />}
         <View style={getDotStyle()}>
           {getIcon()}
         </View>
       </View>
-      <View style={styles.stepContent}>
-        <View style={styles.timeHeader}>
-           <Text style={styles.stepTime}>{time}</Text>
-        </View>
+
+      {/* Content */}
+      <View style={[styles.stepContent, isLast && { paddingBottom: 4 }]}>
+        <Text style={styles.stepTime} maxFontSizeMultiplier={1.3}>{time}</Text>
         <Text style={styles.stepTitle} maxFontSizeMultiplier={1.2}>{title}</Text>
         
         {type === 'bus' ? (
           <View style={styles.busDetailsCard}>
-            <View style={styles.detailRow}>
-               <Ionicons name="location" size={14} color="#64748B" />
-               <Text style={styles.stepDescription}>
-                 No ponto: <Text style={styles.highlight}>{highlight}</Text>
-               </Text>
-            </View>
-            <View style={styles.detailRow}>
-               <Ionicons name="flag" size={14} color="#64748B" />
-               <Text style={styles.stepDescription}>
-                 Desça em: <Text style={styles.highlight}>{highlightSecondary}</Text>
-               </Text>
-            </View>
+            {highlight ? (
+              <View style={styles.detailRow}>
+                <View style={styles.detailIconCircle}>
+                  <Ionicons name="location" size={12} color={colors.primary} />
+                </View>
+                <View style={styles.detailTextCol}>
+                  <Text style={styles.detailLabel}>Ponto</Text>
+                  <Text style={styles.detailValue} maxFontSizeMultiplier={1.2}>{highlight}</Text>
+                </View>
+              </View>
+            ) : null}
+            {highlightSecondary ? (
+              <View style={styles.detailRow}>
+                <View style={[styles.detailIconCircle, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
+                  <Ionicons name="flag" size={12} color={colors.success} />
+                </View>
+                <View style={styles.detailTextCol}>
+                  <Text style={styles.detailLabel}>Desça em</Text>
+                  <Text style={styles.detailValue} maxFontSizeMultiplier={1.2}>{highlightSecondary}</Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         ) : (
-          <Text style={styles.stepDescription} maxFontSizeMultiplier={1.1}>{description}</Text>
+          description ? (
+            <Text style={styles.stepDescription} maxFontSizeMultiplier={1.1}>{description}</Text>
+          ) : null
         )}
       </View>
     </View>
@@ -79,33 +92,33 @@ export const RouteStep = ({
 const styles = StyleSheet.create({
   stepRow: {
     flexDirection: 'row',
-    minHeight: 80,
+    minHeight: 90,
   },
   stepIndicator: {
-    width: 40,
+    width: 44,
     alignItems: 'center',
     position: 'relative',
   },
   stepDotActive: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
     borderWidth: 3,
     borderColor: 'white',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   stepDotBus: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -115,13 +128,13 @@ const styles = StyleSheet.create({
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowRadius: 8,
     elevation: 4,
   },
   stepDotFinish: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.success,
     alignItems: 'center',
     justifyContent: 'center',
@@ -131,60 +144,80 @@ const styles = StyleSheet.create({
     shadowColor: colors.success,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowRadius: 8,
     elevation: 4,
   },
   stepLine: {
     position: 'absolute',
-    top: 24,
-    bottom: -24,
-    width: 2,
+    top: 36,
+    bottom: -8,
+    width: 2.5,
     backgroundColor: '#E2E8F0',
+    borderRadius: 2,
   },
   stepContent: {
     flex: 1,
     paddingLeft: 16,
-    paddingBottom: 32,
-  },
-  timeHeader: {
-    marginBottom: 4,
+    paddingBottom: 36,
   },
   stepTime: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '900',
     color: colors.primary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    marginBottom: 2,
   },
   stepTitle: {
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '800',
     color: '#0F172A',
     lineHeight: 24,
+    marginBottom: 2,
   },
   busDetailsCard: {
     marginTop: 10,
     backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#EEF2F7',
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
   },
-  stepDescription: {
+  detailIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(37,99,235,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailTextCol: {
     flex: 1,
-    fontSize: 15,
-    color: '#475569',
-    fontWeight: '600',
-    lineHeight: 22,
   },
-  highlight: {
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 1,
+  },
+  detailValue: {
     fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
+    lineHeight: 20,
+  },
+  stepDescription: {
+    fontSize: 15,
+    color: '#64748B',
+    fontWeight: '600',
+    lineHeight: 22,
+    marginTop: 2,
   },
 });

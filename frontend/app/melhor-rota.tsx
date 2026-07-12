@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState, useCallback } from "react";
-import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
-import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
+import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "../src/components/BackButton";
@@ -95,7 +95,6 @@ export default function BestRouteScreen() {
   const steps = parseJsonParam<JourneyStep[]>(params.steps, []);
 
   const [isLoadingCommand, setIsLoadingCommand] = useState(false);
-  const [showSteps, setShowSteps] = useState(false);
 
   const transitSteps = getTransitSteps(steps);
   const firstTransitStep = transitSteps[0];
@@ -195,10 +194,13 @@ export default function BestRouteScreen() {
     }, 1000);
   }
 
+  // Bottom bar fixed height for padding calculation
+  const bottomBarHeight = 160;
+
   return (
     <View style={styles.screen}>
       {/* FIXED HEADER */}
-      <View style={[styles.fixedHeader, { top: insets.top + 12 }]}>
+      <View style={[styles.fixedHeader, { paddingTop: insets.top + 8 }]}>
         <BackButton label="Início" onPress={isLoadingCommand ? undefined : handleGoHome} accessibilityLabel="Voltar para a tela inicial" />
       </View>
 
@@ -207,100 +209,118 @@ export default function BestRouteScreen() {
         contentContainerStyle={[
           styles.scrollContent, 
           { 
-            paddingTop: insets.top + 70, 
-            paddingBottom: insets.bottom + 180 
+            paddingTop: insets.top + 72, 
+            paddingBottom: bottomBarHeight + insets.bottom + 24
           }
         ]}
       >
         <Animated.View entering={FadeInUp.duration(400)} style={styles.content}>
+          {/* 1. CABEÇALHO */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: "#000" }]} maxFontSizeMultiplier={1.2}>Sua melhor rota</Text>
-            <Text style={[styles.subtitle, { color: "#666" }]} maxFontSizeMultiplier={1.1}>Para {destination}</Text>
+            <Text style={styles.title} maxFontSizeMultiplier={1.2}>Sua melhor rota</Text>
+            <Text style={styles.subtitle} maxFontSizeMultiplier={1.1}>Para {destination}</Text>
           </View>
 
-          {/* PREMIUM SUMMARY CARD */}
-          <View style={[styles.premiumSummary, { backgroundColor: theme.primaryDark || "#0F172A" }]}>
-             <View style={styles.summaryTop}>
-                <View style={[styles.cloudIconBg, { backgroundColor: "rgba(255,255,255,0.15)" }]}>
-                  <Ionicons name="sparkles" size={24} color="#FFF" />
-                </View>
-                <Text style={styles.summaryMainText} numberOfLines={3}>{shortMessage}</Text>
-             </View>
+          {/* 2. CARD DE RESUMO PRINCIPAL */}
+          <View style={[styles.summaryCard, { backgroundColor: theme.primaryDark || "#0F172A" }]}>
+            {/* Badge */}
+            <View style={styles.summaryBadge}>
+              <Ionicons name="checkmark-circle" size={16} color="#34D399" />
+              <Text style={styles.summaryBadgeText}>Melhor rota encontrada</Text>
+            </View>
 
-             <View style={styles.statsRow}>
-                <View style={styles.statChip}>
-                   <Ionicons name="time" size={16} color="#FFF" />
-                   <Text style={styles.statChipText}>{formatMinutesToFriendlyText(totalDurationMin)}</Text>
+            {/* Chips de indicadores */}
+            <View style={styles.chipsRow}>
+              <View style={styles.chip}>
+                <Ionicons name="time" size={18} color="#FFF" />
+                <Text style={styles.chipText}>{formatMinutesToFriendlyText(totalDurationMin)}</Text>
+              </View>
+              <View style={styles.chip}>
+                <FontAwesome6 name="person-walking" size={15} color="#FBBF24" />
+                <Text style={styles.chipText}>{formatMinutesToFriendlyText(initialWalkTimeMin)} a pé</Text>
+              </View>
+              <View style={styles.chip}>
+                <MaterialCommunityIcons name="bus" size={18} color="#34D399" />
+                <Text style={styles.chipText}>{transitSteps.length} {transitSteps.length === 1 ? 'ônibus' : 'ônibus'}</Text>
+              </View>
+            </View>
+
+            {/* Linha divisória */}
+            <View style={styles.summaryDivider} />
+
+            {/* Detalhes de resumo */}
+            <View style={styles.summaryDetailsGrid}>
+              {busLine ? (
+                <View style={styles.summaryDetailItem}>
+                  <Text style={styles.summaryDetailLabel}>Primeiro ônibus</Text>
+                  <View style={styles.busLineHighlight}>
+                    <MaterialCommunityIcons name="bus" size={16} color="#FFF" />
+                    <Text style={styles.busLineNumber}>{busLine}</Text>
+                  </View>
                 </View>
-                <View style={styles.statChip}>
-                   <FontAwesome6 name="person-walking" size={14} color="#FBBF24" />
-                   <Text style={styles.statChipText}>{formatMinutesToFriendlyText(initialWalkTimeMin)}</Text>
+              ) : null}
+              {summary?.leaveHomeAt ? (
+                <View style={styles.summaryDetailItem}>
+                  <Text style={styles.summaryDetailLabel}>Saída</Text>
+                  <Text style={styles.summaryDetailValue}>{summary.leaveHomeAt}</Text>
                 </View>
-                <View style={styles.statChip}>
-                   <MaterialCommunityIcons name="bus" size={16} color="#34D399" />
-                   <Text style={styles.statChipText}>{transitSteps.length} {transitSteps.length === 1 ? 'ônibus' : 'ônibus'}</Text>
+              ) : null}
+              {summary?.arrivalAtDestination ? (
+                <View style={styles.summaryDetailItem}>
+                  <Text style={styles.summaryDetailLabel}>Chegada</Text>
+                  <Text style={styles.summaryDetailValue}>{summary.arrivalAtDestination}</Text>
                 </View>
-             </View>
+              ) : null}
+            </View>
           </View>
 
-          <View style={styles.stepsContainerWrapper}>
-            <View style={styles.stepsContainer}>
-              <Pressable 
-                onPress={() => {
-                  vibrationService.light();
-                  setShowSteps(!showSteps);
-                }}
-                style={styles.sectionHeader}
-                accessibilityRole="button"
-                accessibilityLabel={showSteps ? "Ocultar detalhes da rota" : "Ver detalhes da rota"}
-              >
-                <Text style={styles.sectionTitle}>Sua jornada detalhada</Text>
-                <View style={styles.chevronBg}>
-                  <Ionicons 
-                    name={showSteps ? "chevron-up" : "chevron-down"} 
-                    size={20} 
-                    color={theme.primary} 
-                  />
-                </View>
-              </Pressable>
+          {/* 3. PASSO A PASSO */}
+          <View style={styles.stepsSection}>
+            <View style={styles.stepsSectionHeader}>
+              <Ionicons name="map-outline" size={20} color="#0F172A" />
+              <Text style={styles.stepsSectionTitle}>Passo a passo</Text>
+            </View>
 
-              {showSteps && (
-                <Animated.View entering={FadeInUp} exiting={FadeOutUp} style={styles.stepsList}>
-                  <RouteStep 
-                    type="start"
-                    time={summary?.leaveHomeAt || "Agora"}
-                    title="Saia do seu local"
-                    description={leaveHomeText || "Comece agora."}
-                  />
+            <View style={styles.stepsList}>
+              <RouteStep 
+                type="start"
+                time={summary?.leaveHomeAt || "Agora"}
+                title="Saia do seu local"
+                description={leaveHomeText || "Comece agora."}
+              />
 
-                  {transitSteps.map((step, index) => (
-                    <RouteStep 
-                      key={`step-${index}`}
-                      type="bus"
-                      time={step.departureTime || (index === 0 ? summary?.beAtStopAt : "") || "--"}
-                      title={`Pegue o ônibus ${step.line}`}
-                      description={step.lineName || step.headsign || ""}
-                      highlight={getShortStopName(step.from)}
-                      highlightSecondary={getShortStopName(step.to)}
-                    />
-                  ))}
+              {transitSteps.map((step, index) => (
+                <RouteStep 
+                  key={`step-${index}`}
+                  type="bus"
+                  time={step.departureTime || (index === 0 ? summary?.beAtStopAt : "") || "--"}
+                  title={`Pegue o ônibus ${step.line}`}
+                  description={step.lineName || step.headsign || ""}
+                  highlight={getShortStopName(step.from)}
+                  highlightSecondary={getShortStopName(step.to)}
+                />
+              ))}
 
-                  <RouteStep 
-                    type="finish"
-                    time={summary?.arrivalAtDestination || "--"}
-                    title="Chegada"
-                    description={destination}
-                    isLast={true}
-                  />
-                </Animated.View>
-              )}
+              <RouteStep 
+                type="finish"
+                time={summary?.arrivalAtDestination || "--"}
+                title="Chegada"
+                description={destination}
+                isLast={true}
+              />
             </View>
           </View>
         </Animated.View>
       </ScrollView>
 
-      {/* FLOATING BOTTOM ACTIONS */}
-      <View style={[styles.floatingBottomActions, { bottom: insets.bottom + 24 }]}>
+      {/* 4. RODAPÉ FIXO DE AÇÕES */}
+      <Animated.View 
+        entering={FadeInDown.duration(400).delay(200)} 
+        style={[
+          styles.bottomActions, 
+          { paddingBottom: insets.bottom + 16 }
+        ]}
+      >
         <PrimaryButton
           title="Iniciar navegação"
           onPress={handleStartNavigation}
@@ -309,53 +329,61 @@ export default function BestRouteScreen() {
           style={styles.mainButton}
           accessibilityLabel="Iniciar navegação para esta rota"
         />
-        <View style={styles.ttsWrapper}>
-          <ListenOptionsButton 
-            label="Ouvir resumo"
-            onPress={handleHearRoute} 
-            accessibilityLabel="Ouvir resumo da rota em voz alta"
-          />
-        </View>
-      </View>
+        <ListenOptionsButton 
+          label="Ouvir resumo"
+          onPress={handleHearRoute} 
+          accessibilityLabel="Ouvir resumo da rota em voz alta"
+        />
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  /* ─── Layout ─── */
   screen: {
     flex: 1,
     backgroundColor: "#F6F8FA",
   },
   fixedHeader: {
     position: "absolute",
-    left: 16,
+    left: 0,
+    right: 0,
     zIndex: 50,
     elevation: 5,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(246,248,250,0.92)",
   },
   scrollContent: {
     flexGrow: 1,
   },
   content: {
-    paddingHorizontal: 24,
-    gap: 24,
+    paddingHorizontal: 20,
+    gap: 28,
   },
+
+  /* ─── 1. Cabeçalho ─── */
   header: {
     alignItems: "flex-start",
-    marginBottom: 8,
+    marginBottom: 0,
   },
   title: {
     fontSize: 32,
     fontWeight: "900",
+    color: "#000",
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600",
-    marginTop: 2,
+    color: "#64748B",
+    marginTop: 4,
   },
-  premiumSummary: {
+
+  /* ─── 2. Card de resumo ─── */
+  summaryCard: {
     borderRadius: 24,
-    padding: 20,
+    padding: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.15,
@@ -363,53 +391,100 @@ const styles = StyleSheet.create({
     elevation: 8,
     gap: 16,
   },
-  summaryTop: {
+  summaryBadge: {
     flexDirection: "row",
-    gap: 14,
-    alignItems: "flex-start",
-  },
-  cloudIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(52,211,153,0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  summaryMainText: {
-    flex: 1,
-    fontSize: 17,
+  summaryBadgeText: {
+    fontSize: 13,
     fontWeight: "800",
-    lineHeight: 24,
-    color: "#FFFFFF",
-    marginTop: 2,
+    color: "#34D399",
   },
-  statsRow: {
+  chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    marginTop: 4,
   },
-  statChip: {
+  chip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    gap: 8,
   },
-  statChipText: {
-    fontSize: 13,
+  chipText: {
+    fontSize: 15,
     fontWeight: "800",
     color: "#FFFFFF",
   },
-  stepsContainerWrapper: {
-    marginTop: 4,
+  summaryDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
-  stepsContainer: {
+  summaryDetailsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  summaryDetailItem: {
+    minWidth: 80,
+    gap: 4,
+  },
+  summaryDetailLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.55)",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  summaryDetailValue: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+  busLineHighlight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(59,130,246,0.4)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  busLineNumber: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+
+  /* ─── 3. Passo a passo ─── */
+  stepsSection: {
+    gap: 16,
+  },
+  stepsSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  stepsSectionTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
+  stepsList: {
     backgroundColor: "white",
     borderRadius: 24,
     padding: 20,
+    paddingTop: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
@@ -418,50 +493,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F1F5F9",
   },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
-  chevronBg: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepsList: {
-    paddingTop: 12,
-  },
-  floatingBottomActions: {
+
+  /* ─── 4. Rodapé fixo ─── */
+  bottomActions: {
     position: "absolute",
-    left: 24,
-    right: 24,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "white",
-    padding: 16,
-    borderRadius: 32,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 10,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
+    gap: 8,
+    alignItems: "center",
   },
   mainButton: {
     height: 64,
     borderRadius: 32,
-  },
-  ttsWrapper: {
-    alignItems: "center",
-    opacity: 0.9,
   },
 });
