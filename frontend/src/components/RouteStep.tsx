@@ -54,14 +54,18 @@ export const RouteStep = ({
         <Text style={styles.stepTitle} maxFontSizeMultiplier={1.2}>{title}</Text>
         
         {type === 'bus' ? (
-          <View style={styles.detailsContainer}>
+          <View style={styles.busDetailsCard}>
             <View style={styles.detailRow}>
-               <Text style={styles.stepDescription}>No ponto: </Text>
-               <Text style={styles.highlight}>{highlight}</Text>
+               <Ionicons name="location" size={14} color="#64748B" />
+               <Text style={styles.stepDescription}>
+                 No ponto: <Text style={styles.highlight}>{highlight}</Text>
+               </Text>
             </View>
             <View style={styles.detailRow}>
-               <Text style={styles.stepDescription}>Desça em: </Text>
-               <Text style={styles.highlight}>{highlightSecondary}</Text>
+               <Ionicons name="flag" size={14} color="#64748B" />
+               <Text style={styles.stepDescription}>
+                 Desça em: <Text style={styles.highlight}>{highlightSecondary}</Text>
+               </Text>
             </View>
           </View>
         ) : (
@@ -90,7 +94,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
-    marginTop: 0,
+    borderWidth: 3,
+    borderColor: 'white',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   stepDotBus: {
     width: 32,
@@ -100,7 +110,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
-    marginTop: -2,
+    borderWidth: 3,
+    borderColor: 'white',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   stepDotFinish: {
     width: 32,
@@ -110,53 +126,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
-    marginTop: -2,
+    borderWidth: 3,
+    borderColor: 'white',
+    shadowColor: colors.success,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   stepLine: {
     position: 'absolute',
-    top: 10,
-    bottom: -10,
-    width: 3,
+    top: 24,
+    bottom: -24,
+    width: 2,
     backgroundColor: '#E2E8F0',
-    borderRadius: 2,
   },
   stepContent: {
     flex: 1,
     paddingLeft: 16,
-    paddingBottom: 28,
+    paddingBottom: 32,
   },
   timeHeader: {
-    marginBottom: 2,
+    marginBottom: 4,
   },
   stepTime: {
     fontSize: 14,
     fontWeight: '800',
     color: colors.primary,
+    letterSpacing: 0.5,
   },
   stepTitle: {
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: '900',
-    color: '#011030',
+    color: '#0F172A',
     lineHeight: 24,
   },
-  detailsContainer: {
-    marginTop: 6,
-    gap: 4,
+  busDetailsCard: {
+    marginTop: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   detailRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
   },
   stepDescription: {
-    fontSize: 16,
-    color: '#64748B',
+    flex: 1,
+    fontSize: 15,
+    color: '#475569',
     fontWeight: '600',
     lineHeight: 22,
   },
   highlight: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    color: '#011030',
-    lineHeight: 22,
+    color: '#0F172A',
   },
 });

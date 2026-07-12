@@ -42,7 +42,11 @@ export function BottomVoiceMicButton({
   const isError = status === "error";
   const isDisabled = disabled || status === "speaking" || isProcessing;
   const isPrimaryTone = tone === "primary";
-  const foregroundColor = isPrimaryTone || isListening ? theme.white : theme.primary;
+  const foregroundColor = isError
+    ? theme.primary
+    : isPrimaryTone || isListening
+      ? theme.white
+      : theme.primary;
 
   useEffect(() => {
     if (isListening) {
@@ -99,6 +103,7 @@ export function BottomVoiceMicButton({
               elevation: 8,
             },
             isError && styles.errorButton,
+            isError && { borderWidth: 2, borderColor: theme.primary, shadowOpacity: 0.12 },
             (pressed || isDisabled) && { opacity: isListening ? 0.9 : 0.65 },
           ]}
           disabled={isDisabled}
@@ -109,7 +114,7 @@ export function BottomVoiceMicButton({
           {isProcessing ? (
             <ActivityIndicator size="small" color={foregroundColor} />
           ) : (
-            <Ionicons name="mic" size={20} color={foregroundColor} style={styles.icon} />
+            <Ionicons name={isError ? "refresh" : "mic"} size={20} color={foregroundColor} style={styles.icon} />
           )}
           <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.label, compact && styles.compactLabel, { color: foregroundColor }]}>
             {label}
@@ -129,7 +134,7 @@ const styles = StyleSheet.create({
   compactGlow: { width: "100%" },
   button: { height: 52, borderRadius: 999, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 24, minWidth: 220, backgroundColor: "rgba(59, 130, 246, 0.08)", shadowColor: "#2563EB", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 },
   compactButton: { minWidth: 0, width: "100%", paddingHorizontal: 12 },
-  errorButton: { backgroundColor: "#FFF1F2" },
+  errorButton: { backgroundColor: "#FFFFFF" },
   icon: { marginRight: 8 },
   label: { fontSize: 16, fontWeight: "800" },
   compactLabel: { fontSize: 14 },

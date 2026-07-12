@@ -9,6 +9,7 @@ import { journeyService } from "../services/journey.service";
 
 const mockStartLoop = jest.fn().mockResolvedValue(undefined);
 const mockStopAll = jest.fn().mockResolvedValue(undefined);
+const mockStopListeningAndSubmit = jest.fn().mockResolvedValue(undefined);
 
 let mockVoiceLoopCallbacks: {
   onIntent?: (intent: VoiceIntent) => void | Promise<void>;
@@ -115,6 +116,7 @@ jest.mock("../hooks/useVoiceConversationLoop", () => ({
     return {
       startLoop: mockStartLoop,
       stopAll: mockStopAll,
+      stopListeningAndSubmit: mockStopListeningAndSubmit,
     };
   },
 }));
@@ -281,6 +283,31 @@ describe("ConfirmDestinationScreen", () => {
     expect(mockStartLoop).not.toHaveBeenCalled();
 
     fireEvent.press(screen.getByText("Responder por voz"));
+    expect(mockStartLoop).toHaveBeenCalledWith();
+  });
+
+  it("prioriza o nome real da opção no card e permite tentar novamente após erro de voz", async () => {
+    mockParams = buildParams({
+      destination: "Confirmar destino",
+      options: JSON.stringify([{
+        id: "dest-1",
+        name: "Hospital Mário Palmério",
+        address: "Av. Nenê Sabino, Uberaba",
+        lat: -19.748,
+        lng: -47.932,
+        source: "GEOCODER",
+      }]),
+    });
+
+    const screen = render(<ConfirmDestinationScreen />);
+
+    expect(screen.getByText("Hospital Mário Palmério")).toBeTruthy();
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onStatusChange?.("error");
+    });
+
+    fireEvent.press(screen.getByLabelText("Tentar novamente"));
     expect(mockStartLoop).toHaveBeenCalledWith();
   });
 
@@ -500,7 +527,7 @@ describe("ConfirmDestinationScreen", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Ouvindo...")).toBeTruthy();
+      expect(screen.getByText("Parar e enviar")).toBeTruthy();
       expect(screen.queryByText("Você disse: Mário Palmério")).toBeNull();
     });
   });

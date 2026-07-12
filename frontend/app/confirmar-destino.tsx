@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "../src/components/BackButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { DestinationCategoryIcon } from "../src/components/DestinationCategoryIcon";
-import { VoiceResponseButton } from "../src/components/VoiceResponseButton";
+import { BottomVoiceMicButton } from "../src/components/BottomVoiceMicButton";
 import { VoiceVisualizer } from "../src/components/VoiceVisualizer";
 import { useVoiceConversationLoop } from "../src/hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../src/theme/colors";
@@ -117,7 +117,7 @@ export default function ConfirmDestinationScreen() {
   const isChoosingSuggestion = showSuggestions && !selectedSuggestion;
 
   const displayDestination =
-    displayData?.title || destination || bestOption.name || "Destino informado";
+    bestOption.name || displayData?.title || destination || "Destino informado";
 
   const getAddressDetails = (addr: string) => {
     const parts = addr
@@ -130,8 +130,10 @@ export default function ConfirmDestinationScreen() {
     };
   };
 
-  const activeDestinationName = selectedSuggestion?.name || displayDestination;
-  const activeDestinationAddress = selectedSuggestion?.address || address;
+  const activeDestinationName =
+    selectedSuggestion?.name || bestOption.name || displayDestination;
+  const activeDestinationAddress =
+    selectedSuggestion?.address || bestOption.address || address;
   const activeDestination = selectedSuggestion || bestOption;
   const activeDestinationCategory = resolveDestinationCategory({
     ...activeDestination,
@@ -275,7 +277,7 @@ export default function ConfirmDestinationScreen() {
     await handleConfirmDestination();
   }, [currentSuggestionIndex, handleConfirmDestination, handleSelectSuggestion, isChoosingSuggestion, options]);
 
-  const { startLoop, stopAll } = useVoiceConversationLoop({
+  const { startLoop, stopAll, stopListeningAndSubmit } = useVoiceConversationLoop({
     onIntent: async (intent) => {
       switch (intent.type) {
         case "CONFIRM":
@@ -322,9 +324,28 @@ export default function ConfirmDestinationScreen() {
   });
 
   function handleVoiceResponse() {
-    if (voiceStatus === "speaking" || voiceStatus === "processing" || voiceStatus === "listening") return;
+    if (voiceStatus === "listening") {
+      void stopListeningAndSubmit();
+      return;
+    }
+
+    if (voiceStatus === "speaking" || voiceStatus === "processing") return;
     vibrationService.light();
     void startLoop();
+  }
+
+  function getVoiceActionLabel() {
+    if (voiceStatus === "listening") return "Parar e enviar";
+    if (voiceStatus === "processing") return "Processando...";
+    if (voiceStatus === "speaking") return "Aguarde a assistente";
+    if (voiceStatus === "error") return "Tentar novamente";
+    return "Responder por voz";
+  }
+
+  function getVoiceActionHelperText() {
+    if (voiceStatus === "listening") return "Toque novamente para enviar sua resposta.";
+    if (voiceStatus === "error") return "Não consegui ouvir. Toque para tentar novamente.";
+    return "Diga sim, não ou escolha uma opção.";
   }
 
   const handleHelp = () => router.push("/ajuda");
@@ -352,7 +373,7 @@ export default function ConfirmDestinationScreen() {
           styles.scrollContent,
           {
             paddingTop: insets.top + 70,
-            paddingBottom: insets.bottom + (isVoiceMode ? 190 : 112),
+            paddingBottom: insets.bottom + (isVoiceMode ? 220 : 112),
           },
         ]}
       >
@@ -605,7 +626,16 @@ export default function ConfirmDestinationScreen() {
             isChoosingSuggestion ? "Confirmar destino selecionado" : "Buscar rota para este lugar"
           }
         />
-        {isVoiceMode && <VoiceResponseButton status={voiceStatus} onPress={handleVoiceResponse} />}
+        {isVoiceMode && (
+          <BottomVoiceMicButton
+            status={voiceStatus}
+            label={getVoiceActionLabel()}
+            helperText={getVoiceActionHelperText()}
+            tone="primary"
+            onPress={handleVoiceResponse}
+            accessibilityLabel={getVoiceActionLabel()}
+          />
+        )}
 
       </View>
     </View>

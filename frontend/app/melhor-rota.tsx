@@ -218,85 +218,89 @@ export default function BestRouteScreen() {
             <Text style={[styles.subtitle, { color: "#666" }]} maxFontSizeMultiplier={1.1}>Para {destination}</Text>
           </View>
 
-          {/* COMPACT SUMMARY */}
-          <View style={styles.compactSummary}>
+          {/* PREMIUM SUMMARY CARD */}
+          <View style={[styles.premiumSummary, { backgroundColor: theme.primaryDark || "#0F172A" }]}>
              <View style={styles.summaryTop}>
-                <View style={[styles.cloudIconBg, { backgroundColor: theme.primaryLight }]}>
-                  <Ionicons name="cloud" size={24} color={theme.primary} />
+                <View style={[styles.cloudIconBg, { backgroundColor: "rgba(255,255,255,0.15)" }]}>
+                  <Ionicons name="sparkles" size={24} color="#FFF" />
                 </View>
                 <Text style={styles.summaryMainText} numberOfLines={3}>{shortMessage}</Text>
              </View>
 
              <View style={styles.statsRow}>
                 <View style={styles.statChip}>
-                   <Ionicons name="time-outline" size={16} color={theme.primary} />
+                   <Ionicons name="time" size={16} color="#FFF" />
                    <Text style={styles.statChipText}>{formatMinutesToFriendlyText(totalDurationMin)}</Text>
                 </View>
                 <View style={styles.statChip}>
-                   <FontAwesome6 name="person-walking" size={14} color="#F59E0B" />
+                   <FontAwesome6 name="person-walking" size={14} color="#FBBF24" />
                    <Text style={styles.statChipText}>{formatMinutesToFriendlyText(initialWalkTimeMin)}</Text>
                 </View>
                 <View style={styles.statChip}>
-                   <MaterialCommunityIcons name="bus" size={16} color="#10B981" />
+                   <MaterialCommunityIcons name="bus" size={16} color="#34D399" />
                    <Text style={styles.statChipText}>{transitSteps.length} {transitSteps.length === 1 ? 'ônibus' : 'ônibus'}</Text>
                 </View>
              </View>
           </View>
 
-          <View style={styles.stepsContainer}>
-            <Pressable 
-              onPress={() => {
-                vibrationService.light();
-                setShowSteps(!showSteps);
-              }}
-              style={styles.sectionHeader}
-              accessibilityRole="button"
-              accessibilityLabel={showSteps ? "Ocultar detalhes da rota" : "Ver detalhes da rota"}
-            >
-              <Text style={styles.sectionTitle}>Como chegar</Text>
-              <Ionicons 
-                name={showSteps ? "chevron-up" : "chevron-down"} 
-                size={24} 
-                color={theme.primary} 
-              />
-            </Pressable>
-
-            {showSteps && (
-              <Animated.View entering={FadeInUp} exiting={FadeOutUp} style={styles.stepsList}>
-                <RouteStep 
-                  type="start"
-                  time={summary?.leaveHomeAt || "Agora"}
-                  title="Saia do seu local"
-                  description={leaveHomeText || "Comece agora."}
-                />
-
-                {transitSteps.map((step, index) => (
-                  <RouteStep 
-                    key={`step-${index}`}
-                    type="bus"
-                    time={step.departureTime || (index === 0 ? summary?.beAtStopAt : "") || "--"}
-                    title={`Pegue o ônibus ${step.line}`}
-                    description={step.lineName || step.headsign || ""}
-                    highlight={getShortStopName(step.from)}
-                    highlightSecondary={getShortStopName(step.to)}
+          <View style={styles.stepsContainerWrapper}>
+            <View style={styles.stepsContainer}>
+              <Pressable 
+                onPress={() => {
+                  vibrationService.light();
+                  setShowSteps(!showSteps);
+                }}
+                style={styles.sectionHeader}
+                accessibilityRole="button"
+                accessibilityLabel={showSteps ? "Ocultar detalhes da rota" : "Ver detalhes da rota"}
+              >
+                <Text style={styles.sectionTitle}>Sua jornada detalhada</Text>
+                <View style={styles.chevronBg}>
+                  <Ionicons 
+                    name={showSteps ? "chevron-up" : "chevron-down"} 
+                    size={20} 
+                    color={theme.primary} 
                   />
-                ))}
+                </View>
+              </Pressable>
 
-                <RouteStep 
-                  type="finish"
-                  time={summary?.arrivalAtDestination || "--"}
-                  title="Chegada"
-                  description={destination}
-                  isLast={true}
-                />
-              </Animated.View>
-            )}
+              {showSteps && (
+                <Animated.View entering={FadeInUp} exiting={FadeOutUp} style={styles.stepsList}>
+                  <RouteStep 
+                    type="start"
+                    time={summary?.leaveHomeAt || "Agora"}
+                    title="Saia do seu local"
+                    description={leaveHomeText || "Comece agora."}
+                  />
+
+                  {transitSteps.map((step, index) => (
+                    <RouteStep 
+                      key={`step-${index}`}
+                      type="bus"
+                      time={step.departureTime || (index === 0 ? summary?.beAtStopAt : "") || "--"}
+                      title={`Pegue o ônibus ${step.line}`}
+                      description={step.lineName || step.headsign || ""}
+                      highlight={getShortStopName(step.from)}
+                      highlightSecondary={getShortStopName(step.to)}
+                    />
+                  ))}
+
+                  <RouteStep 
+                    type="finish"
+                    time={summary?.arrivalAtDestination || "--"}
+                    title="Chegada"
+                    description={destination}
+                    isLast={true}
+                  />
+                </Animated.View>
+              )}
+            </View>
           </View>
         </Animated.View>
       </ScrollView>
 
-      {/* FIXED BOTTOM ACTIONS */}
-      <View style={[styles.fixedBottomActions, { paddingBottom: insets.bottom + 16 }]}>
+      {/* FLOATING BOTTOM ACTIONS */}
+      <View style={[styles.floatingBottomActions, { bottom: insets.bottom + 24 }]}>
         <PrimaryButton
           title="Iniciar navegação"
           onPress={handleStartNavigation}
@@ -349,110 +353,108 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 2,
   },
-  compactSummary: {
-    backgroundColor: "white",
+  premiumSummary: {
     borderRadius: 24,
-    padding: 16,
+    padding: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.01)",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
     gap: 16,
-  },
-  voiceHintCard: {
-    backgroundColor: "white",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#E0ECFF",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  voiceHintText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: "700",
-    color: "#475569",
   },
   summaryTop: {
     flexDirection: "row",
-    gap: 12,
+    gap: 14,
     alignItems: "flex-start",
   },
   cloudIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   summaryMainText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "800",
-    lineHeight: 22,
-    color: "#011030",
+    lineHeight: 24,
+    color: "#FFFFFF",
+    marginTop: 2,
   },
   statsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
+    marginTop: 4,
   },
   statChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
     gap: 6,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
   },
   statChipText: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#475569",
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  stepsContainerWrapper: {
+    marginTop: 4,
   },
   stepsContainer: {
-    gap: 16,
+    backgroundColor: "white",
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 4,
+    marginBottom: 8,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "900",
-    color: "#011030",
+    color: "#0F172A",
+  },
+  chevronBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    alignItems: "center",
+    justifyContent: "center",
   },
   stepsList: {
-    paddingLeft: 4,
+    paddingTop: 12,
   },
-  fixedBottomActions: {
+  floatingBottomActions: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    left: 24,
+    right: 24,
     backgroundColor: "white",
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    padding: 16,
+    borderRadius: 32,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
     elevation: 10,
     gap: 12,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
   mainButton: {
     height: 64,

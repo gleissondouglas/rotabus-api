@@ -16,7 +16,7 @@ const NUMBER_WORDS: Record<string, number> = {
   zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5,
   seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12,
   treze: 13, quatorze: 14, quinze: 15, dezesseis: 16, dezessete: 17, dezoito: 18, dezenove: 19,
-  vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50,
+  vinte: 20, trinta: 30, quarenta: 40, "quarenta e cinco": 45, cinquenta: 50,
   meia: 30
 };
 
@@ -97,7 +97,7 @@ export function parseVoiceTimeIntent(transcript: string, referenceDate = new Dat
       targetDate.setHours(8, 0, 0, 0);
       timeAssigned = true;
     } else {
-      const exactTimeMatch = normalized.match(/(?:as\s+)?\b(\d+|uma?|duas?|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta)\b(?:(?:\s*[:h]\s*|\s+e\s+|\s+horas?\s+e\s+|\s+hrs?\s+e\s+)(\d{1,2}|meia|uma?|duas?|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|quinze|vinte|trinta|quarenta|cinquenta)\b)?(?:\s*minutos?)?(?:\s+(da\s+manha|da\s+tarde|da\s+noite|horas|hrs))?/i);
+      const exactTimeMatch = normalized.match(/(?:as\s+)?\b(\d+|uma?|duas?|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta)\b(?:(?:\s*[:h]\s*|\s+e\s+|\s+horas?\s+e\s+|\s+hrs?\s+e\s+)(\d{1,2}|meia|uma?|duas?|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|quinze|vinte|trinta|quarenta\s+e\s+cinco|quarenta|cinquenta)\b)?(?:\s*minutos?)?(?:\s+(da\s+manha|da\s+tarde|da\s+noite|horas|hrs))?/i);
       
       if (exactTimeMatch) {
         let hours = parseNumber(exactTimeMatch[1]);

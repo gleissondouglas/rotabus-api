@@ -28,6 +28,7 @@ import {
   getCurrentTimeText,
   getTodayDateText,
   getNext7Days,
+  isOperationalTime,
 } from "../src/utils/date-time";
 import { parseVoiceTimeIntent } from "../src/utils/voiceTimeParser";
 import { getInteractionMode } from "../src/types/interaction.types";
@@ -71,11 +72,10 @@ export default function ChooseTimeScreen() {
 
   const dateOptions = getNext7Days();
 
-  const timeSlots = [];
-  for (let i = 0; i < 24; i++) {
+  const timeSlots = ["00:00"];
+  for (let i = 5; i < 24; i++) {
     const hr = String(i).padStart(2, "0");
-    timeSlots.push(`${hr}:00`);
-    timeSlots.push(`${hr}:30`);
+    timeSlots.push(`${hr}:00`, `${hr}:15`, `${hr}:30`, `${hr}:45`);
   }
 
   const screenMessage = "Você quer sair agora ou escolher outro horário?";
@@ -129,12 +129,12 @@ export default function ChooseTimeScreen() {
         case "DEPARTURE_TIME":
           setDateText(timeIntent.date);
           setTimeText(timeIntent.time);
-          validateAndNavigate("DEPARTURE", timeIntent.date, timeIntent.time);
+          validateAndNavigate("DEPARTURE", timeIntent.date, timeIntent.time, true);
           break;
         case "ARRIVAL_TIME":
           setDateText(timeIntent.date);
           setTimeText(timeIntent.time);
-          validateAndNavigate("ARRIVAL", timeIntent.date, timeIntent.time);
+          validateAndNavigate("ARRIVAL", timeIntent.date, timeIntent.time, true);
           break;
         case "REPEAT":
           void startLoop(screenMessage);
@@ -197,13 +197,29 @@ export default function ChooseTimeScreen() {
     setIsModalOpen(true);
   }
 
-  function validateAndNavigate(type: "DEPARTURE" | "ARRIVAL", date: string, time: string) {
+  function validateAndNavigate(type: "DEPARTURE" | "ARRIVAL", date: string, time: string, isFromVoice = false) {
     try {
       vibrationService.selection();
       const dateTime = buildLocalDateTimeFromInputs(date, time);
       
       const now = new Date();
       const selectedDate = new Date(dateTime);
+
+      const hour = selectedDate.getHours();
+      const minute = selectedDate.getMinutes();
+
+      if (!isOperationalTime(hour, minute)) {
+        vibrationService.error();
+        if (isFromVoice) {
+          void startLoop("Horário fora de operação. Escolha um horário entre 05:00 e 23:59, ou 00:00.");
+        } else {
+          Alert.alert(
+            "Horário fora de operação",
+            "Escolha um horário entre 05:00 e 23:59, ou 00:00."
+          );
+        }
+        return;
+      }
       
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const endOf7Days = new Date(startOfToday.getTime() + 7 * 24 * 60 * 60 * 1000 + 23 * 59 * 60 * 1000 + 59 * 1000);
