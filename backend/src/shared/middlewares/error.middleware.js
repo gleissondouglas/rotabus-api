@@ -2,14 +2,16 @@ const { captureException } = require("../../config/sentry");
 
 function errorMiddleware(error, req, res, next) {
     const statusCode = error.statusCode || 500;
-    const message = error.message || 'Erro interno do servidor';
+    const isServerError = statusCode >= 500;
+    const message = isServerError
+        ? 'Erro interno do servidor'
+        : error.message || 'Não foi possível concluir a solicitação.';
 
     // Captura o erro no Sentry se for um erro 500
-    if (statusCode >= 500) {
+    if (isServerError) {
         captureException(error, {
             url: req.url,
             method: req.method,
-            body: req.body,
             userId: req.user?.id
         });
     }

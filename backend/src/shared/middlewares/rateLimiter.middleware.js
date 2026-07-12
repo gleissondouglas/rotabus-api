@@ -28,7 +28,19 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Protege fluxos que podem gerar e-mail, tokens de reset ou troca de senha.
+const passwordRecoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: {
+    message: "Muitas tentativas de recuperação de senha. Tente novamente após 15 minutos.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   globalLimiter,
   loginLimiter,
+  passwordRecoveryLimiter,
 };

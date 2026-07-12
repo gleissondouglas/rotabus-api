@@ -16,6 +16,7 @@ jest.mock('../../../src/shared/middlewares/dailyLimit.middleware', () => ({
 jest.mock('../../../src/shared/middlewares/rateLimiter.middleware', () => ({
   globalLimiter: (req, res, next) => next(),
   loginLimiter: (req, res, next) => next(),
+  passwordRecoveryLimiter: (req, res, next) => next(),
 }));
 
 jest.mock('../../../src/modules/journeys/journeys.service', () => ({

@@ -18,6 +18,9 @@ const { nodeEnv, appUrl } = require("./config/env");
 
 const app = express();
 
+// Remove um fingerprint desnecessário da tecnologia usada pelo servidor.
+app.disable("x-powered-by");
+
 // Helmet: Adiciona cabeçalhos de segurança para proteger contra ataques web comuns
 app.use(helmet());
 
@@ -39,11 +42,11 @@ app.use(cors(corsOptions));
 
 /**
  * Parsers de JSON:
- * Configuramos um limite alto (50mb) porque recebemos transcrições e áudios
- * grandes via Base64 do aplicativo.
+ * Limite global conservador; a rota de áudio ainda valida o tamanho decodificado
+ * antes de chamar qualquer provedor externo.
  */
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '8mb' }));
+app.use(express.urlencoded({ limit: '8mb', extended: true }));
 
 /**
  * Sanitização Global:

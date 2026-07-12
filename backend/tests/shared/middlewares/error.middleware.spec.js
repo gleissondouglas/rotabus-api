@@ -10,7 +10,7 @@ describe('Error Middleware (Baseline)', () => {
   let req, res, next;
 
   beforeEach(() => {
-    req = { url: '/', method: 'GET', body: {}, user: { id: '1' } };
+    req = { url: '/', method: 'GET', body: { password: 'secret' }, user: { id: '1' } };
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis()
@@ -41,9 +41,13 @@ describe('Error Middleware (Baseline)', () => {
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({
       error: true,
-      message: 'Erro de banco de dados'
+      message: 'Erro interno do servidor'
     });
-    expect(sentry.captureException).toHaveBeenCalled();
+    expect(sentry.captureException).toHaveBeenCalledWith(error, {
+      url: '/',
+      method: 'GET',
+      userId: '1',
+    });
   });
 
   test('deve usar mensagem padrão se erro não tiver mensagem', () => {

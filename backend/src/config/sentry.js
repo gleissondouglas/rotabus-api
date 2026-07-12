@@ -1,5 +1,24 @@
 const Sentry = require("@sentry/node");
 const { nodeProfilingIntegration } = require("@sentry/profiling-node");
+const env = require("./env");
+
+const SENSITIVE_HEADERS = new Set(["authorization", "cookie", "set-cookie"]);
+
+function scrubSentryEvent(event) {
+  if (event.request?.headers) {
+    for (const header of Object.keys(event.request.headers)) {
+      if (SENSITIVE_HEADERS.has(header.toLowerCase())) {
+        event.request.headers[header] = "[Filtered]";
+      }
+    }
+  }
+
+  if (event.request?.data) {
+    event.request.data = "[Filtered]";
+  }
+
+  return event;
+}
 
 /**
  * Inicializa o monitoramento de erros com Sentry para o Backend.
@@ -20,10 +39,11 @@ function initSentry() {
       nodeProfilingIntegration(),
     ],
     // Tracing
-    tracesSampleRate: 1.0, // Em produção, reduza para algo como 0.1
+    tracesSampleRate: env.sentryTracesSampleRate,
     // Profiling
-    profilesSampleRate: 1.0,
-    environment: process.env.NODE_ENV || "development",
+    profilesSampleRate: env.sentryProfilesSampleRate,
+    environment: env.nodeEnv,
+    beforeSend: scrubSentryEvent,
   });
 
   console.log("[Sentry] Monitoramento inicializado no Backend.");

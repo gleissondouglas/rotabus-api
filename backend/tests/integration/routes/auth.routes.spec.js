@@ -10,6 +10,7 @@ jest.mock('../../../src/modules/auth/auth.service', () => ({
 jest.mock('../../../src/shared/middlewares/rateLimiter.middleware', () => ({
   globalLimiter: (req, res, next) => next(),
   loginLimiter: (req, res, next) => next(),
+  passwordRecoveryLimiter: (req, res, next) => next(),
 }));
 
 const app = require('../../../src/app');

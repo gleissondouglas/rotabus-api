@@ -13,6 +13,7 @@ const {
   geocodeAddress,
 } = require("./providers/geocoding.provider");
 const speechProvider = require("./providers/speech.provider");
+const env = require("../../config/env");
 const destinationProvider = require("./providers/destination.provider");
 
 const localIntelligenceService = require("./local-intelligence/local-intelligence.service");
@@ -304,15 +305,47 @@ async function reverseGeocodeService({ lat, lng }) {
 }
 
 async function transcribeAudioService({ audioBase64, mimeType }) {
-  if (!audioBase64) {
+  if (typeof audioBase64 !== "string" || !audioBase64) {
     const error = new Error("Áudio em base64 é obrigatório.");
     error.statusCode = 400;
     throw error;
   }
 
+  const allowedMimeTypes = new Set([
+    "audio/webm",
+    "audio/ogg",
+    "audio/wav",
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/m4a",
+  ]);
+
+  const normalizedMimeType = typeof mimeType === "string"
+    ? mimeType.split(";", 1)[0].trim().toLowerCase()
+    : "";
+
+  if (!allowedMimeTypes.has(normalizedMimeType)) {
+    const error = new Error("Formato de áudio não suportado.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(audioBase64) || audioBase64.length % 4 !== 0) {
+    const error = new Error("Áudio em base64 inválido.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const audioSize = Buffer.byteLength(audioBase64, "base64");
+  if (!Number.isSafeInteger(audioSize) || audioSize > env.maxAudioBytes) {
+    const error = new Error("O áudio excede o tamanho máximo permitido.");
+    error.statusCode = 413;
+    throw error;
+  }
+
   const transcript = await speechProvider.transcribe(
     audioBase64,
-    mimeType,
+    normalizedMimeType,
   );
 
   return {
