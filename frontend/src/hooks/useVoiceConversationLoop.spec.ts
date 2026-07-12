@@ -127,6 +127,71 @@ describe("useVoiceConversationLoop", () => {
     expect(result.current.status).toBe("listening");
   });
 
+  it("envia a última transcrição parcial ao tocar novamente para parar", async () => {
+    const onIntent = jest.fn();
+    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
+
+    (SpeechService.startListening as jest.Mock).mockImplementation(({ onResult }) => {
+      onResult("Shopping Uberaba", false);
+    });
+
+    await act(async () => {
+      await result.current.startLoop();
+    });
+
+    await act(async () => {
+      await result.current.stopListeningAndSubmit();
+    });
+
+    expect(SpeechService.stopListening).toHaveBeenCalled();
+    expect(onIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "DESTINATION_TEXT",
+        text: "shopping uberaba",
+      }),
+    );
+    expect(result.current.status).toBe("processing");
+  });
+
+  it("ignora o resultado final nativo recebido depois do envio manual", async () => {
+    const onIntent = jest.fn();
+    let emitResult!: (text: string, isFinal: boolean) => void;
+    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
+
+    (SpeechService.startListening as jest.Mock).mockImplementation(({ onResult }) => {
+      emitResult = onResult;
+      onResult("Centro", false);
+    });
+
+    await act(async () => {
+      await result.current.startLoop();
+      await result.current.stopListeningAndSubmit();
+      emitResult("Centro", true);
+    });
+
+    expect(onIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it("não envia uma resposta quando o usuário para sem falar", async () => {
+    const onIntent = jest.fn();
+    const onRecognitionIssue = jest.fn();
+    const { result } = renderHook(() => (
+      useVoiceConversationLoop({ onIntent, onRecognitionIssue })
+    ));
+
+    await act(async () => {
+      await result.current.startLoop();
+      await result.current.stopListeningAndSubmit();
+    });
+
+    expect(SpeechService.stopListening).toHaveBeenCalled();
+    expect(onIntent).not.toHaveBeenCalled();
+    expect(onRecognitionIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "EMPTY_TRANSCRIPT" }),
+    );
+    expect(result.current.status).toBe("error");
+  });
+
   it("não processa ruído curto como destino final", async () => {
     const onIntent = jest.fn();
     const onRecognitionIssue = jest.fn();

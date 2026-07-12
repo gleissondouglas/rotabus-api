@@ -8,6 +8,7 @@ import { resetHomeVoiceSessionForTests } from "../state/homeVoiceSession";
 
 const mockStartLoop = jest.fn().mockResolvedValue(undefined);
 const mockStopAll = jest.fn().mockResolvedValue(undefined);
+const mockStopListeningAndSubmit = jest.fn().mockResolvedValue(undefined);
 
 let mockVoiceLoopCallbacks: {
   onStatusChange?: (status: VoiceLoopStatus) => void;
@@ -125,14 +126,12 @@ jest.mock("../components/BottomActionBar", () => ({
   BottomActionBar: ({
     micLabel,
     onTypeDestination,
-    onMicPressIn,
-    onMicPressOut,
+    onMicPress,
   }: {
     status: string;
     micLabel: string;
     onTypeDestination: () => void;
-    onMicPressIn: () => void;
-    onMicPressOut: () => void;
+    onMicPress: () => void;
   }) => {
     const { View: MockView, Text: MockText, Pressable: MockPressable } = jest.requireActual("react-native");
     return (
@@ -141,8 +140,7 @@ jest.mock("../components/BottomActionBar", () => ({
           <MockText>Digitar destino</MockText>
         </MockPressable>
         <MockPressable
-          onPressIn={onMicPressIn}
-          onPressOut={onMicPressOut}
+          onPress={onMicPress}
           accessibilityLabel={micLabel}
         >
           <MockText>{micLabel}</MockText>
@@ -161,6 +159,7 @@ jest.mock("../hooks/useVoiceConversationLoop", () => ({
       status: "idle",
       startLoop: mockStartLoop,
       stopAll: mockStopAll,
+      stopListeningAndSubmit: mockStopListeningAndSubmit,
     };
   },
 }));
@@ -270,7 +269,7 @@ describe("HomeScreen voice-first flow", () => {
     });
 
     expect(screen.getByText("Digitar destino")).toBeTruthy();
-    expect(screen.getByText("Estou ouvindo")).toBeTruthy();
+    expect(screen.getByText("Parar e enviar")).toBeTruthy();
   });
 
   it("mantém o botão de digitar funcionando depois de erro de voz", async () => {
@@ -305,7 +304,7 @@ describe("HomeScreen voice-first flow", () => {
       mockVoiceLoopCallbacks.onStatusChange?.("error");
     });
 
-    fireEvent(screen.getByLabelText("Tentar de novo"), "pressIn");
+    fireEvent.press(screen.getByLabelText("Tentar de novo"));
 
     expect(vibrationService.light).toHaveBeenCalled();
     expect(mockStartLoop).toHaveBeenCalledWith();
@@ -367,9 +366,9 @@ describe("HomeScreen voice-first flow", () => {
       mockVoiceLoopCallbacks.onStatusChange?.("listening");
     });
 
-    // Durante listening o botão deve mostrar "Estou ouvindo"
+    // Durante listening o botão deve permitir encerrar e enviar a resposta.
     await waitFor(() => {
-      expect(screen.getByText("Estou ouvindo")).toBeTruthy();
+      expect(screen.getByText("Parar e enviar")).toBeTruthy();
     });
   });
 
@@ -386,7 +385,7 @@ describe("HomeScreen voice-first flow", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Estou ouvindo")).toBeTruthy();
+    expect(screen.getByText("Parar e enviar")).toBeTruthy();
     });
 
     await act(async () => {

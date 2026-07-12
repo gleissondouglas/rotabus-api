@@ -3,8 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View, Pressable, useWindowDimensions } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 
+import { Ionicons } from "@expo/vector-icons";
 import { AssistantLoadingState, LoadingStep } from "../src/components/AssistantLoadingState";
 import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
 import { journeyService } from "../src/services/journey.service";

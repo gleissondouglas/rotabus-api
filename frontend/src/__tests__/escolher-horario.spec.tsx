@@ -7,6 +7,7 @@ import type { VoiceLoopStatus, VoiceRecognitionIssue } from "../hooks/useVoiceCo
 
 const mockStartLoop = jest.fn().mockResolvedValue(undefined);
 const mockStopAll = jest.fn().mockResolvedValue(undefined);
+const mockStopListeningAndSubmit = jest.fn().mockResolvedValue(undefined);
 
 let mockParams: Record<string, string> = {};
 let mockVoiceLoopCallbacks: {
@@ -109,6 +110,7 @@ jest.mock("../hooks/useVoiceConversationLoop", () => ({
     return {
       startLoop: mockStartLoop,
       stopAll: mockStopAll,
+      stopListeningAndSubmit: mockStopListeningAndSubmit,
     };
   },
 }));
@@ -202,13 +204,25 @@ describe("ChooseTimeScreen", () => {
     expect(screen.getByText("Tocar para tentar novamente")).toBeTruthy();
   });
 
-  it("permite reabrir o microfone manualmente segurando o botão", () => {
+  it("permite abrir o microfone manualmente com um toque", () => {
     const screen = render(<ChooseTimeScreen />);
 
     mockStartLoop.mockClear();
-    fireEvent(screen.getByLabelText("Responder por voz"), "pressIn");
+    fireEvent.press(screen.getByLabelText("Responder por voz"));
 
     expect(mockStartLoop).toHaveBeenCalledWith();
+  });
+
+  it("encerra e envia a fala no segundo toque", async () => {
+    const screen = render(<ChooseTimeScreen />);
+
+    await act(async () => {
+      mockVoiceLoopCallbacks.onStatusChange?.("listening");
+    });
+
+    fireEvent.press(screen.getByLabelText("Parar e enviar"));
+
+    expect(mockStopListeningAndSubmit).toHaveBeenCalledTimes(1);
   });
 
   it("renderiza os cards de horário de 30 em 30 minutos e permite selecionar", () => {

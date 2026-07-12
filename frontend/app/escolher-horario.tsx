@@ -22,7 +22,6 @@ import type { VoiceLoopStatus, VoiceRecognitionIssue } from "../src/hooks/useVoi
 import { useThemeColors } from "../src/theme/colors";
 import { layout } from "../src/theme/layout";
 import { vibrationService } from "../src/services/vibration.service";
-import { stopListening } from "../src/services/speech.service";
 import {
   buildLocalDateTimeFromInputs,
   formatLocalDateTimeWithOffset,
@@ -118,7 +117,7 @@ export default function ChooseTimeScreen() {
     };
   }
 
-  const { startLoop } = useVoiceConversationLoop({
+  const { startLoop, stopListeningAndSubmit } = useVoiceConversationLoop({
     onIntent: async (intent) => {
       setVoiceErrorMessage("");
       const timeIntent = parseVoiceTimeIntent(intent.transcript);
@@ -250,7 +249,7 @@ export default function ChooseTimeScreen() {
     }
 
     if (voiceStatus === "listening") {
-      return "Estou ouvindo";
+      return "Parar e enviar";
     }
 
     if (voiceStatus === "processing") {
@@ -266,7 +265,7 @@ export default function ChooseTimeScreen() {
 
   function getMicHelperText() {
     if (voiceErrorMessage) {
-      return "Não consegui ouvir. Toque e segure para tentar novamente.";
+      return "Não consegui ouvir. Toque para tentar novamente.";
     }
 
     if (voiceStatus === "speaking") {
@@ -280,20 +279,19 @@ export default function ChooseTimeScreen() {
     return "Diga agora, hoje às oito ou amanhã às nove";
   }
 
-  function handleMicPressIn() {
-    if (voiceStatus === "speaking" || voiceStatus === "processing" || voiceStatus === "listening") {
+  function handleMicPress() {
+    if (voiceStatus === "listening") {
+      void stopListeningAndSubmit();
+      return;
+    }
+
+    if (voiceStatus === "speaking" || voiceStatus === "processing") {
       return;
     }
 
     vibrationService.light();
     setVoiceErrorMessage("");
     void startLoop();
-  }
-
-  function handleMicPressOut() {
-    if (voiceStatus === "listening") {
-      stopListening();
-    }
   }
 
   return (
@@ -500,9 +498,7 @@ export default function ChooseTimeScreen() {
             status={voiceStatus}
             label={getMicLabel()}
             helperText={getMicHelperText()}
-            mode="hold"
-            onPressIn={handleMicPressIn}
-            onPressOut={handleMicPressOut}
+            onPress={handleMicPress}
             accessibilityLabel={getMicLabel()}
           />
         </View>

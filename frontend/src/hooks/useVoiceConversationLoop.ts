@@ -71,9 +71,13 @@ export function useVoiceConversationLoop({
   maxSilentRetries = 1,
 }: VoiceConversationLoopOptions) {
   const [status, setStatus] = useState<VoiceLoopStatus>("idle");
+  const statusRef = useRef<VoiceLoopStatus>("idle");
   const isFocusedRef = useRef(true);
   const retryCountRef = useRef(0);
   const lastSpeechTextRef = useRef<string | null>(null);
+  const lastTranscriptRef = useRef("");
+  const hasSubmittedTranscriptRef = useRef(false);
+  const isManualStopRef = useRef(false);
   const activeRunIdRef = useRef(0);
   const onIntentRef = useRef(onIntent);
   const onStatusChangeRef = useRef(onStatusChange);
@@ -105,6 +109,7 @@ export function useVoiceConversationLoop({
 
   // Atualiza o estado interno e notifica o componente
   const updateStatus = useCallback((newStatus: VoiceLoopStatus) => {
+    statusRef.current = newStatus;
     setStatus(newStatus);
     onStatusChangeRef.current?.(newStatus);
   }, []);
@@ -123,6 +128,11 @@ export function useVoiceConversationLoop({
   }, []);
 
   const handleFinalTranscript = useCallback(async (transcript: string) => {
+    if (hasSubmittedTranscriptRef.current) {
+      return;
+    }
+
+    hasSubmittedTranscriptRef.current = true;
     const finalTranscript = transcript.trim();
 
     if (!finalTranscript) {
@@ -197,6 +207,7 @@ export function useVoiceConversationLoop({
           return;
         }
 
+        lastTranscriptRef.current = text;
         onTranscriptRef.current?.(text, isFinal);
 
         if (isFinal) {
@@ -206,6 +217,10 @@ export function useVoiceConversationLoop({
       },
       onError: async (err: any) => {
         if (!isRunActive(runId)) {
+          return;
+        }
+
+        if (isManualStopRef.current) {
           return;
         }
 
@@ -242,6 +257,7 @@ export function useVoiceConversationLoop({
         if (isRunActive(runId)) {
           setStatus((prev) => {
             if (prev === "listening") {
+              statusRef.current = "idle";
               onStatusChangeRef.current?.("idle");
               return "idle";
             }
@@ -275,6 +291,9 @@ export function useVoiceConversationLoop({
     try {
       await stopAll();
       retryCountRef.current = 0;
+      lastTranscriptRef.current = "";
+      hasSubmittedTranscriptRef.current = false;
+      isManualStopRef.current = false;
       const runId = activeRunIdRef.current;
 
       if (speechText) {
@@ -308,6 +327,34 @@ export function useVoiceConversationLoop({
   startLoopRef.current = startLoop;
 
   /**
+   * Encerra a captura iniciada pelo usuário e envia a melhor transcrição já
+   * recebida. Isso permite o padrão tocar para falar / tocar para enviar sem
+   * depender do tempo de silêncio do reconhecimento nativo.
+   */
+  const stopListeningAndSubmit = useCallback(async () => {
+    if (statusRef.current !== "listening" || hasSubmittedTranscriptRef.current) {
+      return;
+    }
+
+    isManualStopRef.current = true;
+    stopListening();
+
+    const transcript = lastTranscriptRef.current.trim();
+    if (!transcript) {
+      hasSubmittedTranscriptRef.current = true;
+      onRecognitionIssueRef.current?.({
+        type: "EMPTY_TRANSCRIPT",
+        message: "Não consegui entender sua fala. Toque no microfone e tente novamente.",
+      });
+      vibrationService.error();
+      updateStatus("error");
+      return;
+    }
+
+    await handleFinalTranscript(transcript);
+  }, [handleFinalTranscript, updateStatus]);
+
+  /**
    * Cleanup e gerenciamento de foco.
    */
   useFocusEffect(
@@ -328,5 +375,6 @@ export function useVoiceConversationLoop({
     status,
     startLoop,
     stopAll,
+    stopListeningAndSubmit,
   };
 }

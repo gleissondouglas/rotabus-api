@@ -205,7 +205,6 @@ export default function TypeDestinationScreen() {
           >
             <Text style={styles.btnCancelText}>Cancelar</Text>
           </Pressable>
-
           {/* Confirmar */}
           <Pressable
             style={({ pressed }) => [

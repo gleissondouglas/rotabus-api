@@ -1,7 +1,6 @@
+import { speak } from "../services/speech.service";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
-import { speak } from "../services/speech.service";
 import { colors } from "../theme/colors";
 
 type ListenOptionsButtonProps = {
@@ -55,7 +54,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "rgba(0, 122, 255, 0.05)",
   },
-
   text: {
     fontSize: 16,
     fontWeight: "700",

@@ -22,7 +22,6 @@ import { sessionService } from "../src/services/session.service";
 import { journeyService } from "../src/services/journey.service";
 import { locationService } from "../src/services/location.service";
 import { vibrationService } from "../src/services/vibration.service";
-import { stopListening } from "../src/services/speech.service";
 import { useThemeColors } from "../src/theme/colors";
 import { cleanVoiceTranscript } from "../src/utils/helpers";
 import {
@@ -312,7 +311,7 @@ export default function HomeScreen() {
     setErrorMessage(isSilentError ? SILENCE_FALLBACK_MESSAGE : issue.message);
   }, []);
 
-  const { startLoop, stopAll } = useVoiceConversationLoop({
+  const { startLoop, stopAll, stopListeningAndSubmit } = useVoiceConversationLoop({
     onIntent: handleIntent,
     onStatusChange: handleLoopStatusChange,
     onTranscript: handleLoopTranscript,
@@ -438,10 +437,16 @@ export default function HomeScreen() {
   }, [userName, promptText]);
 
   /**
-   * Gerencia o microfone no estilo pressionar e segurar.
+   * Alterna a captura de voz: o primeiro toque inicia a escuta e o segundo
+   * encerra e envia a transcrição disponível.
    */
-  function handleMicPressIn() {
-    if (status === "listening" || status === "processing" || status === "speaking") {
+  function handleMicPress() {
+    if (status === "listening") {
+      void stopListeningAndSubmit();
+      return;
+    }
+
+    if (status === "processing" || status === "speaking") {
       return;
     }
 
@@ -453,19 +458,13 @@ export default function HomeScreen() {
     void startLoop();
   }
 
-  function handleMicPressOut() {
-    if (status === "listening") {
-      stopListening();
-    }
-  }
-
   function getMicActionLabel() {
     if (status === "speaking") {
       return "Aguarde";
     }
 
     if (status === "listening") {
-      return "Estou ouvindo";
+      return "Parar e enviar";
     }
 
     if (status === "processing") {
@@ -612,8 +611,7 @@ export default function HomeScreen() {
           status={status}
           micLabel={getMicActionLabel()}
           onTypeDestination={handleTypeDestination}
-          onMicPressIn={handleMicPressIn}
-          onMicPressOut={handleMicPressOut}
+          onMicPress={handleMicPress}
         />
       </View>
     </ScreenContainer>

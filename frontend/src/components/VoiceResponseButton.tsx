@@ -1,7 +1,7 @@
+import type { VoiceLoopStatus } from "../hooks/useVoiceConversationLoop";
 import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import type { VoiceLoopStatus } from "../hooks/useVoiceConversationLoop";
 import { useThemeColors } from "../theme/colors";
 
 export function VoiceResponseButton({ status, onPress }: { status: VoiceLoopStatus; onPress: () => void }) {
@@ -10,7 +10,7 @@ export function VoiceResponseButton({ status, onPress }: { status: VoiceLoopStat
   const disabled = status === "listening" || status === "speaking" || processing;
   const isError = status === "error";
   const label = status === "listening" ? "Ouvindo..." : status === "processing" ? "Processando..." : status === "speaking" ? "Falando..." : isError ? "Tentar novamente" : "Responder por voz";
-  const icon = isError ? "refresh" : status === "speaking" ? "volume-high" : "mic";
+  const icon = status === "error" ? "refresh" : status === "speaking" ? "volume-high" : "mic";
 
   return (
     <Pressable

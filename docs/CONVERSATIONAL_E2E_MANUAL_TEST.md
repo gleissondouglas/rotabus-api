@@ -47,8 +47,8 @@ Use as teclas `a` para Android, `i` para iOS ou escaneie o QR Code no app Expo G
 
 ### 3.1 Fluxo por Voz (Input Principal)
 - [ ] **Passo 1:** Abra o app e acesse a tela Inicial (`/inicio`).
-- [ ] **Passo 2:** Pressione e segure o ícone do microfone, ouça o sinal sonoro e fale um destino claro (ex: *"Shopping Uberaba"*).
-- [ ] **Passo 3:** Solte o botão e observe a transição automática para a tela de processamento (`/processando`).
+- [ ] **Passo 2:** Toque no ícone do microfone, ouça o sinal sonoro e fale um destino claro (ex: *"Shopping Uberaba"*). Toque novamente para encerrar a captura e enviar a resposta.
+- [ ] **Passo 3:** Após o segundo toque, observe a transição automática para a tela de processamento (`/processando`).
 - [ ] **Passo 4:** Verifique se o aplicativo transiciona com sucesso para a tela de confirmação (`/confirmar-destino`).
 - [ ] **Passo 5:** O assistente deve falar o `speechText` sintetizado (ex: *"Encontrei Shopping Uberaba. É esse o lugar?"*).
 
@@ -152,5 +152,3 @@ Este checklist deve ser validado após a aplicação das melhorias de UX de temp
 - [ ] **Nome e Sentido da Linha abaixo da Linha:** Nas telas `/navegando` (no grid do ponto de espera e no card inferior de caminhada) e `/chegada` (no display principal do ônibus), caso exista o nome/sentido da linha (ex: `"Terminal Beija-Flor / Jd. Copacabana"`), ele deve ser renderizado logo abaixo do número destacado da linha.
 - [ ] **Fallback de Linha:** Se o backend não retornar `lineName`/`headsign`, o app deve renderizar somente o número da linha (ex: `"Linha 26"`), sem quebrar o layout e sem exibir campos vazios.
 - [ ] **Validação de 7 dias:** Ao submeter um horário customizado no frontend ou no backend, datas anteriores a hoje ou posteriores aos próximos 7 dias devem ser barradas, emitindo vibração de erro no app.
-
-

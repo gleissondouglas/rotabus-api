@@ -52,23 +52,21 @@ export function PrimaryButton({
 const styles = StyleSheet.create({
   button: {
     width: "100%",
-    minHeight: 64, // Aumentado para 64px para melhor acessibilidade
+    minHeight: 64,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 16, // Mais arredondado
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row", // Suporte a ícones/loading
+    flexDirection: "row",
   },
-
   buttonDisabled: {
     opacity: 0.6,
   },
-
   text: {
-    fontSize: 18, // Aumentado
-    fontWeight: "800", // Mais forte para contraste
+    fontSize: 18,
+    fontWeight: "800",
     textAlign: "center",
-    flexWrap: "wrap", // Permite quebrar linha se o texto ficar muito grande
+    flexWrap: "wrap",
   },
 });
