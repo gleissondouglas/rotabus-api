@@ -7,8 +7,7 @@ const LOCAL_ALIASES = {
   "centro da cidade": "Praça Rui Barbosa, Uberaba - MG",
   uniube: "UNIUBE - Universidade de Uberaba, Uberaba - MG",
   "mario palmerio": "Hospital Mário Palmério Universitário, Uberaba - MG",
-  "hospital mario palmerio":
-    "Hospital Mário Palmério Universitário, Uberaba - MG",
+  "hospital mario palmerio": "Hospital Mário Palmério Universitário, Uberaba - MG",
   "praça shopping": "Praça Shopping Uberaba, Uberaba - MG",
   "shopping uberaba": "Shopping Uberaba, Uberaba - MG",
   "terminal oeste": "Terminal Oeste - BRT Vetor, Uberaba - MG",
@@ -73,12 +72,7 @@ const TERMS_THAT_SHOULD_SHOW_OPTIONS = [
   "posto de saúde",
 ];
 
-const GENERIC_CITY_TERMS = [
-  "uberaba",
-  "uberaba, mg",
-  "uberaba - mg",
-  "uberaba, minas gerais",
-];
+const GENERIC_CITY_TERMS = ["uberaba", "uberaba, mg", "uberaba - mg", "uberaba, minas gerais"];
 
 module.exports = {
   LOCAL_ALIASES,

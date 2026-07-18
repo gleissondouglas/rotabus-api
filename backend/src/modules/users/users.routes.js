@@ -13,7 +13,11 @@ const {
 const { authMiddleware } = require("../auth/auth.middleware");
 const { adminMiddleware } = require("../auth/admin.middleware");
 const { validate } = require("../../shared/middlewares/validate.middleware");
-const { createUserSchema, updateProfileSchema, changePasswordSchema } = require("./users.validator");
+const {
+  createUserSchema,
+  updateProfileSchema,
+  changePasswordSchema,
+} = require("./users.validator");
 
 const router = express.Router();
 

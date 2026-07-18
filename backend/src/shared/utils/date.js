@@ -114,7 +114,7 @@ function formatRelativeDateTime(dateTime) {
 }
 
 /**
- * Reconstrói uma data ISO completa a partir de um texto de hora (HH:mm) 
+ * Reconstrói uma data ISO completa a partir de um texto de hora (HH:mm)
  * e uma data de referência, garantindo o fuso horário correto.
  */
 function buildDateTimeFromTimeText(timeText, referenceDateTime) {

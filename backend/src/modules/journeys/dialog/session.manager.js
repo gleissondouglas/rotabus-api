@@ -18,7 +18,8 @@ function mapToSession(dbSession) {
     sessionId: dbSession.sessionId,
     userId: dbSession.userId,
     currentState: dbSession.currentState,
-    expiresAt: dbSession.expiresAt instanceof Date ? dbSession.expiresAt.getTime() : dbSession.expiresAt,
+    expiresAt:
+      dbSession.expiresAt instanceof Date ? dbSession.expiresAt.getTime() : dbSession.expiresAt,
     metadata: dbSession.context || {},
   };
 }
@@ -29,7 +30,8 @@ function usePostgres() {
 }
 
 async function createSession({ userId, initialState = "IDLE", metadata = {}, sessionId }) {
-  const finalSessionId = sessionId || (crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex"));
+  const finalSessionId =
+    sessionId || (crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex"));
 
   if (usePostgres()) {
     const expiresAt = new Date(Date.now() + DEFAULT_TTL_MS);

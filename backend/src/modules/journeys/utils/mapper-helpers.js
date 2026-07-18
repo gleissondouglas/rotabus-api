@@ -19,7 +19,7 @@ function getSecondsFromDuration(durationText) {
  */
 function stripHtmlTags(html) {
   if (!html) return "";
-  return html.replace(/<[^>]*>?/gm, '');
+  return html.replace(/<[^>]*>?/gm, "");
 }
 
 module.exports = {

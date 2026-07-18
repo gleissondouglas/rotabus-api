@@ -45,7 +45,11 @@ async function geocodeAddress(address) {
   try {
     const response = await axios.get(url);
 
-    if (response.data.status === "ZERO_RESULTS" || !response.data.results || response.data.results.length === 0) {
+    if (
+      response.data.status === "ZERO_RESULTS" ||
+      !response.data.results ||
+      response.data.results.length === 0
+    ) {
       return [];
     }
 
@@ -53,17 +57,19 @@ async function geocodeAddress(address) {
       throw new Error(response.data.error_message || "Erro ao consultar Geocoding API");
     }
 
-    return response.data.results.map(result => {
-      const isUberaba = result.address_components.some(c => c.long_name === "Uberaba");
+    return response.data.results.map((result) => {
+      const isUberaba = result.address_components.some((c) => c.long_name === "Uberaba");
       let type = "unknown";
       if (result.types.includes("street_address")) type = "street_address";
       else if (result.types.includes("route")) type = "street";
       else if (result.types.includes("sublocality")) type = "neighborhood";
-      
+
       // Tentativa de separar o nome da rua para o UI
-      const routeComponent = result.address_components.find(c => c.types.includes("route"));
-      const numberComponent = result.address_components.find(c => c.types.includes("street_number"));
-      
+      const routeComponent = result.address_components.find((c) => c.types.includes("route"));
+      const numberComponent = result.address_components.find((c) =>
+        c.types.includes("street_number"),
+      );
+
       let name = result.formatted_address.split(",")[0];
       if (routeComponent) {
         name = routeComponent.long_name;
@@ -83,7 +89,7 @@ async function geocodeAddress(address) {
         type: type,
         confidence: confidence,
         source: "GOOGLE_GEOCODING",
-        isUberaba: isUberaba
+        isUberaba: isUberaba,
       };
     });
   } catch (error) {
@@ -94,5 +100,5 @@ async function geocodeAddress(address) {
 
 module.exports = {
   getAddressFromCoordinates,
-  geocodeAddress
+  geocodeAddress,
 };

@@ -2,25 +2,62 @@ const {
   validatePlanJourneyInput,
   validateResolveDestinationInput,
 } = require("./journeys.validator");
-const {
-  computeTransitRoute,
-  computeWalkingRoute,
-} = require("./providers/routes.provider");
+const { computeTransitRoute, computeWalkingRoute } = require("./providers/routes.provider");
 const { mapGoogleRouteToJourney } = require("./journey.mapper");
 const { findCachedRoute, createRouteCache } = require("./route-cache");
-const {
-  getAddressFromCoordinates,
-  geocodeAddress,
-} = require("./providers/geocoding.provider");
+const { getAddressFromCoordinates, geocodeAddress } = require("./providers/geocoding.provider");
 const speechProvider = require("./providers/speech.provider");
 const destinationProvider = require("./providers/destination.provider");
+const nlpProvider = require("../../shared/providers/nlp.provider");
 
 const localIntelligenceService = require("./local-intelligence/local-intelligence.service");
 
-async function resolveDestinationService({ text, origin }) {
+/**
+ * Resolve o destino baseado na intenção de texto do usuário utilizando IA.
+ * Em caso de dúvidas, retorna sugestões.
+ *
+ * @param {Object} params
+ * @param {string} params.text - A frase falada pelo usuário
+ * @param {{ lat: number, lng: number }} params.origin - Coordenadas atuais do GPS
+ * @returns {Promise<Object>} O destino formatado e opções.
+ */
+async function resolveDestinationService({ text, origin }, session = null) {
   const validatedData = validateResolveDestinationInput({ text, origin });
 
-  const interpretedDestination = localIntelligenceService.cleanDestinationText(validatedData.text);
+  const serverTimestamp = new Date().toISOString();
+  let nlpResult;
+  try {
+    nlpResult = await nlpProvider.parseUserIntent(
+      validatedData.text,
+      validatedData.origin,
+      serverTimestamp,
+      session
+    );
+  } catch (error) {
+    console.error("[ResolveDestination] Erro no NLPProvider:", error);
+    nlpResult = {
+      intent: "UNKNOWN",
+      search_term: validatedData.text,
+      scheduling: { time_mode: "NOW", target_datetime: null },
+    };
+  }
+
+  if (nlpResult.intent === "UNKNOWN") {
+    return {
+      mode: "not_found",
+      message: "Desculpe, não consegui entender o destino desejado.",
+      resolvedDestination: null,
+      candidates: [],
+      voice: {
+        confirmationQuestion: "Não entendi o seu destino. Pode repetir, por favor?",
+      },
+    };
+  }
+
+  const interpretedDestination = nlpResult.search_term;
+  const scheduling = nlpResult.scheduling;
+
+  // Utiliza o alias se aplicável
   const aliasedDestination = localIntelligenceService.applyLocalAliases(interpretedDestination);
   const queryType = localIntelligenceService.guessQueryType(aliasedDestination);
 
@@ -33,7 +70,7 @@ async function resolveDestinationService({ text, origin }) {
 
   if (process.env.NODE_ENV !== "production") {
     console.log(
-      `[ResolveDestination] Tipo inferido: ${queryType} | Texto original: ${aliasedDestination}`,
+      `[ResolveDestination] NLP: ${JSON.stringify(nlpResult)} | Tipo inferido: ${queryType}`,
     );
   }
 
@@ -67,9 +104,7 @@ async function resolveDestinationService({ text, origin }) {
   // FALLBACK OU COMPLEMENTO: Geocoding para endereços puros ou se Places não achou nada
   if (
     queryType === "address" ||
-    (candidates.length === 0 &&
-      queryType !== "specific_place" &&
-      queryType !== "generic_category")
+    (candidates.length === 0 && queryType !== "specific_place" && queryType !== "generic_category")
   ) {
     const geocodeResults = await geocodeAddress(searchStr);
     const geocodeCandidates = geocodeResults
@@ -96,8 +131,7 @@ async function resolveDestinationService({ text, origin }) {
       resolvedDestination: null,
       candidates: [],
       voice: {
-        confirmationQuestion:
-          "Não encontrei esse lugar. Tente falar de forma diferente.",
+        confirmationQuestion: "Não encontrei esse lugar. Tente falar de forma diferente.",
       },
     };
   }
@@ -154,6 +188,7 @@ async function resolveDestinationService({ text, origin }) {
     candidates: mode === "suggestions" ? candidates.slice(0, 5) : [],
     // Mantendo compatibilidade com o frontend atual que usa 'options'
     interpretedDestination,
+    scheduling,
     options: candidates,
     voice: {
       confirmationQuestion,
@@ -161,12 +196,18 @@ async function resolveDestinationService({ text, origin }) {
   };
 }
 
-async function planJourney({
-  origin,
-  destination,
-  departureTime,
-  timePreference,
-}) {
+/**
+ * Planeja a rota entre dois pontos usando a API do Google Routes.
+ * Enriquecido com cálculo preciso de caminhada inicial.
+ *
+ * @param {Object} params
+ * @param {{ lat: number, lng: number }} params.origin - Ponto de partida
+ * @param {{ text?: string, lat?: number, lng?: number }} params.destination - Destino
+ * @param {string} [params.departureTime] - Hora de partida (opcional)
+ * @param {Object} params.timePreference - Preferência de horário
+ * @returns {Promise<Object>} A jornada completa.
+ */
+async function planJourney({ origin, destination, departureTime, timePreference }) {
   const validatedData = validatePlanJourneyInput({
     origin,
     destination,
@@ -203,72 +244,53 @@ async function planJourney({
 
   // ENRIQUECIMENTO: Garantir rota a pé detalhada até o primeiro ponto
   try {
-    if (
-      googleResponse &&
-      googleResponse.routes &&
-      googleResponse.routes.length > 0
-    ) {
-      for (const route of googleResponse.routes) {
-        if (!route.legs || route.legs.length === 0) continue;
+    if (!googleResponse || !googleResponse.routes || googleResponse.routes.length === 0) {
+      throw new Error("Sem rotas para enriquecer.");
+    }
 
-        const firstLeg = route.legs[0];
-        const firstTransitStep = firstLeg.steps?.find(
-          (s) => s.travelMode === "TRANSIT",
+    for (const route of googleResponse.routes) {
+      if (!route.legs || route.legs.length === 0) continue;
+
+      const firstLeg = route.legs[0];
+      const firstTransitStep = firstLeg.steps?.find((s) => s.travelMode === "TRANSIT");
+
+      if (!firstTransitStep) continue;
+
+      const stopLoc = firstTransitStep.transitDetails?.stopDetails?.departureStop?.location?.latLng;
+      if (!stopLoc) continue;
+
+      // Busca rota a pé dedicada do usuário até este ponto
+      const walkingResponse = await computeWalkingRoute({
+        origin: validatedData.origin,
+        destination: { lat: stopLoc.latitude, lng: stopLoc.longitude },
+      });
+
+      if (!walkingResponse || !walkingResponse.routes || walkingResponse.routes.length === 0)
+        continue;
+
+      const walkingRoute = walkingResponse.routes[0];
+      const walkingSteps = walkingRoute.legs?.[0]?.steps || [];
+
+      if (walkingSteps.length === 0) continue;
+
+      // Remove passos de caminhada iniciais do Google Transit (se houver) para evitar duplicidade
+      const originalSteps = firstLeg.steps || [];
+      const firstTransitIndex = originalSteps.findIndex((s) => s.travelMode === "TRANSIT");
+
+      const transitAndBeyond =
+        firstTransitIndex !== -1 ? originalSteps.slice(firstTransitIndex) : originalSteps;
+
+      // Injeta os passos detalhados da rota WALK dedicada
+      firstLeg.steps = [...walkingSteps, ...transitAndBeyond];
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          `[Journeys] Rota enriquecida com ${walkingSteps.length} passos de caminhada detalhados.`,
         );
-
-        if (
-          firstTransitStep &&
-          firstTransitStep.transitDetails?.stopDetails?.departureStop?.location
-            ?.latLng
-        ) {
-          const stopLoc =
-            firstTransitStep.transitDetails.stopDetails.departureStop.location
-              .latLng;
-
-          // Busca rota a pé dedicada do usuário até este ponto
-          const walkingResponse = await computeWalkingRoute({
-            origin: validatedData.origin,
-            destination: { lat: stopLoc.latitude, lng: stopLoc.longitude },
-          });
-
-          if (
-            walkingResponse &&
-            walkingResponse.routes &&
-            walkingResponse.routes.length > 0
-          ) {
-            const walkingRoute = walkingResponse.routes[0];
-            const walkingSteps = walkingRoute.legs?.[0]?.steps || [];
-
-            if (walkingSteps.length > 0) {
-              // Remove passos de caminhada iniciais do Google Transit (se houver) para evitar duplicidade
-              const originalSteps = firstLeg.steps || [];
-              const firstTransitIndex = originalSteps.findIndex(
-                (s) => s.travelMode === "TRANSIT",
-              );
-
-              const transitAndBeyond =
-                firstTransitIndex !== -1
-                  ? originalSteps.slice(firstTransitIndex)
-                  : originalSteps;
-
-              // Injeta os passos detalhados da rota WALK dedicada
-              firstLeg.steps = [...walkingSteps, ...transitAndBeyond];
-
-              if (process.env.NODE_ENV !== "production") {
-                console.log(
-                  `[Journeys] Rota enriquecida com ${walkingSteps.length} passos de caminhada detalhados.`,
-                );
-              }
-            }
-          }
-        }
       }
     }
   } catch (enrichError) {
-    console.error(
-      "[Journeys] Erro ao enriquecer rota com caminhada:",
-      enrichError.message,
-    );
+    console.error("[Journeys] Erro ao enriquecer rota com caminhada:", enrichError.message);
     // Continua com a rota original se o enriquecimento falhar
   }
 
@@ -289,6 +311,14 @@ async function planJourney({
   };
 }
 
+/**
+ * Transforma coordenadas exatas em um nome de rua/bairro.
+ *
+ * @param {Object} params
+ * @param {number} params.lat
+ * @param {number} params.lng
+ * @returns {Promise<Object>}
+ */
 async function reverseGeocodeService({ lat, lng }) {
   if (lat === undefined || lng === undefined) {
     const error = new Error("Latitude e longitude são obrigatórias.");
@@ -303,6 +333,14 @@ async function reverseGeocodeService({ lat, lng }) {
   };
 }
 
+/**
+ * Transcreve áudio base64 para texto usando provedor Speech-to-Text.
+ *
+ * @param {Object} params
+ * @param {string} params.audioBase64
+ * @param {string} params.mimeType
+ * @returns {Promise<Object>}
+ */
 async function transcribeAudioService({ audioBase64, mimeType }) {
   if (!audioBase64) {
     const error = new Error("Áudio em base64 é obrigatório.");
@@ -310,10 +348,7 @@ async function transcribeAudioService({ audioBase64, mimeType }) {
     throw error;
   }
 
-  const transcript = await speechProvider.transcribe(
-    audioBase64,
-    mimeType,
-  );
+  const transcript = await speechProvider.transcribe(audioBase64, mimeType);
 
   return {
     text: transcript,

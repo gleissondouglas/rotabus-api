@@ -2,7 +2,7 @@ const repository = require("./conversation-session.repository");
 
 /**
  * Executa a limpeza de sessões conversacionais expiradas no banco de dados.
- * 
+ *
  * @returns {Promise<Object>} Resultado da limpeza contendo sucesso e quantidade de sessões removidas.
  */
 async function cleanupExpiredSessions() {

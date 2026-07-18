@@ -16,14 +16,20 @@ function toConversationalPlan(planResult, session = null) {
     screen: "JOURNEY_DISPLAY",
     displayData: {
       title: "Rota de Ônibus Encontrada",
-      subtitle: planResult.summary ? `${planResult.summary.totalDurationMin} min • ${planResult.summary.busLines.join(", ")}` : "",
-      items: planResult.summary ? [
-        { label: "Saída de casa", value: planResult.summary.leaveHomeAt },
-        { label: "Embarque no ponto", value: planResult.summary.beAtStopAt },
-        { label: "Chegada ao destino", value: planResult.summary.arrivalAtDestination },
-      ] : [],
+      subtitle: planResult.summary
+        ? `${planResult.summary.totalDurationMin} min • ${planResult.summary.busLines.join(", ")}`
+        : "",
+      items: planResult.summary
+        ? [
+            { label: "Saída de casa", value: planResult.summary.leaveHomeAt },
+            { label: "Embarque no ponto", value: planResult.summary.beAtStopAt },
+            { label: "Chegada ao destino", value: planResult.summary.arrivalAtDestination },
+          ]
+        : [],
     },
-    options: planResult.alternatives ? planResult.alternatives.map((alt, idx) => `Opção ${idx + 2}`) : [],
+    options: planResult.alternatives
+      ? planResult.alternatives.map((alt, idx) => `Opção ${idx + 2}`)
+      : [],
     expectedInput: "NONE",
     conversationState,
     actions: ["REPEAT", "CANCEL"],
@@ -40,7 +46,8 @@ function toConversationalResolve(resolveResult, session = null) {
   if (!resolveResult) return resolveResult;
 
   const mode = resolveResult.mode;
-  let speechText = resolveResult.voice?.confirmationQuestion || resolveResult.message || "Destino processado.";
+  let speechText =
+    resolveResult.voice?.confirmationQuestion || resolveResult.message || "Destino processado.";
   let expectedInput = "VOICE_OR_TOUCH";
   let conversationState = session ? session.currentState : "IDLE";
   let sessionId = session ? session.sessionId : "";
@@ -69,22 +76,37 @@ function toConversationalResolve(resolveResult, session = null) {
     expectedInput = "VOICE_OR_TOUCH";
     actions = ["CANCEL"];
     screen = "DESTINATION_RESOLVE";
+  } else if (conversationState === "WAITING_TIME_SELECTION") {
+    expectedInput = "VOICE_OR_TOUCH";
+    actions = ["SELECT_TIME", "CANCEL"];
+    screen = "TIME_SELECTION";
   }
 
   const options = resolveResult.options
     ? resolveResult.options.map((opt) => opt.name)
-    : (resolveResult.candidates ? resolveResult.candidates.map((c) => c.name) : []);
+    : resolveResult.candidates
+      ? resolveResult.candidates.map((c) => c.name)
+      : [];
 
   return {
     ...resolveResult,
     speechText,
     screen,
     displayData: {
-      title: conversationState === "WAITING_DESTINATION_SELECTION" ? "Selecione uma opção" : (conversationState === "WAITING_CONFIRMATION" ? "Confirmar destino" : "Pesquisar destino"),
+      title:
+        conversationState === "WAITING_DESTINATION_SELECTION"
+          ? "Selecione uma opção"
+          : conversationState === "WAITING_CONFIRMATION"
+            ? "Confirmar destino"
+            : conversationState === "WAITING_TIME_SELECTION"
+              ? "Confirmar horário"
+              : "Pesquisar destino",
       subtitle: resolveResult.interpretedDestination || "",
       items: resolveResult.options
         ? resolveResult.options.slice(0, 5).map((opt) => ({ name: opt.name, address: opt.address }))
-        : (resolveResult.candidates ? resolveResult.candidates.slice(0, 5).map((c) => ({ name: c.name, address: c.address })) : []),
+        : resolveResult.candidates
+          ? resolveResult.candidates.slice(0, 5).map((c) => ({ name: c.name, address: c.address }))
+          : [],
     },
     options,
     expectedInput,
@@ -157,6 +179,13 @@ function toConversationalCommand(result, requestBody = {}) {
     options = [];
     expectedInput = "NONE";
     actions = ["REPEAT", "CANCEL"];
+  } else if (command === "SELECT_TIME") {
+    speechText = "Horário confirmado. Exibindo a melhor rota.";
+    screen = "JOURNEY_DISPLAY";
+    displayData = { title: "Rota de Ônibus Encontrada", subtitle: "", items: [] };
+    options = [];
+    expectedInput = "NONE";
+    actions = ["REPEAT", "CANCEL"];
   }
 
   return {
@@ -172,7 +201,7 @@ function toConversationalCommand(result, requestBody = {}) {
       command,
       previousState: result.previousState,
       currentState,
-    }
+    },
   };
 }
 

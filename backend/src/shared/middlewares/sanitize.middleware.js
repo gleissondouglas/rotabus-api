@@ -4,10 +4,10 @@
  */
 
 function sanitizeObject(obj) {
-  if (typeof obj !== 'object' || obj === null) {
-    if (typeof obj === 'string') {
+  if (typeof obj !== "object" || obj === null) {
+    if (typeof obj === "string") {
       // Remove tags HTML/Script básicas e espaços extras
-      return obj.replace(/<[^>]*>?/gm, '').trim();
+      return obj.replace(/<[^>]*>?/gm, "").trim();
     }
     return obj;
   }
@@ -24,18 +24,16 @@ function sanitizeMiddleware(req, res, next) {
   if (req.body) {
     // Não sanitiza o campo audioBase64 pois ele contém dados binários legítimos
     const { audioBase64, ...rest } = req.body;
-    
+
     const sanitizedRest = sanitizeObject(rest);
-    
-    req.body = audioBase64 
-      ? { ...sanitizedRest, audioBase64 } 
-      : sanitizedRest;
+
+    req.body = audioBase64 ? { ...sanitizedRest, audioBase64 } : sanitizedRest;
   }
-  
+
   if (req.query) {
     req.query = sanitizeObject(req.query);
   }
-  
+
   if (req.params) {
     req.params = sanitizeObject(req.params);
   }

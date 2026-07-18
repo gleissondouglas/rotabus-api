@@ -3,7 +3,7 @@ const dialogManager = require("./dialog.manager");
 
 /**
  * Handler responsável por interpretar e processar comandos conversacionais recebidos do frontend.
- * 
+ *
  * @param {Object} params
  * @param {string|number} params.userId - Identificador do usuário.
  * @param {string} params.sessionId - Identificador da sessão conversacional.
@@ -41,10 +41,10 @@ async function handleCommand({ userId, sessionId, command, payload = {} }) {
     case "CANCEL":
       // Transiciona o estado lógico para IDLE
       nextState = dialogManager.transition(previousState, dialogManager.EVENTS.CANCEL);
-      
+
       // Deleta a sessão ou a atualiza. Optamos por remover a sessão para limpar o contexto
       await sessionManager.deleteSession({ userId, sessionId });
-      
+
       responsePayload.currentState = nextState;
       responsePayload.sessionDeleted = true;
       break;
@@ -62,16 +62,16 @@ async function handleCommand({ userId, sessionId, command, payload = {} }) {
 
       // Transiciona a FSM de WAITING_CONFIRMATION para JOURNEY_DISPLAYED
       nextState = dialogManager.transition(previousState, dialogManager.EVENTS.CONFIRM);
-      
+
       await sessionManager.updateSession({
         userId,
         sessionId,
-        patch: { 
+        patch: {
           currentState: nextState,
-          metadata: { ...session.metadata, confirmedAt: Date.now() }
-        }
+          metadata: { ...session.metadata, confirmedAt: Date.now() },
+        },
       });
-      
+
       responsePayload.currentState = nextState;
       break;
 
@@ -82,21 +82,45 @@ async function handleCommand({ userId, sessionId, command, payload = {} }) {
 
       // Transiciona a FSM de WAITING_DESTINATION_SELECTION para JOURNEY_DISPLAYED
       nextState = dialogManager.transition(previousState, dialogManager.EVENTS.OPTION_SELECTED);
-      
+
       await sessionManager.updateSession({
         userId,
         sessionId,
-        patch: { 
+        patch: {
           currentState: nextState,
-          metadata: { 
-            ...session.metadata, 
+          metadata: {
+            ...session.metadata,
             selectedOptionIndex: payload.optionIndex !== undefined ? payload.optionIndex : null,
             selectedOptionName: payload.optionName || null,
-            selectedAt: Date.now()
-          }
-        }
+            selectedAt: Date.now(),
+          },
+        },
       });
-      
+
+      responsePayload.currentState = nextState;
+      break;
+
+    case "SELECT_TIME":
+      if (previousState !== dialogManager.STATES.WAITING_TIME_SELECTION) {
+        throw new Error(`Comando SELECT_TIME inválido para o estado atual: ${previousState}`);
+      }
+
+      nextState = dialogManager.transition(previousState, dialogManager.EVENTS.TIME_SELECTED);
+
+      await sessionManager.updateSession({
+        userId,
+        sessionId,
+        patch: {
+          currentState: nextState,
+          metadata: {
+            ...session.metadata,
+            targetDatetime: payload.targetDatetime || null,
+            timeMode: payload.timeMode || "DEPART_AT",
+            timeSelectedAt: Date.now(),
+          },
+        },
+      });
+
       responsePayload.currentState = nextState;
       break;
 

@@ -72,8 +72,8 @@ export default function ChooseTimeScreen() {
 
   const dateOptions = getNext7Days();
 
-  const timeSlots = ["00:00"];
-  for (let i = 5; i < 24; i++) {
+  const timeSlots: string[] = [];
+  for (let i = 4; i < 24; i++) {
     const hr = String(i).padStart(2, "0");
     timeSlots.push(`${hr}:00`, `${hr}:15`, `${hr}:30`, `${hr}:45`);
   }
@@ -211,11 +211,11 @@ export default function ChooseTimeScreen() {
       if (!isOperationalTime(hour, minute)) {
         vibrationService.error();
         if (isFromVoice) {
-          void startLoop("Horário fora de operação. Escolha um horário entre 05:00 e 23:59, ou 00:00.");
+          void startLoop("Horário fora de operação. Escolha um horário entre 04:00 e 23:59.");
         } else {
           Alert.alert(
             "Horário fora de operação",
-            "Escolha um horário entre 05:00 e 23:59, ou 00:00."
+            "Escolha um horário entre 04:00 e 23:59."
           );
         }
         return;

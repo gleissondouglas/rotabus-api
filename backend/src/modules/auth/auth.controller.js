@@ -1,8 +1,4 @@
-const {
-  loginService,
-  forgotPasswordService,
-  resetPasswordService,
-} = require("./auth.service");
+const { loginService, forgotPasswordService, resetPasswordService } = require("./auth.service");
 
 async function login(req, res, next) {
   try {

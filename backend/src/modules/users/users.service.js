@@ -119,7 +119,7 @@ async function deleteOwnUserService(userId) {
   // Regra de segurança: não permitir excluir o último administrador
   if (user.role === "ADMIN") {
     const adminCount = await countUsersByRole("ADMIN");
-    
+
     if (adminCount <= 1) {
       const error = new Error("Não é possível excluir o último administrador do sistema.");
       error.statusCode = 400;
@@ -133,7 +133,7 @@ async function deleteOwnUserService(userId) {
   const apiUsageRepository = require("../../shared/repositories/apiUsage.repository");
   await apiUsageRepository.anonymizeUsageByUserId(userId);
 
-  // Deleta o usuário. As relações PasswordResetToken (Cascade) 
+  // Deleta o usuário. As relações PasswordResetToken (Cascade)
   // são tratadas conforme definido no schema.prisma.
   const deletedUser = await deleteUserById(userId);
 

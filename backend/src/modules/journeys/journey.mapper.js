@@ -93,25 +93,18 @@ function calculateTransitMinutes(mappedSteps) {
     .reduce((total, step) => {
       if (step.departureDateTime && step.arrivalDateTime) {
         return (
-          total +
-          calculateTimeDifferenceFromDateTimes(
-            step.departureDateTime,
-            step.arrivalDateTime,
-          )
+          total + calculateTimeDifferenceFromDateTimes(step.departureDateTime, step.arrivalDateTime)
         );
       }
 
       if (!step.departureTime || !step.arrivalTime) return total;
 
-      return (
-        total +
-        calculateTimeDifferenceInMinutes(step.departureTime, step.arrivalTime)
-      );
+      return total + calculateTimeDifferenceInMinutes(step.departureTime, step.arrivalTime);
     }, 0);
 }
 
 function mapGoogleStepToJourneyStep(step) {
-  const startLocation = step.startLocation?.latLng 
+  const startLocation = step.startLocation?.latLng
     ? { lat: step.startLocation.latLng.latitude, lng: step.startLocation.latLng.longitude }
     : null;
   const endLocation = step.endLocation?.latLng
@@ -136,8 +129,7 @@ function mapGoogleStepToJourneyStep(step) {
   }
 
   if (step.travelMode === "TRANSIT") {
-    const departureDateTime =
-      step.transitDetails?.stopDetails?.departureTime || "";
+    const departureDateTime = step.transitDetails?.stopDetails?.departureTime || "";
 
     const arrivalDateTime = step.transitDetails?.stopDetails?.arrivalTime || "";
 
@@ -153,8 +145,7 @@ function mapGoogleStepToJourneyStep(step) {
         step.transitDetails?.stopDetails?.departureStop?.name ||
         "Ponto de partida não identificado",
       to:
-        step.transitDetails?.stopDetails?.arrivalStop?.name ||
-        "Ponto de chegada não identificado",
+        step.transitDetails?.stopDetails?.arrivalStop?.name || "Ponto de chegada não identificado",
       departureTime:
         step.transitDetails?.localizedValues?.departureTime?.time?.text ||
         formatTimeFromDateTime(departureDateTime),
@@ -298,15 +289,11 @@ function buildSummary({ route, mappedSteps, timePreference }) {
   const totalWalkTimeMin = calculateTotalWalkMinutes(mappedSteps);
   const busTimeMin = calculateTransitMinutes(mappedSteps);
 
-  const referenceDateTime =
-    timePreference?.dateTime || new Date().toISOString();
+  const referenceDateTime = timePreference?.dateTime || new Date().toISOString();
 
   const firstDepartureDateTime =
     firstTransitStep?.departureDateTime ||
-    buildDateTimeFromTimeText(
-      firstTransitStep?.departureTime,
-      referenceDateTime,
-    );
+    buildDateTimeFromTimeText(firstTransitStep?.departureTime, referenceDateTime);
 
   const lastArrivalDateTime =
     lastTransitStep?.arrivalDateTime ||
@@ -326,9 +313,7 @@ function buildSummary({ route, mappedSteps, timePreference }) {
 
   const leaveHomeText = formatRelativeDateTime(leaveHomeDateTime);
   const beAtStopText = formatRelativeDateTime(beAtStopDateTime);
-  const arrivalAtDestinationText = formatRelativeDateTime(
-    arrivalAtDestinationDateTime,
-  );
+  const arrivalAtDestinationText = formatRelativeDateTime(arrivalAtDestinationDateTime);
 
   const busLines = [
     ...new Set(
@@ -424,8 +409,7 @@ function chooseBestJourney(candidates, timePreference = null) {
   );
 
   // Se nenhum for "acessível", usamos todos os válidos para não deixar o usuário sem resposta
-  const pool =
-    accessibleCandidates.length > 0 ? accessibleCandidates : validCandidates;
+  const pool = accessibleCandidates.length > 0 ? accessibleCandidates : validCandidates;
 
   return [...pool].sort((a, b) => {
     const aHasTransit = a.steps.some((s) => s.type === "transit");
@@ -450,7 +434,7 @@ function chooseBestJourney(candidates, timePreference = null) {
         // Se for DEPARTURE, prioriza quem SAI mais perto do horário solicitado (a próxima a sair)
         const departureA = new Date(a.summary.leaveHomeDateTime).getTime();
         const departureB = new Date(b.summary.leaveHomeDateTime).getTime();
-        
+
         // Queremos a que sai mais cedo/próximo do solicitado
         if (departureA !== departureB) return departureA - departureB;
       }
@@ -483,17 +467,13 @@ function mapGoogleRouteToJourney(googleResponse, origin, timePreference = null) 
   }
 
   const candidates = routes
-    .map((route, index) =>
-      mapSingleRouteToJourney(route, origin, timePreference, index),
-    )
+    .map((route, index) => mapSingleRouteToJourney(route, origin, timePreference, index))
     .filter(Boolean);
 
   const bestJourney = chooseBestJourney(candidates, timePreference);
 
   // Filtra as alternativas removendo a que foi escolhida como melhor
-  const alternatives = candidates.filter(
-    (c) => c.routeIndex !== bestJourney.routeIndex,
-  );
+  const alternatives = candidates.filter((c) => c.routeIndex !== bestJourney.routeIndex);
 
   return {
     summary: bestJourney.summary,

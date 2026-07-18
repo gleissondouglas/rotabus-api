@@ -182,10 +182,13 @@ describe('Journeys Routes (Integration)', () => {
       expect(response.body.displayData).toBeDefined();
       expect(response.body.metadata.sessionId).toBeDefined(); // sessionId gerado!
       // Verifica normalização de texto (trim)
-      expect(resolveDestinationService).toHaveBeenCalledWith({
-        text: 'Shopping Uberaba',
-        origin: validOrigin
-      });
+      expect(resolveDestinationService).toHaveBeenCalledWith(
+        {
+          text: 'Shopping Uberaba',
+          origin: validOrigin
+        },
+        expect.anything()
+      );
     });
 
     test('deve reutilizar sessionId se fornecido no corpo da requisição', async () => {

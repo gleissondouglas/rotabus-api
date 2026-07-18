@@ -14,38 +14,48 @@ async function searchPlaces(query, origin) {
 
   // Configuração de Uberaba como centro padrão para viés de localização
   const UBERABA_CENTER = { latitude: -19.7472, longitude: -47.9392 };
-  
+
   // Se tiver origem do usuário, usa ela, senão usa o centro de Uberaba
-  const biasCenter = (origin && origin.lat && origin.lng) ? { latitude: origin.lat, longitude: origin.lng } : UBERABA_CENTER;
+  const biasCenter =
+    origin && origin.lat && origin.lng
+      ? { latitude: origin.lat, longitude: origin.lng }
+      : UBERABA_CENTER;
 
   if (process.env.NODE_ENV !== "production") {
-    console.log(`[GooglePlaces] Buscando destino: "${query}" | Bias: ${biasCenter.latitude},${biasCenter.longitude}`);
+    console.log(
+      `[GooglePlaces] Buscando destino: "${query}" | Bias: ${biasCenter.latitude},${biasCenter.longitude}`,
+    );
   }
 
   try {
     const url = "https://places.googleapis.com/v1/places:searchText";
-    
-    const response = await axios.post(url, {
-      textQuery: query, // Removido Uberaba MG fixo daqui para o Places API usar o bias corretamente
-      languageCode: "pt-BR",
-      regionCode: "BR",
-      maxResultCount: 10,
-      locationBias: {
-        circle: {
-          center: biasCenter,
-          radius: 15000.0 // 15km para cobrir Uberaba inteira com folga
-        }
-      }
-    }, {
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": env.googleMapsApiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.types",
+
+    const response = await axios.post(
+      url,
+      {
+        textQuery: query, // Removido Uberaba MG fixo daqui para o Places API usar o bias corretamente
+        languageCode: "pt-BR",
+        regionCode: "BR",
+        maxResultCount: 10,
+        locationBias: {
+          circle: {
+            center: biasCenter,
+            radius: 15000.0, // 15km para cobrir Uberaba inteira com folga
+          },
+        },
       },
-    });
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": env.googleMapsApiKey,
+          "X-Goog-FieldMask":
+            "places.id,places.displayName,places.formattedAddress,places.location,places.types",
+        },
+      },
+    );
 
     const places = response.data.places || [];
-    
+
     if (process.env.NODE_ENV !== "production") {
       console.log(`[GooglePlaces] API New retornou ${places.length} resultados.`);
       if (places.length > 0) {
@@ -70,13 +80,17 @@ async function searchPlaces(query, origin) {
       console.error(`[GooglePlaces] Erro da API Google (${status})`);
 
       if (status === 403) {
-        const authError = new Error("A chave do Google não está autorizada para Places API (New). Verifique as restrições da chave no Google Cloud.");
+        const authError = new Error(
+          "A chave do Google não está autorizada para Places API (New). Verifique as restrições da chave no Google Cloud.",
+        );
         authError.statusCode = 403;
         throw authError;
       }
 
       if (status === 400) {
-        const badRequestError = new Error("Requisição inválida para o Google Places. Verifique o payload enviado.");
+        const badRequestError = new Error(
+          "Requisição inválida para o Google Places. Verifique o payload enviado.",
+        );
         badRequestError.statusCode = 400;
         throw badRequestError;
       }

@@ -5,7 +5,6 @@ const dialogManager = require("./dialog/dialog.manager");
 const conversationCommandHandler = require("./dialog/conversation-command.handler");
 const { recordDailyJourneyUsage } = require("../../shared/middlewares/dailyLimit.middleware");
 
-
 async function planJourney(req, res, next) {
   try {
     const userId = req.user?.id || null;
@@ -33,7 +32,11 @@ async function planJourney(req, res, next) {
     }
 
     const nextState = dialogManager.transition(session.currentState, event);
-    session = await sessionManager.updateSession({ userId, sessionId: session.sessionId, patch: { currentState: nextState } });
+    session = await sessionManager.updateSession({
+      userId,
+      sessionId: session.sessionId,
+      patch: { currentState: nextState },
+    });
 
     const enrichedResult = conversationalMapper.toConversationalPlan(result, session);
 
@@ -42,7 +45,6 @@ async function planJourney(req, res, next) {
     next(error);
   }
 }
-
 
 async function reverseGeocode(req, res, next) {
   try {
@@ -66,7 +68,9 @@ async function transcribeAudio(req, res, next) {
 
     if (process.env.NODE_ENV !== "production") {
       console.log(`[JourneysController] POST /transcribe solicitado pelo userId: ${userId}`);
-      console.log(`[JourneysController] MimeType: ${mimeType}, Base64 Length: ${audioBase64?.length || 0}`);
+      console.log(
+        `[JourneysController] MimeType: ${mimeType}, Base64 Length: ${audioBase64?.length || 0}`,
+      );
     }
 
     const result = await journeysService.transcribeAudioService({
@@ -77,7 +81,7 @@ async function transcribeAudio(req, res, next) {
     if (process.env.NODE_ENV !== "production") {
       console.log(`[JourneysController] Resposta enviada com sucesso para o usuário ${userId}`);
     }
-    
+
     return res.status(200).json(result);
   } catch (error) {
     console.error(`[JourneysController] Erro no processamento de voz:`, error.message);
@@ -96,24 +100,38 @@ async function resolveDestination(req, res, next) {
     }
 
     if (process.env.NODE_ENV !== "production") {
-      console.log(`[JourneysController] POST /resolve-destination solicitado pelo userId: ${userId || "Deslogado"} | Session ID: ${session.sessionId}`);
+      console.log(
+        `[JourneysController] POST /resolve-destination solicitado pelo userId: ${userId || "Deslogado"} | Session ID: ${session.sessionId}`,
+      );
     }
 
     // req.body já vem validado e normalizado pelo validateMiddleware
-    const result = await journeysService.resolveDestinationService(req.body);
+    const result = await journeysService.resolveDestinationService(req.body, session);
 
     // Transição de estado FSM
     let event = dialogManager.EVENTS.START;
     if (result.mode === "suggestions") {
       event = dialogManager.EVENTS.DESTINATION_AMBIGUOUS;
     } else if (result.mode === "resolved") {
-      event = dialogManager.EVENTS.DESTINATION_NEEDS_CONFIRMATION;
+      if (
+        result.scheduling &&
+        result.scheduling.target_datetime === null &&
+        result.scheduling.time_mode !== "NOW"
+      ) {
+        event = dialogManager.EVENTS.TIME_NEEDED;
+      } else {
+        event = dialogManager.EVENTS.DESTINATION_NEEDS_CONFIRMATION;
+      }
     } else if (result.mode === "not_found") {
       event = dialogManager.EVENTS.ERROR;
     }
 
     const nextState = dialogManager.transition(session.currentState, event);
-    session = await sessionManager.updateSession({ userId, sessionId: session.sessionId, patch: { currentState: nextState } });
+    session = await sessionManager.updateSession({
+      userId,
+      sessionId: session.sessionId,
+      patch: { currentState: nextState },
+    });
 
     const enrichedResult = conversationalMapper.toConversationalResolve(result, session);
 
@@ -133,7 +151,7 @@ async function handleConversationCommand(req, res, next) {
       userId,
       sessionId,
       command,
-      payload
+      payload,
     });
 
     const enrichedResult = conversationalMapper.toConversationalCommand(result, req.body);

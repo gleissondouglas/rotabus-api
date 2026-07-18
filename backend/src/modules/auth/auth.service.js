@@ -9,10 +9,7 @@ const {
   validateResetPasswordInput,
 } = require("./auth.validator");
 
-const {
-  findUserByEmail,
-  updateUserPasswordHash,
-} = require("../users/users.repository");
+const { findUserByEmail, updateUserPasswordHash } = require("../users/users.repository");
 
 const {
   createPasswordResetToken,
@@ -46,10 +43,7 @@ async function loginService(loginData) {
     throw error;
   }
 
-  const passwordMatches = await hashProvider.compareHash(
-    validatedData.password,
-    user.passwordHash,
-  );
+  const passwordMatches = await hashProvider.compareHash(validatedData.password, user.passwordHash);
 
   if (!passwordMatches) {
     const error = new Error("Email ou senha inválidos.");
@@ -79,8 +73,7 @@ async function forgotPasswordService(data) {
   const { email } = validateForgotPasswordInput(data);
 
   const genericResponse = {
-    message:
-      "Se esse email estiver cadastrado, enviaremos instruções para recuperar a senha.",
+    message: "Se esse email estiver cadastrado, enviaremos instruções para recuperar a senha.",
   };
 
   const user = await findUserByEmail(email);

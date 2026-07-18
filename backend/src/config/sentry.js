@@ -16,9 +16,7 @@ function initSentry() {
 
   Sentry.init({
     dsn: dsn,
-    integrations: [
-      nodeProfilingIntegration(),
-    ],
+    integrations: [nodeProfilingIntegration()],
     // Tracing
     tracesSampleRate: 1.0, // Em produção, reduza para algo como 0.1
     // Profiling
@@ -41,5 +39,5 @@ function captureException(error, context) {
 
 module.exports = {
   initSentry,
-  captureException
+  captureException,
 };

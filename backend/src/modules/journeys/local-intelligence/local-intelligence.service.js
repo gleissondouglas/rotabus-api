@@ -178,9 +178,7 @@ function evaluateConfidence(query, result, queryType) {
 
   // Se o nome do resultado contém palavras-chave da busca, confiança alta
   const queryWords = lowerQuery.split(" ").filter((w) => w.length > 3);
-  const matchesAnyWord = queryWords.some((word) =>
-    lowerResultName.includes(word),
-  );
+  const matchesAnyWord = queryWords.some((word) => lowerResultName.includes(word));
 
   if (matchesAnyWord && !isGeneric) return "high";
 

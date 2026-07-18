@@ -4,12 +4,11 @@ function pad(value: number) {
 
 /**
  * Verifica se o horário está dentro do horário operacional.
- * Permitido: 00:00 e de 05:00 até 23:59.
- * Bloqueado: 00:01 até 04:59.
+ * Permitido: de 04:00 até 23:59.
+ * Bloqueado: 00:00 até 03:59.
  */
 export function isOperationalTime(hour: number, minute: number): boolean {
-  if (hour === 0 && minute === 0) return true;
-  if (hour >= 5 && hour <= 23) return true;
+  if (hour >= 4 && hour <= 23) return true;
   return false;
 }
 

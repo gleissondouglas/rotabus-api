@@ -34,18 +34,24 @@ async function transcribe(audioBase64, mimeType) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       if (process.env.NODE_ENV !== "production") {
-        console.log(`[GoogleSpeechProvider] Tentativa ${attempt}/${maxRetries}. MimeType: ${mimeType}, Size: ${audioBase64.length}`);
+        console.log(
+          `[GoogleSpeechProvider] Tentativa ${attempt}/${maxRetries}. MimeType: ${mimeType}, Size: ${audioBase64.length}`,
+        );
       }
 
-      const response = await axios.post(url, {
-        config,
-        audio: {
-          content: audioBase64,
+      const response = await axios.post(
+        url,
+        {
+          config,
+          audio: {
+            content: audioBase64,
+          },
         },
-      }, {
-        // Tempo de timeout aumentado para 30 segundos
-        timeout: 30000,
-      });
+        {
+          // Tempo de timeout aumentado para 30 segundos
+          timeout: 30000,
+        },
+      );
 
       const { results } = response.data;
 
@@ -61,8 +67,9 @@ async function transcribe(audioBase64, mimeType) {
       return "";
     } catch (error) {
       lastError = error;
-      const isNetworkError = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || !error.response;
-      
+      const isNetworkError =
+        error.code === "ECONNRESET" || error.code === "ETIMEDOUT" || !error.response;
+
       console.warn(`[GoogleSpeechProvider] Falha na tentativa ${attempt}`);
 
       if (!isNetworkError || attempt === maxRetries) {
@@ -70,7 +77,7 @@ async function transcribe(audioBase64, mimeType) {
       }
 
       // Espera curta antes de tentar novamente (backoff exponencial simples)
-      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
     }
   }
 

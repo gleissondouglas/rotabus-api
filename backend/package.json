@@ -11,13 +11,16 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "sessions:cleanup": "node scripts/cleanup-expired-conversation-sessions.js",
-    "sessions:smoke:postgres": "node scripts/smoke-test-conversation-session-postgres.js"
+    "sessions:smoke:postgres": "node scripts/smoke-test-conversation-session-postgres.js",
+    "lint": "eslint \"src/**/*.js\"",
+    "format": "prettier --write \"src/**/*.js\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google/genai": "^2.12.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@sentry/node": "^10.55.0",
@@ -34,8 +37,13 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.7.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
+    "prettier": "^3.9.5",
     "prisma": "^7.8.0",
     "supertest": "^7.2.2"
   },

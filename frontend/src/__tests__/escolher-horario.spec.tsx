@@ -230,8 +230,8 @@ describe("ChooseTimeScreen", () => {
     
     fireEvent.press(screen.getByText("Outro horário"));
     
-    // Verifica que alguns slots foram gerados (ex: 00:00, 08:30, 23:30)
-    expect(screen.getByLabelText("Horário 00:00")).toBeTruthy();
+    // Verifica que alguns slots foram gerados (ex: 04:00, 08:30, 23:30)
+    expect(screen.getByLabelText("Horário 04:00")).toBeTruthy();
     expect(screen.getByLabelText("Horário 08:30")).toBeTruthy();
     expect(screen.getByLabelText("Horário 23:30")).toBeTruthy();
 

@@ -26,40 +26,72 @@ const passwordSchema = z
     required_error: "Senha é obrigatória.",
   })
   .trim()
-  .min(6, "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.")
-  .max(128, "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.")
+  .min(
+    6,
+    "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.",
+  )
+  .max(
+    128,
+    "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.",
+  )
   .regex(
     /^(?=.*[A-Za-z])(?=.*\d).{6,}$/,
-    "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número."
+    "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.",
   );
 
 const loginSchema = z.object({
-  email: z.string({
-    message: "Email e senha são obrigatórios e devem ser textos válidos.",
-  }).trim().toLowerCase().min(1, "Email e senha não podem estar vazios.").email("Informe um email válido."),
-  password: z.string({
-    message: "Email e senha são obrigatórios e devem ser textos válidos.",
-  }).trim().min(1, "Email e senha não podem estar vazios."),
+  email: z
+    .string({
+      message: "Email e senha são obrigatórios e devem ser textos válidos.",
+    })
+    .trim()
+    .toLowerCase()
+    .min(1, "Email e senha não podem estar vazios.")
+    .email("Informe um email válido."),
+  password: z
+    .string({
+      message: "Email e senha são obrigatórios e devem ser textos válidos.",
+    })
+    .trim()
+    .min(1, "Email e senha não podem estar vazios."),
 });
 
 const forgotPasswordSchema = z.object({
-  email: z.string({
-    message: "Email é obrigatório e deve ser um texto válido.",
-  }).trim().toLowerCase().min(1, "Email não pode estar vazio.").email("Informe um email válido."),
+  email: z
+    .string({
+      message: "Email é obrigatório e deve ser um texto válido.",
+    })
+    .trim()
+    .toLowerCase()
+    .min(1, "Email não pode estar vazio.")
+    .email("Informe um email válido."),
 });
 
 const resetPasswordSchema = z.object({
-  token: z.string({
-    message: "Token e nova senha são obrigatórios e devem ser textos válidos.",
-  }).trim().min(1, "Token e nova senha não podem estar vazios.").min(20, "Token de recuperação inválido."),
-  newPassword: z.string({
-    message: "Token e nova senha são obrigatórios e devem ser textos válidos.",
-  }).trim().min(1, "Token e nova senha não podem estar vazios.")
-    .min(6, "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.")
-    .max(128, "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.")
+  token: z
+    .string({
+      message: "Token e nova senha são obrigatórios e devem ser textos válidos.",
+    })
+    .trim()
+    .min(1, "Token e nova senha não podem estar vazios.")
+    .min(20, "Token de recuperação inválido."),
+  newPassword: z
+    .string({
+      message: "Token e nova senha são obrigatórios e devem ser textos válidos.",
+    })
+    .trim()
+    .min(1, "Token e nova senha não podem estar vazios.")
+    .min(
+      6,
+      "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.",
+    )
+    .max(
+      128,
+      "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.",
+    )
     .regex(
       /^(?=.*[A-Za-z])(?=.*\d).{6,}$/,
-      "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número."
+      "A nova senha deve ter entre 6 e 128 caracteres, contendo pelo menos uma letra e um número.",
     ),
 });
 

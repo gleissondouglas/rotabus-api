@@ -10,10 +10,7 @@ async function countUsage({ ipAddress, userId, since, endpoint }) {
     where: {
       endpoint,
       createdAt: { gte: since },
-      OR: [
-        { ipAddress },
-        ...(userId ? [{ userId }] : []),
-      ],
+      OR: [{ ipAddress }, ...(userId ? [{ userId }] : [])],
     },
   });
 }

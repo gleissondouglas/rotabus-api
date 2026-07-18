@@ -1,7 +1,4 @@
-const { 
-  formatRelativeDateTime, 
-  buildDateTimeFromTimeText 
-} = require("../../../shared/utils/date");
+const { formatRelativeDateTime, buildDateTimeFromTimeText } = require("../../../shared/utils/date");
 const { getShortStopName } = require("./mapper-helpers");
 
 /**
@@ -29,10 +26,16 @@ function humanizeWalkingInstruction(instruction, maneuver) {
   }
 
   // Remoção de termos técnicos e direções cardeais
-  text = text.replace(/Siga na direção (norte|sul|leste|oeste|nordeste|sudeste|noroeste|sudoeste)/gi, "Siga");
-  text = text.replace(/na direção (norte|sul|leste|oeste|nordeste|sudeste|noroeste|sudoeste)/gi, "");
-  text = text.replace(/ em direção a (.*)/gi, ""); 
-  
+  text = text.replace(
+    /Siga na direção (norte|sul|leste|oeste|nordeste|sudeste|noroeste|sudoeste)/gi,
+    "Siga",
+  );
+  text = text.replace(
+    /na direção (norte|sul|leste|oeste|nordeste|sudeste|noroeste|sudoeste)/gi,
+    "",
+  );
+  text = text.replace(/ em direção a (.*)/gi, "");
+
   // Padronização de nomes de ruas
   text = text.replace(/Siga na R\. /gi, "Siga pela Rua ");
   text = text.replace(/Siga na /gi, "Siga pela ");
@@ -50,10 +53,7 @@ function getStepDepartureText(step, referenceDateTime) {
   }
 
   if (step.departureTime) {
-    const inferredDateTime = buildDateTimeFromTimeText(
-      step.departureTime,
-      referenceDateTime,
-    );
+    const inferredDateTime = buildDateTimeFromTimeText(step.departureTime, referenceDateTime);
 
     if (inferredDateTime) {
       return formatRelativeDateTime(inferredDateTime);
@@ -71,10 +71,7 @@ function getStepArrivalText(step, referenceDateTime) {
   }
 
   if (step.arrivalTime) {
-    const inferredDateTime = buildDateTimeFromTimeText(
-      step.arrivalTime,
-      referenceDateTime,
-    );
+    const inferredDateTime = buildDateTimeFromTimeText(step.arrivalTime, referenceDateTime);
 
     if (inferredDateTime) {
       return formatRelativeDateTime(inferredDateTime);
@@ -86,12 +83,7 @@ function getStepArrivalText(step, referenceDateTime) {
   return "";
 }
 
-function buildTransitInstruction(
-  step,
-  index,
-  totalTransitSteps,
-  referenceDateTime,
-) {
+function buildTransitInstruction(step, index, totalTransitSteps, referenceDateTime) {
   const line = step.line || "linha não identificada";
   const from = getShortStopName(step.from);
   const to = getShortStopName(step.to);
@@ -129,12 +121,7 @@ function buildFriendlyMessage(mappedSteps, summary) {
 
   const transitInstructions = transitSteps
     .map((step, index) =>
-      buildTransitInstruction(
-        step,
-        index,
-        transitSteps.length,
-        summary.referenceDateTime,
-      )
+      buildTransitInstruction(step, index, transitSteps.length, summary.referenceDateTime),
     )
     .join(" ");
 
@@ -213,13 +200,13 @@ function buildDetailedWalkingStepsFromMappedSteps(mappedSteps) {
         distanceMeters: step.distanceMeters,
         durationSeconds: step.durationMin * 60,
         encodedPolyline: step.polyline,
-        startLocation: step.startLocation 
+        startLocation: step.startLocation
           ? { latitude: step.startLocation.lat, longitude: step.startLocation.lng }
           : null,
         endLocation: step.endLocation
           ? { latitude: step.endLocation.lat, longitude: step.endLocation.lng }
           : null,
-        stepIndex
+        stepIndex,
       });
       stepIndex++;
     } else if (step.type === "transit") {
@@ -254,7 +241,7 @@ function buildFirstStopGuideBlock(mappedSteps, summary) {
     instruction: `Caminhe cerca de ${summary.initialWalkDistanceMeters} metros até o ponto ${firstStopName}.`,
     voiceInstruction: `Saia de onde você está por volta das ${summary.leaveHomeAt} e caminhe cerca de ${summary.initialWalkDistanceMeters} metros até o ponto. O ônibus ${line} passa por volta das ${summary.beAtStopAt}.`,
     walkingSteps,
-    hasValidWalkingSteps: walkingSteps.length > 0
+    hasValidWalkingSteps: walkingSteps.length > 0,
   };
 }
 
@@ -266,9 +253,7 @@ function buildAlerts(transfers) {
   ];
 
   if (transfers > 0) {
-    alerts.push(
-      "Essa rota tem troca de ônibus. Preste atenção no ponto onde deve descer.",
-    );
+    alerts.push("Essa rota tem troca de ônibus. Preste atenção no ponto onde deve descer.");
   }
 
   return alerts;

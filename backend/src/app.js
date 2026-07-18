@@ -25,7 +25,7 @@ app.use(helmet());
 app.use(globalLimiter);
 
 /**
- * CORS (Cross-Origin Resource Sharing): 
+ * CORS (Cross-Origin Resource Sharing):
  * Define quais domínios podem acessar esta API.
  * Em desenvolvimento permite qualquer origem (*), em produção apenas o domínio oficial.
  */
@@ -42,8 +42,8 @@ app.use(cors(corsOptions));
  * Configuramos um limite alto (50mb) porque recebemos transcrições e áudios
  * grandes via Base64 do aplicativo.
  */
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 /**
  * Sanitização Global:
