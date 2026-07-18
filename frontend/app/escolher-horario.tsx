@@ -135,47 +135,35 @@ export default function ChooseTimeScreen() {
         return;
       }
 
-      // Se não for um comando básico, envia para a IA processar a intenção de horário
+      // Envia para a IA dedicada de horário (sem cache, contexto correto)
       setVoiceStatus("processing");
       try {
-        const originLat = parseRequiredCoordinate(latitude);
-        const originLng = parseRequiredCoordinate(longitude);
-        if (originLat === null || originLng === null) {
-           throw new Error("Localização atual não encontrada");
-        }
+        const result = await journeyService.parseTimeIntent({ text: intent.transcript });
 
-        const response = await journeyService.resolveDestination({
-          text: intent.transcript,
-          origin: { lat: originLat, lng: originLng }
-        });
-
-        const scheduling = response.scheduling;
-        
-        if (response.mode === "not_found" || !scheduling || (scheduling.time_mode !== "NOW" && !scheduling.target_datetime)) {
+        if (result.time_mode === "UNKNOWN" || (!result.target_datetime && result.time_mode !== "NOW")) {
           vibrationService.error();
-          void startLoop("Não entendi o horário. Você pode dizer, por exemplo: sair agora, hoje às oito ou amanhã às nove.");
+          void startLoop("Não entendi o horário. Você pode dizer, por exemplo: agora, amanhã às três da tarde, ou sexta às oito da manhã.");
           return;
         }
 
-        if (scheduling.time_mode === "NOW") {
+        if (result.time_mode === "NOW") {
           handleGoNow();
           return;
         }
-        
-        // Se a IA devolver DEPART_AT ou ARRIVE_BY, formatamos a data para exibir
-        // E usamos a validação existente
-        const targetDate = new Date(scheduling.target_datetime);
+
+        // DEPART_AT ou ARRIVE_BY — converte o datetime da IA para data/hora local
+        const targetDate = new Date(result.target_datetime!);
         const dateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}-${String(targetDate.getDate()).padStart(2, "0")}`;
         const timeStr = `${String(targetDate.getHours()).padStart(2, "0")}:${String(targetDate.getMinutes()).padStart(2, "0")}`;
         
         setDateText(dateStr);
         setTimeText(timeStr);
         
-        const typeMode = scheduling.time_mode === "ARRIVE_BY" ? "ARRIVAL" : "DEPARTURE";
+        const typeMode = result.time_mode === "ARRIVE_BY" ? "ARRIVAL" : "DEPARTURE";
         validateAndNavigate(typeMode, dateStr, timeStr, true);
 
       } catch (err) {
-        console.error("Erro ao enviar horário por voz:", err);
+        console.error("Erro ao interpretar horário por voz:", err);
         vibrationService.error();
         void startLoop("Tive um problema ao entender. Pode tentar novamente?");
       }

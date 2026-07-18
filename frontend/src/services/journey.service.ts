@@ -5,7 +5,9 @@ import {
   ResolveDestinationRequest, 
   ResolveDestinationResponse,
   ConversationalCommandRequest,
-  ConversationalCommandResponse
+  ConversationalCommandResponse,
+  ParseTimeRequest,
+  ParseTimeResponse,
 } from "../types/journey.types";
 import { sessionService } from "./session.service";
 import { request } from "../utils/api";
@@ -171,8 +173,29 @@ async function executeCommand(data: ConversationalCommandRequest): Promise<Conve
   }
 }
 
+/**
+ * Interpreta APENAS a intenção de horário de uma frase falada.
+ * Usado na tela de escolha de horário quando o destino já está definido.
+ * Não usa cache pois horários são sempre relativos ao momento atual.
+ */
+async function parseTimeIntent(data: ParseTimeRequest): Promise<ParseTimeResponse> {
+  const token = await sessionService.getToken();
+
+  // Sem cache - horário é sempre relativo ao momento atual
+  return await request<ParseTimeResponse>(`${API_BASE_URL}/journeys/parse-time`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+    timeout: 10000,
+  });
+}
+
 export const journeyService = {
   planJourney,
   resolveDestination,
   executeCommand,
+  parseTimeIntent,
 };
