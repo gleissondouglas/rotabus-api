@@ -36,9 +36,12 @@ import { VoiceVisualizer, type VoiceVisualizerState } from "../src/components/Vo
 import { VoicePromptText } from "../src/components/VoicePromptText";
 import { LiveTranscript } from "../src/components/LiveTranscript";
 import { BottomActionBar } from "../src/components/BottomActionBar";
+import { speakAndWait } from "../src/services/speech.service";
 
 type ScreenStatus = "idle" | "listening" | "processing" | "error" | "success";
 type VoiceScreenStatus = ScreenStatus | "speaking";
+
+let hasSpokenGreeting = false;
 
 /** Mensagem de fallback quando o usuário não fala nada */
 const SILENCE_FALLBACK_MESSAGE =
@@ -414,8 +417,17 @@ export default function HomeScreen() {
       if (!params.searchText && userName) {
         // Primeira vez: texto anima progressivamente
         setPromptAnimated(true);
-        const greetingText = `Olá, ${userName}. Bem-vindo ao Nuvem. Para onde você quer ir hoje?`;
+        const greetingText = `Olá, ${userName}. Para onde você quer ir hoje?`;
         setPromptText(greetingText);
+
+        if (!hasSpokenGreeting) {
+          hasSpokenGreeting = true;
+          setStatus("speaking");
+          speakAndWait(greetingText).finally(() => {
+             // Quando terminar de falar, volta para idle
+             setStatus("idle");
+          });
+        }
       } else if (userName) {
         // Retorno à tela: texto aparece completo de uma vez
         setPromptAnimated(false);
