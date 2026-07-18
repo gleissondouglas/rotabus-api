@@ -290,10 +290,25 @@ const conversationCommandSchema = z.preprocess(
   }),
 );
 
+/**
+ * Schema para validar o endpoint de parsing de intenção de horário por voz.
+ */
+const parseTimeSchema = z.object({
+  text: z
+    .string({
+      required_error: "O texto da fala é obrigatório.",
+      invalid_type_error: "O texto da fala deve ser um texto válido.",
+    })
+    .trim()
+    .min(2, "O texto deve ter pelo menos 2 caracteres.")
+    .max(500, "O texto da fala é muito longo."),
+});
+
 module.exports = {
   validatePlanJourneyInput,
   validateResolveDestinationInput,
   planJourneySchema,
   resolveDestinationSchema,
   conversationCommandSchema,
+  parseTimeSchema,
 };

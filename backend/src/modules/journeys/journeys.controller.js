@@ -167,10 +167,28 @@ async function handleConversationCommand(req, res, next) {
   }
 }
 
+async function parseTimeIntent(req, res, next) {
+  try {
+    const { text } = req.body;
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[JourneysController] POST /parse-time | texto: "${text}"`);
+    }
+
+    const result = await journeysService.parseTimeIntentService({ text });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("[JourneysController] Erro no parse-time:", error.message);
+    next(error);
+  }
+}
+
 module.exports = {
   planJourney,
   reverseGeocode,
   transcribeAudio,
   resolveDestination,
   handleConversationCommand,
+  parseTimeIntent,
 };

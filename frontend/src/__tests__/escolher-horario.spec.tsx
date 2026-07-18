@@ -129,14 +129,13 @@ jest.mock("../services/vibration.service", () => ({
 
 jest.mock("../services/journey.service", () => ({
   journeyService: {
-    resolveDestination: jest.fn().mockResolvedValue({
-      mode: "resolved",
-      scheduling: {
-        time_mode: "DEPART_AT",
-        target_datetime: "2026-07-19T20:00:00-03:00"
-      }
-    })
-  }
+    resolveDestination: jest.fn(),
+    parseTimeIntent: jest.fn().mockResolvedValue({
+      time_mode: "DEPART_AT",
+      target_datetime: "2026-07-19T20:00:00-03:00",
+      confidence: "high",
+    }),
+  },
 }));
 
 function buildParams(overrides: Record<string, string> = {}) {

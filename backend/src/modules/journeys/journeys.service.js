@@ -13,8 +13,31 @@ const nlpProvider = require("../../shared/providers/nlp.provider");
 const localIntelligenceService = require("./local-intelligence/local-intelligence.service");
 
 /**
- * Resolve o destino baseado na intenção de texto do usuário utilizando IA.
- * Em caso de dúvidas, retorna sugestões.
+ * Remove expressões de voz comuns em português para isolar o nome do destino.
+ * Ex: "me leva ao hospital" → "hospital"
+ *     "quero ir para o centro" → "centro"
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function cleanDestinationText(text) {
+  return text
+    .toLowerCase()
+    .replace(/^(me leva|me leve|me leva ao|me leva à|me leva a|me leve ao|me leve à|me leve a)\s+/i, "")
+    .replace(/^(quero ir para o|quero ir para a|quero ir para|quero ir ao|quero ir à|quero ir a)\s+/i, "")
+    .replace(/^(vou ao|vou à|vou para o|vou para a|vou para|vou a)\s+/i, "")
+    .replace(/^(ir ao|ir à|ir para o|ir para a|ir para|ir a)\s+/i, "")
+    .replace(/^(preciso ir ao|preciso ir à|preciso ir para|preciso chegar ao|preciso chegar à)\s+/i, "")
+    .replace(/^(leva ao|leva à|leva para|leve ao|leve à|leve para)\s+/i, "")
+    .replace(/^(para o|para a|para)\s+/i, "")
+    .trim()
+    || text.trim();
+}
+
+/**
+ * Resolve o destino baseado no texto do usuário, buscando diretamente no Google Places.
+ * Não utiliza IA — o texto é limpo e enviado direto para geocodificação.
+ * Em caso de múltiplos resultados, retorna sugestões.
  *
  * @param {Object} params
  * @param {string} params.text - A frase falada pelo usuário
@@ -24,38 +47,10 @@ const localIntelligenceService = require("./local-intelligence/local-intelligenc
 async function resolveDestinationService({ text, origin }, session = null) {
   const validatedData = validateResolveDestinationInput({ text, origin });
 
-  const serverTimestamp = new Date().toISOString();
-  let nlpResult;
-  try {
-    nlpResult = await nlpProvider.parseUserIntent(
-      validatedData.text,
-      validatedData.origin,
-      serverTimestamp,
-      session
-    );
-  } catch (error) {
-    console.error("[ResolveDestination] Erro no NLPProvider:", error);
-    nlpResult = {
-      intent: "UNKNOWN",
-      search_term: validatedData.text,
-      scheduling: { time_mode: "NOW", target_datetime: null },
-    };
-  }
-
-  if (nlpResult.intent === "UNKNOWN") {
-    return {
-      mode: "not_found",
-      message: "Desculpe, não consegui entender o destino desejado.",
-      resolvedDestination: null,
-      candidates: [],
-      voice: {
-        confirmationQuestion: "Não entendi o seu destino. Pode repetir, por favor?",
-      },
-    };
-  }
-
-  const interpretedDestination = nlpResult.search_term;
-  const scheduling = nlpResult.scheduling;
+  // Sem NLP: o texto vai direto ao Google Places.
+  // Limpeza simples de expressões de voz comuns em português.
+  const interpretedDestination = cleanDestinationText(validatedData.text);
+  const scheduling = { time_mode: "NOW", target_datetime: null };
 
   // Utiliza o alias se aplicável
   const aliasedDestination = localIntelligenceService.applyLocalAliases(interpretedDestination);
@@ -70,7 +65,7 @@ async function resolveDestinationService({ text, origin }, session = null) {
 
   if (process.env.NODE_ENV !== "production") {
     console.log(
-      `[ResolveDestination] NLP: ${JSON.stringify(nlpResult)} | Tipo inferido: ${queryType}`,
+      `[ResolveDestination] Destino: ${interpretedDestination} | Tipo inferido: ${queryType}`,
     );
   }
 
@@ -355,9 +350,39 @@ async function transcribeAudioService({ audioBase64, mimeType }) {
   };
 }
 
+/**
+ * Interpreta APENAS a intenção de horário de uma frase falada pelo usuário.
+ * Usado na tela "Quando você quer ir?" quando o destino já foi definido.
+ *
+ * @param {Object} params
+ * @param {string} params.text - A frase falada pelo usuário
+ * @returns {Promise<{ time_mode: string, target_datetime: string|null, confidence: string }>}
+ */
+async function parseTimeIntentService({ text }) {
+  const serverTimestamp = new Date().toISOString();
+
+  try {
+    const result = await nlpProvider.parseTimeIntent(text, serverTimestamp);
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[ParseTimeIntent] Texto: "${text}" → Resultado:`, JSON.stringify(result));
+    }
+
+    return result;
+  } catch (error) {
+    console.error("[ParseTimeIntent] Erro no NLPProvider:", error);
+    return {
+      time_mode: "UNKNOWN",
+      target_datetime: null,
+      confidence: "low",
+    };
+  }
+}
+
 module.exports = {
   planJourney,
   reverseGeocodeService,
   transcribeAudioService,
   resolveDestinationService,
+  parseTimeIntentService,
 };
