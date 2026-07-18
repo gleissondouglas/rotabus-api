@@ -30,8 +30,9 @@ import {
   getNext7Days,
   isOperationalTime,
 } from "../src/utils/date-time";
-import { parseVoiceTimeIntent } from "../src/utils/voiceTimeParser";
+import { parseVoiceIntent } from "../src/utils/voiceIntentParser";
 import { getInteractionMode } from "../src/types/interaction.types";
+import { journeyService } from "../src/services/journey.service";
 
 type TimeMode = "NOW" | "DEPARTURE" | "ARRIVAL";
 
@@ -120,33 +121,63 @@ export default function ChooseTimeScreen() {
   const { startLoop, stopListeningAndSubmit } = useVoiceConversationLoop({
     onIntent: async (intent) => {
       setVoiceErrorMessage("");
-      const timeIntent = parseVoiceTimeIntent(intent.transcript);
       
-      switch (timeIntent.type) {
-        case "NOW":
-          handleGoNow();
-          break;
-        case "DEPARTURE_TIME":
-          setDateText(timeIntent.date);
-          setTimeText(timeIntent.time);
-          validateAndNavigate("DEPARTURE", timeIntent.date, timeIntent.time, true);
-          break;
-        case "ARRIVAL_TIME":
-          setDateText(timeIntent.date);
-          setTimeText(timeIntent.time);
-          validateAndNavigate("ARRIVAL", timeIntent.date, timeIntent.time, true);
-          break;
-        case "REPEAT":
-          void startLoop(screenMessage);
-          break;
-        case "CANCEL":
-          vibrationService.light();
-          router.replace("/inicio");
-          break;
-        case "UNKNOWN":
+      const basicIntent = parseVoiceIntent(intent.transcript);
+
+      if (basicIntent.type === "REPEAT") {
+        void startLoop(screenMessage);
+        return;
+      }
+      
+      if (basicIntent.type === "CANCEL") {
+        vibrationService.light();
+        router.replace("/inicio");
+        return;
+      }
+
+      // Se não for um comando básico, envia para a IA processar a intenção de horário
+      setVoiceStatus("processing");
+      try {
+        const originLat = parseRequiredCoordinate(latitude);
+        const originLng = parseRequiredCoordinate(longitude);
+        if (originLat === null || originLng === null) {
+           throw new Error("Localização atual não encontrada");
+        }
+
+        const response = await journeyService.resolveDestination({
+          text: intent.transcript,
+          origin: { lat: originLat, lng: originLng }
+        });
+
+        const scheduling = response.scheduling;
+        
+        if (response.mode === "not_found" || !scheduling || (scheduling.time_mode !== "NOW" && !scheduling.target_datetime)) {
           vibrationService.error();
           void startLoop("Não entendi o horário. Você pode dizer, por exemplo: sair agora, hoje às oito ou amanhã às nove.");
-          break;
+          return;
+        }
+
+        if (scheduling.time_mode === "NOW") {
+          handleGoNow();
+          return;
+        }
+        
+        // Se a IA devolver DEPART_AT ou ARRIVE_BY, formatamos a data para exibir
+        // E usamos a validação existente
+        const targetDate = new Date(scheduling.target_datetime);
+        const dateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}-${String(targetDate.getDate()).padStart(2, "0")}`;
+        const timeStr = `${String(targetDate.getHours()).padStart(2, "0")}:${String(targetDate.getMinutes()).padStart(2, "0")}`;
+        
+        setDateText(dateStr);
+        setTimeText(timeStr);
+        
+        const typeMode = scheduling.time_mode === "ARRIVE_BY" ? "ARRIVAL" : "DEPARTURE";
+        validateAndNavigate(typeMode, dateStr, timeStr, true);
+
+      } catch (err) {
+        console.error("Erro ao enviar horário por voz:", err);
+        vibrationService.error();
+        void startLoop("Tive um problema ao entender. Pode tentar novamente?");
       }
     },
     onStatusChange: (nextStatus) => {

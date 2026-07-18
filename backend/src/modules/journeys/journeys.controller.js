@@ -120,7 +120,11 @@ async function resolveDestination(req, res, next) {
       ) {
         event = dialogManager.EVENTS.TIME_NEEDED;
       } else {
-        event = dialogManager.EVENTS.DESTINATION_NEEDS_CONFIRMATION;
+        if (session.currentState === dialogManager.STATES.WAITING_TIME_SELECTION) {
+          event = dialogManager.EVENTS.TIME_SELECTED;
+        } else {
+          event = dialogManager.EVENTS.DESTINATION_NEEDS_CONFIRMATION;
+        }
       }
     } else if (result.mode === "not_found") {
       event = dialogManager.EVENTS.ERROR;

@@ -1,0 +1,154 @@
+
+> nuvem-front@1.0.0 test
+> jest escolher-horario
+
+  console.log
+    [DateTime] Formatando data local: 18/07/2026, 19:05:15
+
+      at log (src/utils/date-time.ts:36:11)
+
+  console.log
+    [DateTime] Resultado com offset: 2026-07-18T19:05:15-03:00
+
+      at log (src/utils/date-time.ts:37:11)
+
+  console.log
+    [DateTime] Formatando data local: 19/07/2026, 10:30:00
+
+      at log (src/utils/date-time.ts:36:11)
+
+  console.log
+    [DateTime] Resultado com offset: 2026-07-19T10:30:00-03:00
+
+      at log (src/utils/date-time.ts:37:11)
+
+  console.log
+    [DateTime] Formatando data local: 18/07/2026, 16:30:00
+
+      at log (src/utils/date-time.ts:36:11)
+
+  console.log
+    [DateTime] Resultado com offset: 2026-07-18T16:30:00-03:00
+
+      at log (src/utils/date-time.ts:37:11)
+
+  console.log
+    [DateTime] Formatando data local: 19/07/2026, 17:00:00
+
+      at log (src/utils/date-time.ts:36:11)
+
+  console.log
+    [DateTime] Resultado com offset: 2026-07-19T17:00:00-03:00
+
+      at log (src/utils/date-time.ts:37:11)
+
+FAIL src/__tests__/escolher-horario.spec.tsx
+  ChooseTimeScreen
+    ✓ não abre o microfone automaticamente quando interactionMode é texto (28 ms)
+    ✓ preserva origem, destino e interactionMode ao escolher agora por toque (28 ms)
+    ✓ remove a dica central de voz e usa o microfone inferior (4 ms)
+    ✓ mostra transcrição e estado de erro sem card grande (8 ms)
+    ✓ permite abrir o microfone manualmente com um toque (5 ms)
+    ✓ encerra e envia a fala no segundo toque (9 ms)
+    ✓ renderiza os cards de horário de 30 em 30 minutos e permite selecionar (35 ms)
+    ✓ garante que opções rápidas de horário e inputs manuais não aparecem mais (16 ms)
+    ✓ confirma horário de saída usando a nova UI de cards (42 ms)
+    ✓ confirma horário de chegada usando a nova UI de cards (35 ms)
+    ✕ atualiza a UI de cards corretamente quando um intent de voz é recebido (16 ms)
+
+  ● ChooseTimeScreen › atualiza a UI de cards corretamente quando um intent de voz é recebido
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      316 |
+      317 |     const card2000 = screen.getByLabelText("Horário 20:00");
+    > 318 |     expect(card2000.props.accessibilityState.selected).toBe(true);
+          |                                                        ^
+      319 |
+      320 |     expect(router.push).toHaveBeenCalledWith(
+      321 |       expect.objectContaining({
+
+      at Object.toBe (src/__tests__/escolher-horario.spec.tsx:318:56)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+------------------------------------|---------|----------|---------|---------|-----------------------------------------------------
+File                                | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                   
+------------------------------------|---------|----------|---------|---------|-----------------------------------------------------
+All files                           |    9.71 |     7.77 |    8.93 |    9.77 |                                                     
+ components                         |    6.09 |    10.56 |    6.66 |    6.04 |                                                     
+  AssistantLoadingState.tsx         |       0 |        0 |       0 |       0 | 29-135                                              
+  AssistantPresence.tsx             |       0 |        0 |       0 |       0 | 15-104                                              
+  BackButton.tsx                    |       0 |        0 |       0 |       0 | 15-36                                               
+  BottomActionBar.tsx               |       0 |        0 |       0 |       0 | 8-40                                                
+  BottomVoiceMicButton.tsx          |     100 |    83.67 |     100 |     100 | 79-94,107-112,119                                   
+  DestinationCategoryIcon.tsx       |       0 |        0 |       0 |       0 | 7-27                                                
+  ListenOptionsButton.tsx           |       0 |        0 |       0 |       0 | 20-44                                               
+  LiveTranscript.tsx                |       0 |        0 |       0 |       0 | 28-84                                               
+  Map.tsx                           |       0 |        0 |       0 |       0 | 31-363                                              
+  Map.web.tsx                       |       0 |      100 |       0 |       0 | 25-35                                               
+  PrimaryButton.tsx                 |       0 |        0 |       0 |       0 | 22-52                                               
+  RouteStep.tsx                     |       0 |        0 |       0 |       0 | 16-92                                               
+  ScreenContainer.tsx               |       0 |        0 |       0 |       0 | 22-56                                               
+  TextField.tsx                     |       0 |        0 |       0 |       0 | 9-35                                                
+  VoiceOrb.tsx                      |       0 |        0 |       0 |       0 | 22-108                                              
+  VoicePromptText.tsx               |       0 |        0 |       0 |       0 | 16-120                                              
+  VoiceResponseButton.tsx           |       0 |        0 |       0 |       0 | 8-29                                                
+  VoiceVisualizer.tsx               |       0 |        0 |       0 |       0 | 27-179                                              
+ config                             |       0 |        0 |       0 |       0 |                                                     
+  api.config.ts                     |       0 |        0 |       0 |       0 | 9-39                                                
+  sentry.config.ts                  |       0 |        0 |       0 |       0 | 9-65                                                
+  voice.config.ts                   |       0 |      100 |     100 |       0 | 1                                                   
+ constants                          |     100 |      100 |     100 |     100 |                                                     
+  storage.ts                        |     100 |      100 |     100 |     100 |                                                     
+ contexts                           |   19.35 |     12.5 |   14.28 |   19.35 |                                                     
+  AccessibilityContext.tsx          |   19.35 |     12.5 |   14.28 |   19.35 | 34-78,94                                            
+ hooks                              |       0 |        0 |       0 |       0 |                                                     
+  useAutoSpeak.ts                   |       0 |        0 |       0 |       0 | 8-19                                                
+  useAutoSpeakOnce.ts               |       0 |        0 |       0 |       0 | 7-26                                                
+  useConnectivity.ts                |       0 |        0 |       0 |       0 | 12-45                                               
+  useVoiceConversationLoop.ts       |       0 |        0 |       0 |       0 | 13-374                                              
+ onboarding                         |       0 |        0 |       0 |       0 |                                                     
+  OnboardingPagination.tsx          |       0 |        0 |       0 |       0 | 11-34                                               
+  OnboardingSlide.tsx               |       0 |        0 |       0 |       0 | 15-52                                               
+  OnboardingVisual.tsx              |       0 |        0 |       0 |       0 | 14-62                                               
+  onboardingSlides.ts               |       0 |      100 |     100 |       0 | 11                                                  
+ services                           |       0 |        0 |       0 |       0 |                                                     
+  auth.service.ts                   |       0 |      100 |       0 |       0 | 10-40                                               
+  journey.service.ts                |       0 |        0 |       0 |       0 | 15-174                                              
+  location.service.ts               |       0 |        0 |       0 |       0 | 4-53                                                
+  onboardingStorage.ts              |       0 |      100 |       0 |       0 | 3-19                                                
+  session.service.ts                |       0 |        0 |       0 |       0 | 4-117                                               
+  speech.service.ts                 |       0 |        0 |       0 |       0 | 10-417                                              
+  storage.service.ts                |       0 |        0 |       0 |       0 | 5-26                                                
+  user.service.ts                   |       0 |        0 |       0 |       0 | 6-60                                                
+  vibration.service.ts              |       0 |        0 |       0 |       0 | 7-58                                                
+ state                              |       0 |      100 |       0 |       0 |                                                     
+  homeVoiceSession.ts               |       0 |      100 |       0 |       0 | 1-12                                                
+ theme                              |   93.33 |       50 |     100 |   93.33 |                                                     
+  colors.ts                         |   92.85 |       50 |     100 |   92.85 | 107                                                 
+  layout.ts                         |     100 |      100 |     100 |     100 |                                                     
+ types                              |     100 |       75 |     100 |     100 |                                                     
+  auth.types.ts                     |       0 |        0 |       0 |       0 |                                                     
+  interaction.types.ts              |     100 |       75 |     100 |     100 | 4                                                   
+  journey.types.ts                  |       0 |        0 |       0 |       0 |                                                     
+ utils                              |   21.12 |    10.36 |    31.7 |   21.93 |                                                     
+  api.ts                            |       0 |        0 |       0 |       0 | 16-58                                               
+  cache.ts                          |       0 |        0 |       0 |       0 | 11-46                                               
+  date-time.ts                      |   42.33 |    23.45 |   58.33 |   43.75 | 12,69,88,95,147-282                                 
+  destinationCategory.mapper.ts     |       0 |        0 |       0 |       0 | 33-105                                              
+  helpers.ts                        |       0 |        0 |       0 |       0 | 9-78                                                
+  navigationInstructionFormatter.ts |       0 |        0 |       0 |       0 | 23-97                                               
+  network.ts                        |       0 |        0 |       0 |       0 | 5-83                                                
+  polyline.ts                       |       0 |        0 |       0 |       0 | 6-38                                                
+  voiceIntentParser.ts              |   71.11 |    44.44 |     100 |   69.76 | 119,125-126,137,141,145,149,153,157,161,165,170,179 
+  voiceTimeParser.ts                |       0 |        0 |       0 |       0 | 11-133                                              
+------------------------------------|---------|----------|---------|---------|-----------------------------------------------------
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 10 passed, 11 total
+Snapshots:   0 total
+Time:        0.999 s, estimated 1 s
+Ran all test suites matching /escolher-horario/i.

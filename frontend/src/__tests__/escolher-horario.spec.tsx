@@ -127,6 +127,18 @@ jest.mock("../services/vibration.service", () => ({
   },
 }));
 
+jest.mock("../services/journey.service", () => ({
+  journeyService: {
+    resolveDestination: jest.fn().mockResolvedValue({
+      mode: "resolved",
+      scheduling: {
+        time_mode: "DEPART_AT",
+        target_datetime: "2026-07-19T20:00:00-03:00"
+      }
+    })
+  }
+}));
+
 function buildParams(overrides: Record<string, string> = {}) {
   return {
     latitude: "-19.747",
