@@ -72,9 +72,10 @@ export default function ChooseTimeScreen() {
   const isActionDisabled = voiceStatus === "speaking" || voiceStatus === "processing";
 
   const dateOptions = getNext7Days();
+  const startHour = mode === "ARRIVAL" ? 6 : 4;
 
   const timeSlots: string[] = [];
-  for (let i = 4; i < 24; i++) {
+  for (let i = startHour; i < 24; i++) {
     const hr = String(i).padStart(2, "0");
     timeSlots.push(`${hr}:00`, `${hr}:15`, `${hr}:30`, `${hr}:45`);
   }
@@ -227,15 +228,18 @@ export default function ChooseTimeScreen() {
       const hour = selectedDate.getHours();
       const minute = selectedDate.getMinutes();
 
-      if (!isOperationalTime(hour, minute)) {
+      const minOperationalHour = type === "ARRIVAL" ? 6 : 4;
+
+      if (hour < minOperationalHour || hour > 23) {
         vibrationService.error();
+        const alertMsg = type === "ARRIVAL"
+          ? "Horário de chegada indisponível. Escolha um horário entre 06:00 e 23:59."
+          : "Horário de saída indisponível. Escolha um horário entre 04:00 e 23:59.";
+
         if (isFromVoice) {
-          void startLoop("Horário fora de operação. Escolha um horário entre 04:00 e 23:59.");
+          void startLoop(alertMsg);
         } else {
-          Alert.alert(
-            "Horário fora de operação",
-            "Escolha um horário entre 04:00 e 23:59."
-          );
+          Alert.alert("Horário fora de operação", alertMsg);
         }
         return;
       }
