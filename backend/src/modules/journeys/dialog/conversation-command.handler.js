@@ -27,7 +27,7 @@ async function handleCommand({ userId, sessionId, command, payload = {} }) {
   }
 
   const previousState = session.currentState;
-  let nextState = previousState;
+  let nextState;
   let responsePayload = {
     success: true,
     command,
