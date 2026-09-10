@@ -1,4 +1,4 @@
-# RotaBus
+# RotaBus RotaBus
 
 ![Badge](https://img.shields.io/badge/Status-Em_Desenvolvimento-blue)
 ![Architecture](https://img.shields.io/badge/Arquitetura-Monorepo-orange)
