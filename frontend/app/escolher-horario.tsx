@@ -134,7 +134,7 @@ export default function ChooseTimeScreen() {
         }, 150); // wait a bit for modal to finish animating in
       }
     }
-  }, [isModalOpen, mode, timeSlots, width, dateText]);
+  }, [isModalOpen, mode, timeSlots, width, dateText, timeText]);
 
 
   function buildProcessingParams(type: "DEPARTURE" | "ARRIVAL", dateTime: string) {
