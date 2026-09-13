@@ -185,7 +185,7 @@ export default function ProcessingScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [dateTime, destination, destinationLat, destinationLng, getFreshCurrentLocation, latitudeParam, longitudeParam, selectedDestination, sessionId, timeType, updateStep]);
+  }, [dateTime, destination, destinationLat, destinationLng, getFreshCurrentLocation, isVoiceSearch, latitudeParam, longitudeParam, selectedDestination, sessionId, timeType, updateStep]);
 
   function handleCancel() {
     router.replace({
