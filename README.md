@@ -5,7 +5,7 @@
 ![Mobile](https://img.shields.io/badge/Frontend-React_Native_%2F_Expo-black)
 ![Backend](https://img.shields.io/badge/Backend-Node.js_%2F_Express-green)
 
-> ⚠️ **Nota Legal e Uso:** Este repositório é uma vitrine técnica para fins de portfólio e demonstração de arquitetura. O uso comercial, cópia ou distribuição do código para lançamento de apps de terceiros é expressamente **proibido** (veja o arquivo `LICENSE`). Além disso, tentar executar este projeto localmente exige configurações avançadas de infraestrutura (Banco de Dados, Redis, Chaves Privadas do Google Cloud, Sentry, Expo/EAS), que **não** estão incluídas publicamente no código.
+> ⚠️ **Nota Legal e Uso:** Este repositório é uma vitrine técnica para fins de portfólio e demonstração de arquitetura. O uso comercial, cópia ou distribuição do código para lançamento de apps de terceiros é expressamente **proibido** (veja o arquivo `LICENSE`). Além disso, tentar executar este projeto localmente exige configurações avançadas de infraestrutura (Banco de Dados, Redis, Chaves Privadas do Google Cloud, Sentry, Expo/EAS), que **não** estão incluídas publicamente no código.⚠️
 
 O **RotaBus** é um ecossistema de mobilidade urbana construído com foco absoluto em **Acessibilidade, Simplicidade e Desempenho**.
 
