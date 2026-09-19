@@ -223,4 +223,80 @@ describe("JourneyService & SessionId Flow", () => {
     );
     expect(result.summary.totalDurationMin).toBe(45);
   });
+
+  describe("resolveDestination", () => {
+    test("deve resolver destino com sucesso e salvar sessionId", async () => {
+      (request as jest.Mock).mockResolvedValue({
+        destination: { lat: -19, lng: -43 },
+        metadata: { sessionId: "uuid-resolve" }
+      });
+
+      const res = await journeyService.resolveDestination({
+        origin: { lat: 1, lng: 2 },
+        text: "Praça"
+      });
+
+      expect(request).toHaveBeenCalledWith(
+        expect.stringContaining("/journeys/resolve-destination"),
+        expect.objectContaining({
+          body: JSON.stringify({ origin: { lat: 1, lng: 2 }, text: "Praça" })
+        })
+      );
+      expect(res.destination.lat).toBe(-19);
+      expect(sessionService.setSessionId).toHaveBeenCalledWith("uuid-resolve");
+    });
+
+    test("deve limpar sessionId se resolveDestination retornar erro de sessão", async () => {
+      (request as jest.Mock).mockRejectedValue(new Error("Sessão expirada"));
+      await expect(journeyService.resolveDestination({
+        origin: { lat: 1, lng: 2 },
+        text: "Praça"
+      })).rejects.toThrow("Sessão expirada");
+      
+      expect(sessionService.clearSessionId).toHaveBeenCalled();
+    });
+
+    test("deve retornar do cache se houver destino em cache", async () => {
+      const { cache } = require("../utils/cache");
+      (cache.get as jest.Mock).mockResolvedValueOnce({
+        destination: { lat: 10, lng: 20 },
+        cached: true
+      });
+
+      const res = await journeyService.resolveDestination({
+        origin: { lat: 1, lng: 2 },
+        text: "Terminal"
+      });
+
+      expect(res.destination.lat).toBe(10);
+      expect(request).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("planJourney cache and errors", () => {
+    test("deve retornar plano do cache se existir", async () => {
+      const { cache } = require("../utils/cache");
+      (cache.get as jest.Mock).mockResolvedValueOnce({
+        summary: { totalDurationMin: 15 }
+      });
+
+      const res = await journeyService.planJourney({
+        origin: { lat: 1, lng: 2 },
+        destination: { text: "Terminal" }
+      });
+
+      expect(res.summary.totalDurationMin).toBe(15);
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    test("deve limpar sessionId se planJourney retornar erro de sessão", async () => {
+      (request as jest.Mock).mockRejectedValue(new Error("sessão expirada"));
+      await expect(journeyService.planJourney({
+        origin: { lat: 1, lng: 2 },
+        destination: { text: "Terminal" }
+      })).rejects.toThrow("sessão expirada");
+      
+      expect(sessionService.clearSessionId).toHaveBeenCalled();
+    });
+  });
 });

@@ -322,4 +322,83 @@ describe("useVoiceConversationLoop", () => {
     expect(SpeechService.stopSpeaking).toHaveBeenCalled();
     expect(SpeechService.stopListening).toHaveBeenCalled();
   });
+
+  it("trata erro de permissão negada (permission-denied)", async () => {
+    const onIntent = jest.fn();
+    const onRecognitionIssue = jest.fn();
+    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent, onRecognitionIssue }));
+
+    (SpeechService.startListening as jest.Mock).mockImplementation(({ onError }) => {
+      onError({ error: "permission-denied", message: "Permissão negada" });
+    });
+
+    await act(async () => {
+      await result.current.startLoop();
+    });
+
+    expect(onRecognitionIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SPEECH_ERROR", message: "Permissão negada" })
+    );
+    expect(result.current.status).toBe("error");
+    expect(vibrationService.error).toHaveBeenCalled();
+  });
+
+  it("retorna erro caso o reconhecimento de voz não esteja disponível", async () => {
+    const onIntent = jest.fn();
+    const onRecognitionIssue = jest.fn();
+    (SpeechService.isSpeechRecognitionAvailable as jest.Mock).mockReturnValueOnce(false);
+    
+    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent, onRecognitionIssue }));
+
+    await act(async () => {
+      await result.current.startLoop();
+    });
+
+    expect(onRecognitionIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SPEECH_UNAVAILABLE" })
+    );
+    expect(result.current.status).toBe("error");
+  });
+
+  it("trata transcript vazio retornado nativamente", async () => {
+    const onIntent = jest.fn();
+    const onRecognitionIssue = jest.fn();
+    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent, onRecognitionIssue }));
+
+    (SpeechService.startListening as jest.Mock).mockImplementation(({ onResult }) => {
+      onResult("   ", true); // texto vazio após trim
+    });
+
+    await act(async () => {
+      await result.current.startLoop();
+    });
+
+    expect(onRecognitionIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "EMPTY_TRANSCRIPT" })
+    );
+    expect(result.current.status).toBe("error");
+    expect(vibrationService.error).toHaveBeenCalled();
+  });
+
+  it("testa onStart, onEnd e onError para chamadas em background (não ativas)", async () => {
+    const onIntent = jest.fn();
+    const { result } = renderHook(() => useVoiceConversationLoop({ onIntent }));
+    
+    let callbacks: any;
+    (SpeechService.startListening as jest.Mock).mockImplementation((opts) => {
+      callbacks = opts;
+    });
+
+    await act(async () => {
+      await result.current.startLoop();
+    });
+    
+    // Test active callbacks
+    act(() => {
+      callbacks.onStart();
+      callbacks.onEnd();
+    });
+    expect(vibrationService.medium).toHaveBeenCalled();
+    expect(result.current.status).toBe("idle");
+  });
 });
