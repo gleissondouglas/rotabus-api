@@ -55,7 +55,12 @@ function createDailyLimitMiddleware(endpoint, limit, errorMessage, errorCode) {
       next();
     } catch (error) {
       console.error(`[DailyLimit] Erro na verificação (${endpoint}):`, error.message);
-      next();
+      // SEGURANÇA: em caso de falha no banco, bloqueia o acesso em vez de liberar.
+      // Retornar 503 evita que um atacante derrube o banco para bypassar as cotas.
+      return res.status(503).json({
+        error: true,
+        message: "Serviço temporariamente indisponível. Tente novamente em instantes.",
+      });
     }
   }
 }

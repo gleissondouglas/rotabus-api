@@ -63,12 +63,23 @@ async function getBusPosition(lineId, direction = null) {
 
   if (cleanDirection) {
     const dirData = await redisClient.get(`${REDIS_KEY_PREFIX}${cleanLineId}:${cleanDirection}`);
-    if (dirData) return JSON.parse(dirData);
+    if (dirData) {
+      try {
+        return JSON.parse(dirData);
+      } catch {
+        // Dado corrompido no Redis — ignora e tenta a chave geral
+      }
+    }
   }
 
   const data = await redisClient.get(`${REDIS_KEY_PREFIX}${cleanLineId}`);
   if (!data) return null; // Sem passageiros compartilhando ou GPS expirou
-  return JSON.parse(data);
+  try {
+    return JSON.parse(data);
+  } catch {
+    // Dado corrompido no Redis — retorna null como se não houvesse dados
+    return null;
+  }
 }
 
 module.exports = {
