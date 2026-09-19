@@ -38,3 +38,6 @@ frontend/.expo/
 dump.rdb
 MEMORIA-IA.md
 docs/MAPA-CONHECIMENTO-IA.md
+
+# Editor config (personal preferences)
+.vscode/
