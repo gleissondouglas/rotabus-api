@@ -22,7 +22,7 @@
   "type": "commonjs",
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@prisma/client": "^7.10.0",
     "@sentry/node": "^10.55.0",
     "@sentry/profiling-node": "^10.55.0",
     "axios": "^1.14.0",
@@ -46,7 +46,7 @@
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
     "prettier": "^3.9.5",
-    "prisma": "^7.8.0",
+    "prisma": "^7.10.0",
     "supertest": "^7.2.2"
   },
   "repository": {
