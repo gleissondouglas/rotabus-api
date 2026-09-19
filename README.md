@@ -22,7 +22,7 @@ O RotaBus quebra esse paradigma ao oferecer uma **Assistente de Mobilidade Híbr
 
 ## Estrutura do Monorepo
 
-Este repositório principal orquestra todo o projeto e é dividido em duas grandes partes:
+⚠️ Este repositório principal orquestra todo o projeto e é dividido em duas grandes partes ⚠️
 
 1. **[Frontend (App Mobile)](./frontend)**: Desenvolvido em React Native / Expo. Um aplicativo focado em acessibilidade e toques guiados, interface imersiva e limpa. Suporta navegação baseada em escolhas objetivas, abandonando a antiga navegação de IA Generativa por interações rápidas na tela.
 2. **[Backend (API)](./backend)**: Desenvolvido em Node.js (Express), conectando-se a bancos Postgres (via Prisma) e cluster Redis (`ioredis`) para cache massivo. Responsável por traduzir requisições rápidas para a **Google Routes/Places API**, processando regras locais (**Local Intelligence** e **Crowdsourcing**) de forma determinística e com latência mínima. Agora fortemente tipado/testado com **Jest** para segurança da arquitetura. Zero custo com Inteligências Artificiais Generativas.
