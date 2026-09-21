@@ -63,15 +63,17 @@ export default function OnboardingScreen() {
       <View style={[styles.screen, compact && styles.screenCompact]}>
         <View style={styles.topBar}>
           <View style={styles.topSpacer} />
-          <Pressable
-            onPress={finishOnboarding}
-            disabled={isCompleting}
-            style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Pular apresentação"
-          >
-            <Text style={[styles.skipText, { color: theme.primary }]}>Pular</Text>
-          </Pressable>
+          {!isLastSlide && (
+            <Pressable
+              onPress={finishOnboarding}
+              disabled={isCompleting}
+              style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Pular apresentação"
+            >
+              <Text style={[styles.skipText, { color: theme.primary }]}>Pular</Text>
+            </Pressable>
+          )}
         </View>
 
         <ScrollView
@@ -88,7 +90,7 @@ export default function OnboardingScreen() {
 
         <View style={styles.actionsContainer}>
           <View style={styles.actionsContent}>
-            {currentIndex > 0 && (
+            {currentIndex > 0 && !isLastSlide && (
               <Pressable
                 onPress={goBack}
                 style={({ pressed }) => [
@@ -102,10 +104,10 @@ export default function OnboardingScreen() {
               </Pressable>
             )}
             <PrimaryButton
-              title={isLastSlide ? "Começar" : "Próximo"}
+              title={isLastSlide ? "Entrar ou criar conta" : "Próximo"}
               onPress={isLastSlide ? finishOnboarding : goNext}
               isLoading={isCompleting}
-              accessibilityLabel={isLastSlide ? "Finalizar apresentação e começar" : "Ir para próxima página"}
+              accessibilityLabel={isLastSlide ? "Entrar ou criar conta" : "Ir para próxima página"}
               style={styles.primaryButton}
             />
           </View>

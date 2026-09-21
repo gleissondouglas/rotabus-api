@@ -726,7 +726,7 @@ export default function BestRouteScreen() {
         entering={FadeInDown.duration(400).delay(200)} 
         style={styles.bottomActionsShadow}
       >
-        <View style={[styles.bottomActionsContent, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={[styles.bottomActionsContent, { paddingBottom: 16 }]}>
           <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
           <LinearGradient
             colors={[isDark ? 'rgba(1, 16, 48, 0)' : 'rgba(241, 245, 249, 0)', theme.background]}
@@ -735,15 +735,17 @@ export default function BestRouteScreen() {
             pointerEvents="none"
           />
           <PrimaryButton
-            title={isWalkingOnly ? "Iniciar caminhada" : "Iniciar navegação"}
-            onPress={handleStartNavigation}
+            iconName={isFutureTrip ? undefined : "navigate"}
+            title={isFutureTrip ? "Concluir e voltar para o início" : (isWalkingOnly ? "Iniciar caminhada" : "Iniciar navegação")}
+            onPress={isFutureTrip ? () => router.replace("/inicio") : handleStartNavigation}
             disabled={isLoadingCommand}
             isLoading={isLoadingCommand}
-            style={styles.mainButton}
-            accessibilityLabel="Iniciar navegação para esta rota"
+            style={[styles.mainButton, { borderRadius: 100, minHeight: 56, height: 56 }]}
+            accessibilityLabel={isFutureTrip ? "Concluir e voltar para a tela inicial" : "Iniciar navegação para esta rota"}
           />
           <ListenOptionsButton 
-            label="Ouvir resumo"
+            label={isWalkingOnly ? "Ouvir destino" : "Ouvir resumo"}
+            style={{ width: "100%", height: 64 }}
             onPress={handleHearRoute} 
             accessibilityLabel="Ouvir resumo da rota em voz alta"
           />
@@ -1017,22 +1019,20 @@ const styles = StyleSheet.create({
   /* ─── 4. Rodapé fixo ─── */
   bottomActionsShadow: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    left: 16,
+    right: 16,
+    bottom: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 10,
   },
   bottomActionsContent: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    padding: 16,
     gap: 8,
     alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.02)",
+    borderRadius: 32,
     overflow: "hidden",
   },
   mainButton: {

@@ -96,13 +96,6 @@ jest.mock("../components/ScreenContainer", () => ({
 // O jest.mock resolve o path relativo ao arquivo de teste (src/__tests__/).
 // ../components/ daqui aponta para src/components/, que é o mesmo módulo
 // que app/inicio.tsx importa como ../src/components/
-jest.mock("../components/VoiceVisualizer", () => ({
-  VoiceVisualizer: ({ state }: { state: string }) => {
-    const { View: MockView } = jest.requireActual("react-native");
-    return <MockView testID={`voice-visualizer-${state}`} />;
-  },
-}));
-
 jest.mock("../components/VoicePromptText", () => ({
   VoicePromptText: ({ text }: { text: string }) => {
     const { Text: MockText } = jest.requireActual("react-native");

@@ -2,9 +2,15 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import { DestinationCategoryIcon } from '../../../src/components/DestinationCategoryIcon';
 
-jest.mock('../../../src/components/AdaptiveIcon', () => ({
-  AdaptiveIcon: () => <mock-adaptive-icon />,
-}));
+jest.mock('../../../src/components/AdaptiveIcon', () => {
+  return {
+    AdaptiveIcon: () => {
+      const React = require('react');
+      const { View } = require('react-native');
+      return <View testID="mock-adaptive-icon" />;
+    }
+  };
+});
 
 describe('DestinationCategoryIcon', () => {
   it('renders correctly with known category', () => {

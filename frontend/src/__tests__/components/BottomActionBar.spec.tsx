@@ -1,21 +1,35 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { BottomActionBar } from '../../../src/components/BottomActionBar';
-import { logUserInteraction } from '../../../src/utils/devLogger';
+import { logUserInteraction } from "../../../src/utils/devLogger";
+
 
 jest.mock('../../../src/utils/devLogger', () => ({
   logUserInteraction: jest.fn(),
 }));
+
 jest.mock('../../../src/components/BottomVoiceMicButton', () => ({
-  BottomVoiceMicButton: ({ status, label, onPress }: any) => (
-    <mock-bottom-voice-mic-button testID="mic-button" onPress={onPress} status={status} label={label} />
-  ),
+  BottomVoiceMicButton: ({ status, label, onPress }: any) => {
+    const React = require('react');
+    const { Pressable, Text } = require('react-native');
+    return <Pressable testID="mic-button" onPress={onPress}><Text>{label}</Text></Pressable>;
+  }
 }));
+
 jest.mock('../../../src/components/LiquidGlassView', () => ({
-  LiquidGlassView: ({ children }: any) => <mock-liquid-glass>{children}</mock-liquid-glass>,
+  LiquidGlassView: ({ children }: any) => {
+    const React = require('react');
+    const { View } = require('react-native');
+    return <View testID="mock-liquid-glass">{children}</View>;
+  }
 }));
+
 jest.mock('../../../src/components/AdaptiveIcon', () => ({
-  AdaptiveIcon: () => <mock-adaptive-icon />,
+  AdaptiveIcon: () => {
+    const React = require('react');
+    const { View } = require('react-native');
+    return <View testID="mock-adaptive-icon" />;
+  }
 }));
 
 describe('BottomActionBar', () => {

@@ -227,7 +227,7 @@ describe("JourneyService & SessionId Flow", () => {
   describe("resolveDestination", () => {
     test("deve resolver destino com sucesso e salvar sessionId", async () => {
       (request as jest.Mock).mockResolvedValue({
-        destination: { lat: -19, lng: -43 },
+        resolvedDestination: { lat: -19, lng: -43 },
         metadata: { sessionId: "uuid-resolve" }
       });
 
@@ -242,7 +242,7 @@ describe("JourneyService & SessionId Flow", () => {
           body: JSON.stringify({ origin: { lat: 1, lng: 2 }, text: "Praça" })
         })
       );
-      expect(res.destination.lat).toBe(-19);
+      expect(res.resolvedDestination?.lat).toBe(-19);
       expect(sessionService.setSessionId).toHaveBeenCalledWith("uuid-resolve");
     });
 
@@ -259,7 +259,7 @@ describe("JourneyService & SessionId Flow", () => {
     test("deve retornar do cache se houver destino em cache", async () => {
       const { cache } = require("../utils/cache");
       (cache.get as jest.Mock).mockResolvedValueOnce({
-        destination: { lat: 10, lng: 20 },
+        resolvedDestination: { lat: 10, lng: 20 },
         cached: true
       });
 
@@ -268,7 +268,7 @@ describe("JourneyService & SessionId Flow", () => {
         text: "Terminal"
       });
 
-      expect(res.destination.lat).toBe(10);
+      expect(res.resolvedDestination?.lat).toBe(10);
       expect(request).not.toHaveBeenCalled();
     });
   });

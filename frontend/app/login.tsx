@@ -3,12 +3,14 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View, ScrollView } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { Ionicons } from "@expo/vector-icons";
 
 import { BackButton } from "../src/components/BackButton";
 import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { TextField } from "../src/components/TextField";
+import { SocialButton } from "../src/components/SocialButton";
 import { authService } from "../src/services/auth.service";
 import { sessionService } from "../src/services/session.service";
 import { useThemeColors } from "../src/theme/colors";
@@ -18,6 +20,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleLogin() {
     if (!email.trim() || !senha.trim()) {
@@ -27,27 +30,26 @@ export default function LoginScreen() {
 
     try {
       setIsLoading(true);
-
       const response = await authService.login({
         email: email.trim(),
         password: senha,
       });
 
       await sessionService.saveAuthSession(response);
-
       router.replace("/permissoes");
     } catch (error) {
       console.log("Erro completo no login:", error);
-
       Alert.alert(
         "Erro no login",
-        error instanceof Error
-          ? error.message
-          : "Não foi possível fazer login.",
+        error instanceof Error ? error.message : "Não foi possível fazer login.",
       );
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function handleSocialLogin(provider: string) {
+    Alert.alert("Em breve", `Login com ${provider} estará disponível em breve!`);
   }
 
   return (
@@ -62,8 +64,8 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.duration(600)} style={styles.container}>
           <View style={styles.textHeader}>
-            <Text style={styles.title}>Bem-vindo!</Text>
-            <Text style={styles.subtitle}>Faça login para continuar sua viagem</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Bem-vindo!</Text>
+            <Text style={[styles.subtitle, { color: theme.textMuted }]}>Faça login para continuar sua viagem</Text>
           </View>
 
           <View style={styles.cardContent}>
@@ -74,6 +76,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              iconLeft="mail-outline"
               style={styles.input}
             />
 
@@ -81,7 +84,13 @@ export default function LoginScreen() {
               placeholder="Senha"
               value={senha}
               onChangeText={setSenha}
-              secureTextEntry
+              secureTextEntry={!showPassword}
+              iconLeft="lock-closed-outline"
+              iconRight={
+                <Pressable onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }}>
+                  <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={theme.textMuted} />
+                </Pressable>
+              }
               style={styles.input}
             />
 
@@ -93,15 +102,26 @@ export default function LoginScreen() {
             />
 
             <Pressable onPress={() => router.push("/esqueci-senha")} style={{ alignItems: "center", marginTop: 8 }}>
-              <Text style={{ fontSize: 16, color: theme.primary, fontWeight: "600" }}>
+              <Text style={{ fontSize: 15, color: theme.primary, fontWeight: "600" }}>
                 Esqueci minha senha
               </Text>
             </Pressable>
           </View>
 
+          <View style={styles.dividerContainer}>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            <Text style={[styles.dividerText, { color: theme.textMuted }]}>ou continue com</Text>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+          </View>
+
+          <View style={styles.socialContainer}>
+            <SocialButton provider="apple" onPress={() => handleSocialLogin("Apple")} />
+            <SocialButton provider="google" onPress={() => handleSocialLogin("Google")} />
+          </View>
+
           <View style={styles.footer}>
-            <Pressable onPress={() => router.push("/criar-conta")}>
-              <Text style={styles.createAccount}>
+            <Pressable onPress={() => router.replace("/criar-conta")}>
+              <Text style={[styles.createAccount, { color: theme.text }]}>
                 Não tem conta? <Text style={{ color: theme.primary, fontWeight: "800" }}>Criar conta</Text>
               </Text>
             </Pressable>
@@ -121,14 +141,16 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingTop: 8,
+    zIndex: 10,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
     paddingBottom: 40,
+    paddingTop: 20,
   },
   container: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     gap: 32,
   },
   textHeader: {
@@ -138,27 +160,42 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 34,
     fontWeight: "900",
-    color: "#000",
     textAlign: "center",
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 17,
-    color: "#666",
     textAlign: "center",
     fontWeight: "500",
   },
   cardContent: {
     gap: 16,
-    paddingTop: 8,
   },
   input: {
-    marginBottom: 8,
+    // marginBottom is handled by gap
   },
   button: {
     marginTop: 8,
-    height: 64,
-    borderRadius: 32,
+    height: 56, // matching the pill size
+    borderRadius: 28,
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "lowercase",
+  },
+  socialContainer: {
+    width: "100%",
   },
   footer: {
     alignItems: "center",
@@ -167,9 +204,9 @@ const styles = StyleSheet.create({
   createAccount: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#444",
   },
   ttsWrapper: {
-    opacity: 0.8,
+    opacity: 0.9,
   },
 });
+

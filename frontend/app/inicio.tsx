@@ -37,7 +37,6 @@ import type {
   DestinationOption,
   ResolveDestinationResponse,
 } from "../src/types/journey.types";
-import { VoiceVisualizer, type VoiceVisualizerState } from "../src/components/VoiceVisualizer";
 import { VoicePromptText } from "../src/components/VoicePromptText";
 import { BottomActionBar } from "../src/components/BottomActionBar";
 import { FavoritesAndHistoryView } from "../src/components/FavoritesAndHistoryView";
@@ -88,16 +87,6 @@ function normalizeDestinationOptions(response: ResolveDestinationResponse): Dest
     lng: Number.NaN,
     source: "LEGACY_FALLBACK",
   }));
-}
-
-/**
- * Mapeia o status da tela para o estado do VoiceVisualizer.
- */
-function toVisualizerState(status: VoiceScreenStatus): VoiceVisualizerState {
-  if (status === "speaking") return "speaking";
-  if (status === "listening") return "listening";
-  if (status === "processing") return "processing";
-  return "idle";
 }
 
 /**
@@ -736,9 +725,6 @@ export default function HomeScreen() {
           }} />
         ) : (
           <>
-            {/* Barrinhas de áudio animadas */}
-            <VoiceVisualizer state={toVisualizerState(status)} size="large" />
-
         {/* Card unificado: assistente + destino do usuário */}
         {!!promptText && (
           <Animated.View
@@ -763,11 +749,14 @@ export default function HomeScreen() {
                 textStyle={[styles.assistantPromptText, { color: theme.text }]}
               />
 
-              {/* Mensagem do usuário dentro do mesmo card */}
-              {showUserMessage && (
+              {!showUserMessage ? (
+                <Text style={[styles.subtitleHint, { color: theme.textMuted }]}>
+                  Diga ou digite um endereço, ponto de ônibus ou linha...
+                </Text>
+              ) : (
                 <Animated.View
                   entering={FadeInDown.duration(300)}
-                  style={[styles.userMessageInCard, { borderTopColor: theme.border }]}
+                  style={styles.userMessageInCard}
                   testID={isTranscriptFinal ? "live-transcript-final" : "live-transcript-partial"}
                 >
                   <Text style={[styles.userTranscriptText, { color: theme.text }]}>
@@ -778,6 +767,40 @@ export default function HomeScreen() {
                   </Text>
                 </Animated.View>
               )}
+
+              {/* Botões Rápidos */}
+              <View style={styles.quickPillsRow}>
+                <Pressable style={[styles.quickPill, { borderColor: theme.border }]} onPress={() => { setTranscript("Casa"); processTranscription("Casa", false); }}>
+                  <Ionicons name="home-outline" size={16} color={theme.primary} />
+                  <Text style={[styles.quickPillText, { color: theme.primary }]}>Casa</Text>
+                </Pressable>
+                <Pressable style={[styles.quickPill, { borderColor: theme.border }]} onPress={() => { setTranscript("Trabalho"); processTranscription("Trabalho", false); }}>
+                  <Ionicons name="briefcase-outline" size={16} color={theme.primary} />
+                  <Text style={[styles.quickPillText, { color: theme.primary }]}>Trabalho</Text>
+                </Pressable>
+                <Pressable style={[styles.quickPill, { borderColor: theme.border }]} onPress={() => { setTranscript("Uniube"); processTranscription("Uniube", false); }}>
+                  <Ionicons name="school-outline" size={16} color={theme.primary} />
+                  <Text style={[styles.quickPillText, { color: theme.primary }]}>Uniube</Text>
+                </Pressable>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+              {/* Seção Recentes */}
+              <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>RECENTES</Text>
+              
+              <View style={styles.recentList}>
+                <Pressable style={styles.recentItem} onPress={() => { setTranscript("Av. Leopoldino de Oliveira"); processTranscription("Av. Leopoldino de Oliveira", false); }}>
+                  <View style={[styles.recentIcon, { backgroundColor: theme.primary + "1A" }]}>
+                    <Ionicons name="time-outline" size={20} color={theme.primary} />
+                  </View>
+                  <View style={styles.recentTexts}>
+                    <Text style={[styles.recentTitle, { color: theme.text }]} numberOfLines={1}>Av. Leopoldino de Oliveira</Text>
+                    <Text style={[styles.recentSubtitle, { color: theme.textMuted }]} numberOfLines={1}>Centro • Próximo ao Calçadão</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+                </Pressable>
+              </View>
             </LiquidGlassView>
           </Animated.View>
         )}
@@ -961,6 +984,67 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: 8,
     ...APPLE_FONT,
+  },
+  subtitleHint: {
+    fontSize: 16,
+    marginTop: 12,
+    lineHeight: 22,
+    ...APPLE_FONT,
+  },
+  quickPillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 16,
+  },
+  quickPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  quickPillText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  divider: {
+    height: 1,
+    marginVertical: 16,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    marginBottom: 12,
+  },
+  recentList: {
+    gap: 16,
+  },
+  recentItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  recentIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recentTexts: {
+    flex: 1,
+  },
+  recentTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  recentSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
   errorBanner: {
     flexDirection: "row",

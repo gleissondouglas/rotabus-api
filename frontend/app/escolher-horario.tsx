@@ -9,6 +9,7 @@ import {
   View,
   useWindowDimensions,
   Modal,
+  useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -51,6 +52,8 @@ export default function ChooseTimeScreen() {
   const theme = useThemeColors();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   const isSmallHeight = height < 740;
   const latitude = String(params.latitude || "");
@@ -461,7 +464,7 @@ export default function ChooseTimeScreen() {
                   <AdaptiveIcon 
                     iosSymbol={mode === "DEPARTURE" ? "calendar" : "flag"}
                     fallbackFamily="Ionicons"
-                    fallbackName={mode === "DEPARTURE" ? "calendar" : "flag"} 
+                    fallbackName={mode === "DEPARTURE" ? "calendar-outline" : "flag-outline"} 
                     size={28} 
                     color={theme.primary} 
                   />
@@ -528,7 +531,7 @@ export default function ChooseTimeScreen() {
                         }}
                         style={[
                           styles.timeChip,
-                          { backgroundColor: theme.background, borderColor: theme.border },
+                          { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC', borderColor: 'transparent' },
                           isSelected && [styles.timeChipActive, { borderColor: theme.primary, backgroundColor: theme.primaryLight }]
                         ]}
                         accessibilityRole="button"
@@ -679,21 +682,22 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
-    padding: layout.screenHorizontalPadding,
+    padding: layout.screenHorizontalPaddingSmall,
   },
   modalContent: {
-    borderRadius: layout.cardBorderRadius,
-    padding: layout.cardPadding,
-    gap: 20,
+    borderRadius: 32,
+    padding: 24,
+    paddingTop: 32,
+    gap: 24,
     elevation: 10,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.1,
-    shadowRadius: 20,
+    shadowRadius: 24,
   },
   modalHeader: {
     alignItems: "center",
-    gap: 8,
+    gap: 12,
   },
   modalIconBg: {
     width: 64,
@@ -704,20 +708,22 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "900",
+    textAlign: "center",
+    letterSpacing: -0.5,
   },
   modalSubtitle: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "500",
     textAlign: "center",
     lineHeight: 22,
   },
   formGrid: {
-    gap: 12,
+    gap: 16,
   },
   formLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
     marginBottom: 4,
   },
@@ -733,29 +739,29 @@ const styles = StyleSheet.create({
   },
   dateChip: {
     width: 72,
-    height: 72,
-    borderRadius: 16,
-    borderWidth: 1.5,
+    height: 80,
+    borderRadius: 24,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
+    gap: 4,
   },
   dateChipActive: {
     borderWidth: 2,
   },
   dateChipLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
   },
   dateChipDay: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
   },
   timeChip: {
-    height: 72,
-    width: 88,
-    borderRadius: 16,
-    borderWidth: 1.5,
+    height: 52,
+    width: 96,
+    borderRadius: 26,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -763,15 +769,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   timeChipText: {
-    fontSize: 18,
-    fontWeight: "900",
+    fontSize: 17,
+    fontWeight: "800",
   },
   modalActions: {
     gap: 8,
+    marginTop: 8,
   },
   modalConfirmBtn: {
-    height: layout.primaryButtonHeightSmall,
-    borderRadius: layout.buttonBorderRadius,
+    height: 56,
+    borderRadius: 100,
   },
   modalCancelBtn: {
     height: 48,

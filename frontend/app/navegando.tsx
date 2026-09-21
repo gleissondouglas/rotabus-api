@@ -264,7 +264,7 @@ export default function NavigatingScreen() {
   }, [userLocation, stage, globalStepIndex, currentStepIndex, currentGlobalStep, allSteps, destinationMarker, isWalkingOnly, speakControlled, busLine, direction]);
 
   useEffect(() => {
-    if (stage === "waiting_bus" || stage === "on_bus" || stage === "arrived") {
+    if (stage === "waiting_bus" || stage === "arrived") {
       fadeAnim.setValue(0);
       slideAnim.setValue(16);
       scaleAnim.setValue(0.85);
@@ -278,12 +278,7 @@ export default function NavigatingScreen() {
         ]),
         Animated.parallel([
           Animated.timing(buttonFadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-          stage === "on_bus" 
-            ? Animated.sequence([
-                Animated.timing(scaleAnim, { toValue: 1.1, duration: 150, useNativeDriver: true }),
-                Animated.timing(scaleAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-              ])
-            : Animated.delay(0)
+          Animated.delay(0)
         ])
       ]).start();
     }
@@ -724,9 +719,7 @@ export default function NavigatingScreen() {
               <View style={{ gap: 14, alignItems: "center", marginBottom: 24 }}>
                 <Text style={[styles.largeStatusTitle, { color: theme.text }]}>{getStageTitle()}</Text>
                 
-                {stage === "on_bus" && (
-                  <Text style={styles.boardedConfirmation}>Você embarcou no ônibus.</Text>
-                )}
+                
 
                 <Text style={[styles.largeStatusSubtitle, { color: theme.textMuted }]}>
                   {stage === "waiting_bus" 
@@ -786,7 +779,7 @@ export default function NavigatingScreen() {
                   style={StyleSheet.absoluteFillObject}
                 />
               </View>
-              <PrimaryButton title={getPrimaryButtonTitle()} onPress={handleStageTransition} style={styles.mainButton} />
+              <PrimaryButton title={getPrimaryButtonTitle()} onPress={() => handleStageTransition()} style={styles.mainButton} />
             <Pressable 
               style={styles.secondaryActionBtn} 
               onPress={() => speakControlled(formattedInstruction.speechText, true)}
@@ -797,7 +790,7 @@ export default function NavigatingScreen() {
               <Text style={[styles.secondaryActionText, { color: theme.primary }]}>Ouvir instrução</Text>
             </Pressable>
             
-            {(stage === "on_bus" || stage === "arrived") && (
+            {(stage === "arrived") && (
               <Pressable 
                 style={styles.tertiaryActionBtn} 
                 onPress={() => router.replace("/inicio")}
@@ -810,6 +803,105 @@ export default function NavigatingScreen() {
             </View>
           </Animated.View>
         )}
+
+        {/* Bottom Card for Waiting Bus Stage */}
+        {(stage === "waiting_bus") && (
+          <View style={[styles.bottomCardShadow, { bottom: 20 }]} pointerEvents="box-none">
+            <View style={[styles.bottomCardContent, { padding: 16, marginHorizontal: 16, borderRadius: 32 }]}>
+              <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
+
+              {/* Row 1: Header */}
+              <View style={styles.waitingHeaderRow}>
+                <View style={styles.waitingHeaderLeft}>
+                  <View style={styles.checkCircleGreen}>
+                    <Ionicons name="checkmark" size={16} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.waitingTitle, { color: theme.text }]} numberOfLines={2}>Você chegou ao ponto</Text>
+                    <Text style={[styles.waitingSubtitle, { color: theme.textMuted }]} numberOfLines={1}>Aguarde no local • Ônibus a caminho</Text>
+                  </View>
+                </View>
+                <View style={styles.confirmedPill}>
+                  <Text style={styles.confirmedText}>Confirmado</Text>
+                </View>
+              </View>
+
+              {/* Main Info Card */}
+              <View style={[styles.waitingInnerCard, isDark ? { backgroundColor: 'rgba(255,255,255,0.05)' } : { backgroundColor: '#F8FAFC' }]}>
+                {/* Info Top Row */}
+                <View style={styles.waitingInnerTop}>
+                  <View style={styles.waitingBusPill}>
+                    <Ionicons name="bus" size={14} color="#2563EB" />
+                    <Text style={styles.waitingBusPillText}>Linha {busLine}</Text>
+                  </View>
+                  <View style={styles.livePill}>
+                    <View style={styles.greenDot} />
+                    <Text style={styles.liveText}>AO VIVO</Text>
+                  </View>
+                </View>
+
+                {/* Info Middle Row */}
+                <View style={styles.waitingInnerMiddle}>
+                  <View style={{ flex: 1, paddingRight: 16 }}>
+                    <Text style={[styles.waitingDestTitle, { color: theme.text }]} numberOfLines={1}>{lineDetails || "Direção indicada"}</Text>
+                    <Text style={[styles.waitingViaText, { color: theme.textMuted }]} numberOfLines={1}>Via {stopName || "Ponto indicado"}</Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={styles.waitingTimeGiant}>{busCountdown.replace("em ", "")}</Text>
+                    <Text style={[styles.waitingViaText, { color: theme.textMuted }]}>Previsão {new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</Text>
+                  </View>
+                </View>
+
+                {/* Info Bottom Row */}
+                <View style={styles.waitingInnerBottom}>
+                  <Ionicons name="location" size={16} color="#2563EB" style={{ marginTop: 2 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.waitingParadaText, { color: theme.text }]}>
+                      <Text style={{ fontWeight: "700" }}>Parada: </Text>{stopName || "Ponto indicado"}
+                    </Text>
+                    <Text style={[styles.waitingViaText, { color: theme.textMuted, marginTop: 4 }]} numberOfLines={2}>
+                      🚪 Embarque pela porta dianteira • Letreiro frontal
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Actions */}
+              <View style={{ gap: 12, marginTop: 20 }}>
+                <PrimaryButton 
+                  iconName="notifications"
+                  title="Me notifique faltando 2 minutos" 
+                  onPress={() => {
+                     
+                  }} 
+                  style={[styles.mainButton, { borderRadius: 100, minHeight: 56, height: 56 }]} 
+                />
+                
+                <Pressable 
+                  style={({ pressed }) => [
+                    styles.waitingSecondaryBtn, 
+                    isDark ? { borderColor: 'rgba(255,255,255,0.1)' } : { borderColor: theme.border },
+                    pressed && { opacity: 0.7 }
+                  ]}
+                  onPress={() => handleStageTransition()}
+                >
+                  <Text style={[styles.waitingSecondaryText, { color: "#2563EB" }]}>Já entrei no ônibus</Text>
+                </Pressable>
+
+                <Pressable 
+                  style={({ pressed }) => [styles.waitingTertiaryBtn, pressed && { opacity: 0.7 }]}
+                  onPress={() => speakControlled(formattedInstruction.speechText, true)}
+                >
+                  <Ionicons name="volume-high-outline" size={18} color="#2563EB" />
+                  <Text style={[styles.waitingTertiaryText, { color: "#2563EB" }]}>Ouvir status da linha em voz alta</Text>
+                </Pressable>
+              </View>
+
+            </View>
+          </View>
+        )}
+
+        {/* Bottom Card for Walking Stage */}
 
         {/* Bottom Card for Walking Stage */}
         {(stage === "walking") && (
@@ -891,7 +983,78 @@ export default function NavigatingScreen() {
         )}
       </View>
 
+      
+      {/* ON BUS FULL SCREEN OVERLAY */}
+      {stage === "on_bus" && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? theme.background : "#F8FAFC", zIndex: 999, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 24) }]}>
+            {/* Header */}
+            <View style={styles.onBusHeader}>
+              <Pressable onPress={handleSair} style={styles.onBusBackBtn}>
+                <Ionicons name="chevron-back" size={24} color="#2563EB" />
+              </Pressable>
+              <Text style={[styles.onBusHeaderTitle, { color: theme.text }]}>Live Journey Tracking</Text>
+              
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                <Pressable style={styles.onBusHeaderSpeaker} onPress={() => speakControlled(formattedInstruction.speechText, true)}>
+                  <Ionicons name="volume-high" size={16} color="#2563EB" />
+                  <Text style={styles.onBusHeaderSpeakerText}>Ouvir</Text>
+                </Pressable>
+                <View style={styles.onBusHeaderAvatar}>
+                  <Ionicons name="person-outline" size={16} color="#FFFFFF" />
+                </View>
+              </View>
+            </View>
+
+            {/* Content */}
+            <View style={styles.onBusContent}>
+              <View style={styles.onBusIconRings}>
+                <View style={styles.onBusIconRingOuter}>
+                  <View style={styles.onBusIconRingInner}>
+                    <View style={styles.onBusIconSolid}>
+                      <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.onBusBadge}>
+                <Ionicons name="bus" size={16} color="#1E3A8A" />
+                <Text style={styles.onBusBadgeText}>Embarque Confirmado</Text>
+              </View>
+
+              <Text style={[styles.onBusGiantTitle, { color: theme.text }]}>Boa viagem!</Text>
+              
+              <Text style={[styles.onBusDescription, { color: theme.textMuted }]}>
+                Você já está a bordo da <Text style={{ fontWeight: "800", color: theme.text }}>Linha {busLine}</Text>. O RotaBus guiou seus passos com segurança até o ponto.
+              </Text>
+
+              <View style={styles.onBusFeedbackBox}>
+                <Text style={[styles.onBusFeedbackTitle, { color: theme.text }]}>Como foi o trajeto a pé até o ponto?</Text>
+                <Text style={[styles.onBusFeedbackSubtitle, { color: theme.textMuted }]}>Sua avaliação calibra a precisão dos alertas.</Text>
+              </View>
+            </View>
+
+            {/* Bottom Actions */}
+            <View style={styles.onBusBottomActions}>
+              <PrimaryButton 
+                iconName="checkmark-done"
+                title="Concluir e voltar ao início" 
+                onPress={() => router.replace("/inicio")}
+                style={{ borderRadius: 100, minHeight: 64, height: 64, width: "100%" }} 
+              />
+              <Pressable 
+                style={({ pressed }) => [styles.onBusSecondaryBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => speakControlled("Você já está a bordo da Linha. Boa viagem!", true)}
+              >
+                <Ionicons name="volume-high-outline" size={20} color="#2563EB" />
+                <Text style={styles.onBusSecondaryText}>Ouvir aviso de boa viagem</Text>
+              </Pressable>
+            </View>
+        </View>
+      )}
+
       <Modal visible={showExitModal} transparent animationType="fade">
+
         <LiquidGlassView style={styles.modalOverlay} fallbackColor="rgba(0,0,0,0.7)">
           <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Sair da navegação?</Text>
@@ -975,4 +1138,344 @@ const styles = StyleSheet.create({
   modalActions: { width: "100%" },
   confirmExitBtn: { marginTop: 20, paddingVertical: 8, alignSelf: "center" },
   confirmExitText: { color: "#f21515", fontWeight: "800", fontSize: 20 },
+
+  // Novos Estilos do Card Flutuante (Walking)
+  walkingCardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  walkingCardIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    marginRight: 16,
+  },
+  walkingCardMainText: {
+    fontSize: 18,
+    fontWeight: "800",
+    flexShrink: 1,
+  },
+  walkingTimePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  walkingTimeText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  busLineCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  busLineCircleText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  walkingCardSubText: {
+    fontSize: 15,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  walkingStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  greenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10B981",
+  },
+  walkingStatusText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#10B981",
+  },
+  walkingActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  // Novos Estilos do Card Flutuante (Waiting Bus)
+  waitingHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  waitingHeaderLeft: {
+    flexDirection: "row",
+    gap: 12,
+    flex: 1,
+  },
+  checkCircleGreen: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#D1FAE5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  waitingTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    lineHeight: 24,
+  },
+  waitingSubtitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  confirmedPill: {
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  confirmedText: {
+    color: "#059669",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  waitingInnerCard: {
+    borderRadius: 24,
+    padding: 16,
+  },
+  waitingInnerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  waitingBusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
+  },
+  waitingBusPillText: {
+    color: "#2563EB",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  livePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  liveText: {
+    color: "#059669",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  waitingInnerMiddle: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+    paddingBottom: 12,
+    marginBottom: 12,
+  },
+  waitingDestTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  waitingViaText: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  waitingTimeGiant: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#2563EB",
+    lineHeight: 36,
+  },
+  waitingInnerBottom: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  waitingParadaText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  waitingSecondaryBtn: {
+    height: 56,
+    borderRadius: 100,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  waitingSecondaryText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  waitingTertiaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 48,
+  },
+  waitingTertiaryText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+
+  // Novos Estilos Tela Cheia (On Bus)
+  onBusHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  onBusBackBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  onBusHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  onBusHeaderSpeaker: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  onBusHeaderSpeakerText: {
+    color: "#2563EB",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  onBusHeaderAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#1D4ED8",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  onBusContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  onBusIconRings: {
+    marginBottom: 24,
+  },
+  onBusIconRingOuter: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "rgba(59, 130, 246, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  onBusIconRingInner: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(59, 130, 246, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  onBusIconSolid: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#1D4ED8",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  onBusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E0EAFF",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 8,
+    marginBottom: 24,
+  },
+  onBusBadgeText: {
+    color: "#1E3A8A",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  onBusGiantTitle: {
+    fontSize: 40,
+    fontWeight: "900",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  onBusDescription: {
+    fontSize: 18,
+    lineHeight: 26,
+    textAlign: "center",
+    marginBottom: 40,
+    paddingHorizontal: 16,
+  },
+  onBusFeedbackBox: {
+    alignItems: "center",
+  },
+  onBusFeedbackTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  onBusFeedbackSubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  onBusBottomActions: {
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  onBusSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    height: 64,
+    borderRadius: 100,
+    gap: 8,
+  },
+  onBusSecondaryText: {
+    color: "#1E40AF",
+    fontSize: 16,
+    fontWeight: "700",
+  }
+
 });

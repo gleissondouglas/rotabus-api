@@ -12,8 +12,8 @@ jest.mock('@expo/vector-icons', () => ({
 }));
 
 describe('AssistantLoadingState', () => {
-  it('renders title and subtitle', () => {
-    render(<AssistantLoadingState title="Loading" subtitle="Please wait" />);
+  it('renders title and destination', () => {
+    render(<AssistantLoadingState title="Loading" destinationName="Please wait" />);
     expect(screen.getByText('Loading')).toBeTruthy();
     expect(screen.getByText('Please wait')).toBeTruthy();
   });

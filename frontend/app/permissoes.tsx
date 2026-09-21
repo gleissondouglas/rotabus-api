@@ -33,9 +33,7 @@ export default function PermissionsScreen() {
       }
 
       const currentLocation = await locationService.getCurrentLocation();
-
       console.log("Localização atual:", currentLocation);
-
       await sessionService.setHasSeenPermissions(true);
 
       router.push({
@@ -47,7 +45,6 @@ export default function PermissionsScreen() {
       });
     } catch (error) {
       console.log("Erro completo em permissões:", error);
-
       Alert.alert(
         "Erro",
         "Não foi possível acessar sua localização. Tente novamente.",
@@ -61,66 +58,65 @@ export default function PermissionsScreen() {
     <View style={{ flex: 1 }}>
       <BackgroundGradient />
       <ScreenContainer withPadding={false} backgroundColor="transparent">
-
+      <View style={styles.topBar}>
+        <BackButton />
+      </View>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.topBar}>
-          <BackButton />
-        </View>
 
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: "#000" }]}>Precisamos da sua permissão</Text>
-            <Text style={[styles.subtitle, { color: "#666" }]}>
+            <Text style={[styles.title, { color: theme.text }]}>Precisamos da sua permissão</Text>
+            <Text style={[styles.subtitle, { color: theme.textMuted }]}>
               Para te ajudar nas rotas, o RotaBus precisa acessar alguns recursos do seu celular.
             </Text>
           </View>
 
           <View style={styles.cardContent}>
-            <View style={styles.permissionItem}>
-              <View style={[styles.iconContainer, { backgroundColor: "rgba(59, 130, 246, 0.08)" }]}>
-                <MaterialCommunityIcons name="microphone" size={24} color={theme.primary} />
+            
+            <View style={[styles.permissionCard, { backgroundColor: theme.card }]}>
+              <View style={[styles.iconContainer, { backgroundColor: theme.primary + "1A" }]}>
+                <Ionicons name="mic" size={24} color={theme.primary} />
               </View>
               <View style={styles.permissionTextBox}>
-                <Text style={[styles.permissionTitle, { color: theme.text }]}>Microfone</Text>
+                <Text style={[styles.permissionTitle, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>Microfone</Text>
                 <Text style={[styles.permissionDescription, { color: theme.textMuted }]}>
                   Para ouvir o destino que você falar.
                 </Text>
               </View>
-              <Ionicons name="checkmark-circle" size={28} color="#10B981" />
+              <Ionicons name="checkmark-circle" size={26} color="#10B981" />
             </View>
 
-            <View style={[styles.divider, { backgroundColor: "rgba(0,0,0,0.05)" }]} />
-
-            <View style={styles.permissionItem}>
-              <View style={[styles.iconContainer, { backgroundColor: "rgba(59, 130, 246, 0.08)" }]}>
-                <MaterialCommunityIcons name="map-marker" size={24} color={theme.primary} />
+            <View style={[styles.permissionCard, { backgroundColor: theme.card }]}>
+              <View style={[styles.iconContainer, { backgroundColor: theme.primary + "1A" }]}>
+                <Ionicons name="location" size={24} color={theme.primary} />
               </View>
               <View style={styles.permissionTextBox}>
-                <Text style={[styles.permissionTitle, { color: theme.text }]}>Localização</Text>
+                <Text style={[styles.permissionTitle, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>Localização</Text>
                 <Text style={[styles.permissionDescription, { color: theme.textMuted }]}>
-                  Para encontrar o ponto mais próximo.
+                  Para encontrar o ponto mais próximo de você.
                 </Text>
               </View>
-              <Ionicons name="checkmark-circle" size={28} color="#10B981" />
+              <Ionicons name="checkmark-circle" size={26} color="#10B981" />
             </View>
 
-            <View style={[styles.divider, { backgroundColor: "rgba(0,0,0,0.05)" }]} />
-
-            <View style={styles.permissionItem}>
-              <View style={[styles.iconContainer, { backgroundColor: "rgba(59, 130, 246, 0.08)" }]}>
-                <MaterialCommunityIcons name="bell" size={24} color={theme.primary} />
+            <View style={[styles.permissionCard, { backgroundColor: theme.card }]}>
+              <View style={[styles.iconContainer, { backgroundColor: theme.primary + "1A" }]}>
+                <Ionicons name="notifications" size={24} color={theme.primary} />
               </View>
               <View style={styles.permissionTextBox}>
-                <Text style={[styles.permissionTitle, { color: theme.text }]}>Notificações</Text>
+                <Text style={[styles.permissionTitle, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>Notificações</Text>
                 <Text style={[styles.permissionDescription, { color: theme.textMuted }]}>
-                  Para avisar quando o ônibus chegar.
+                  Para avisar quando o ônibus chegar e a hora de descer.
                 </Text>
               </View>
-              <Text style={[styles.optional, { color: "#94A3B8" }]}>Opcional</Text>
+              <View style={[styles.optionalPill, { borderColor: theme.border }]}>
+                <Text style={[styles.optional, { color: theme.textMuted }]}>OPCIONAL</Text>
+              </View>
             </View>
+
           </View>
 
           <View style={styles.footer}>
@@ -131,11 +127,11 @@ export default function PermissionsScreen() {
               style={styles.button}
             />
 
-            <View style={styles.ttsWrapper}>
+            <View style={[styles.ttsWrapper, { borderColor: theme.primary + "33" }]}>
               <ListenOptionsButton textToSpeak="O RotaBus precisa de permissão para usar o microfone, a localização e as notificações. Toque em permitir e continuar." />
             </View>
 
-            <Text style={[styles.note, { color: "#94A3B8" }]}>
+            <Text style={[styles.note, { color: theme.textMuted }]}>
               Você pode alterar essas permissões depois nas configurações do celular.
             </Text>
           </View>
@@ -150,13 +146,15 @@ const styles = StyleSheet.create({
   topBar: {
     paddingHorizontal: 16,
     paddingTop: 8,
+    zIndex: 10,
   },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 40,
+    paddingTop: 10,
   },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     gap: 32,
     marginTop: 8,
   },
@@ -171,25 +169,26 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 17,
+    fontSize: 16,
     textAlign: "center",
     lineHeight: 24,
     fontWeight: "500",
   },
   cardContent: {
-    paddingTop: 8,
-    gap: 8,
+    gap: 16,
   },
-  permissionItem: {
+  permissionCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 24,
   },
   iconContainer: {
     width: 48,
     height: 48,
-    borderRadius: 14,
+    borderRadius: 16, // squircle shape
     alignItems: "center",
     justifyContent: "center",
   },
@@ -197,7 +196,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   permissionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
   },
   permissionDescription: {
@@ -206,31 +205,37 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     lineHeight: 18,
   },
-  optional: {
-    fontSize: 13,
-    fontWeight: "700",
-    textTransform: "uppercase",
+  optionalPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
   },
-  divider: {
-    height: 1,
-    marginVertical: 4,
+  optional: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   footer: {
     alignItems: "center",
-    gap: 24,
+    gap: 20,
   },
   button: {
     width: "100%",
-    height: 64,
-    borderRadius: 32,
+    height: 56,
+    borderRadius: 28,
   },
   ttsWrapper: {
-    opacity: 0.8,
+    borderWidth: 1,
+    borderRadius: 24,
+    overflow: "hidden", // ensures the button inside respects radius if needed
   },
   note: {
-    fontSize: 14,
+    fontSize: 13,
     textAlign: "center",
-    fontWeight: "600",
+    fontWeight: "500",
     paddingHorizontal: 20,
+    lineHeight: 18,
+    opacity: 0.9,
   },
 });

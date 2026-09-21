@@ -1,5 +1,5 @@
 import { speak } from "../services/speech.service";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/colors";
 import { logUserInteraction } from "../utils/devLogger";
@@ -9,6 +9,7 @@ type ListenOptionsButtonProps = {
   onPress?: () => void;
   label?: string;
   accessibilityLabel?: string;
+  style?: ViewStyle | ViewStyle[];
 };
 
 export function ListenOptionsButton({
@@ -16,8 +17,10 @@ export function ListenOptionsButton({
   onPress,
   label = "Ouvir opções",
   accessibilityLabel,
+  style,
 }: ListenOptionsButtonProps) {
   const theme = useThemeColors();
+  const isDark = theme.background === "#0F172A";
 
   function handlePress() {
     logUserInteraction({
@@ -41,7 +44,15 @@ export function ListenOptionsButton({
 
   return (
     <Pressable 
-      style={[styles.button, { backgroundColor: theme.primary + "0D" }]} 
+      style={({ pressed }) => [
+        styles.button, 
+        { 
+          backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9",
+          borderRadius: 100,
+        },
+        style,
+        pressed && { opacity: 0.7 }
+      ]} 
       onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || label}
@@ -57,12 +68,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    height: 64,
+    paddingHorizontal: 24,
     marginTop: 8,
     gap: 8,
-    borderRadius: 20,
   },
   text: {
     fontSize: 16,
