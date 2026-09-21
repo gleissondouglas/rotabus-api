@@ -12,7 +12,7 @@ import {
 
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { ScreenContainer } from "../src/components/ScreenContainer";
-import { AssistantPresence } from "../src/components/AssistantPresence";
+import { Ionicons } from "@expo/vector-icons";
 import { hasSeenOnboarding } from "../src/services/onboardingStorage";
 import { sessionService } from "../src/services/session.service";
 import { speak, stopSpeaking } from "../src/services/speech.service";
@@ -20,7 +20,7 @@ import { useThemeColors } from "../src/theme/colors";
 import { layout } from "../src/theme/layout";
 
 const welcomeMessage =
-  "Bem-vindo ao RotaBus. Encontre sua rota de ônibus falando para onde deseja ir.";
+  "Sua rota começa aqui. Encontre ônibus em tempo real e chegue a qualquer lugar com apenas um toque.";
 
 /**
  * Esta é a tela de entrada (WelcomeScreen). 
@@ -190,19 +190,19 @@ export default function WelcomeScreen() {
             style={[
               styles.assistantVisual,
               isCompact && styles.assistantVisualCompact,
-              { backgroundColor: "rgba(255, 255, 255, 0.4)", opacity: visualOpacity, transform: [{ scale: visualScale }] }]}
+              { opacity: visualOpacity, transform: [{ scale: visualScale }] }]}
           >
-            <AssistantPresence compact={isCompact} />
+            <Ionicons name="bus" size={isCompact ? 120 : 180} color={theme.primary} />
           </Animated.View>
         </View>
 
         <Animated.View style={[styles.textRegion, { opacity: textOpacity }]}>
           <View style={styles.textContent}>
             <Text style={[styles.title, isCompact && styles.titleCompact, { color: theme.text }]} maxFontSizeMultiplier={1.3}>
-              Bem-vindo ao RotaBus
+              Sua rota começa aqui.
             </Text>
             <Text style={[styles.description, { color: theme.textMuted }]} maxFontSizeMultiplier={1.45}>
-              Encontre sua rota de ônibus falando para onde deseja ir.
+              Encontre ônibus em tempo real e chegue a qualquer lugar com apenas um toque.
             </Text>
           </View>
         </Animated.View>

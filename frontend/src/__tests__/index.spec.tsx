@@ -128,15 +128,15 @@ describe("WelcomeScreen", () => {
     const screen = render(<WelcomeScreen />);
 
     await waitFor(() => {
-      expect(screen.getByText("Bem-vindo ao RotaBus")).toBeTruthy();
+      expect(screen.getByText("Sua rota começa aqui.")).toBeTruthy();
     });
 
-    expect(screen.getByText("Encontre sua rota de ônibus falando para onde deseja ir.")).toBeTruthy();
+    expect(screen.getByText("Encontre ônibus em tempo real e chegue a qualquer lugar com apenas um toque.")).toBeTruthy();
     expect(screen.queryByText("Mobilidade por voz")).toBeNull();
     expect(screen.queryByText("Sua assistente de mobilidade por voz.")).toBeNull();
     expect(screen.queryByText("Encontre rotas de ônibus de forma simples.")).toBeNull();
     expect(speak).toHaveBeenCalledWith(
-      "Bem-vindo ao RotaBus. Encontre sua rota de ônibus falando para onde deseja ir.",
+      "Sua rota começa aqui. Encontre ônibus em tempo real e chegue a qualquer lugar com apenas um toque.",
     );
   });
 

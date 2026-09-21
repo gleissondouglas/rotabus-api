@@ -42,10 +42,10 @@ export default function ProcessingScreen() {
   );
 
   const [steps, setSteps] = useState<LoadingStep[]>([
-    { id: '1', label: 'Confirmando destino', status: 'loading' },
-    { id: '2', label: 'Buscando pontos próximos', status: 'pending' },
-    { id: '3', label: 'Verificando ônibus disponíveis', status: 'pending' },
-    { id: '4', label: 'Montando instruções simples', status: 'pending' },
+    { id: '1', label: 'Confirmando destino', description: 'Localização verificada', status: 'loading' },
+    { id: '2', label: 'Buscando pontos próximos', description: 'Encontrando melhores paradas...', status: 'pending' },
+    { id: '3', label: 'Verificando ônibus disponíveis', description: 'Consultando horários em tempo real...', status: 'pending' },
+    { id: '4', label: 'Montando instruções simples', description: 'Passo a passo com alertas de descida', status: 'pending' },
   ]);
 
   const updateStep = useCallback((id: string, status: 'loading' | 'completed') => {
@@ -201,7 +201,7 @@ export default function ProcessingScreen() {
         <View style={[styles.content, { paddingHorizontal: isSmallHeight ? layout.screenHorizontalPaddingSmall : layout.screenHorizontalPadding }]}>
           <AssistantLoadingState
             title="Buscando a melhor rota"
-            subtitle={`Estamos encontrando o melhor caminho até ${destination}.`}
+            destinationName={destination}
             steps={steps}
           />
         </View>
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonContent: {
     width: "100%",
-    borderRadius: layout.buttonBorderRadius,
+    borderRadius: 100,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

@@ -1,4 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { useThemeColors } from "../theme/colors";
 import { logUserInteraction } from "../utils/devLogger";
@@ -12,6 +13,7 @@ type PrimaryButtonProps = {
   accessibilityLabel?: string;
   actionDescription?: string;
   fileOrScreen?: string;
+  iconName?: keyof typeof Ionicons.glyphMap;
 };
 
 export function PrimaryButton({
@@ -23,6 +25,7 @@ export function PrimaryButton({
   accessibilityLabel,
   actionDescription,
   fileOrScreen,
+  iconName,
 }: PrimaryButtonProps) {
   const theme = useThemeColors();
   const isDisabled = disabled || isLoading;
@@ -53,12 +56,17 @@ export function PrimaryButton({
       {isLoading ? (
         <ActivityIndicator color={theme.white} />
       ) : (
-        <Text 
-          style={[styles.text, { color: theme.white }]}
-          maxFontSizeMultiplier={1.5}
-        >
-          {title}
-        </Text>
+        <>
+          {iconName && (
+            <Ionicons name={iconName} size={20} color={theme.white} style={styles.icon} />
+          )}
+          <Text 
+            style={[styles.text, { color: theme.white }]}
+            maxFontSizeMultiplier={1.5}
+          >
+            {title}
+          </Text>
+        </>
       )}
     </Pressable>
   );
@@ -77,6 +85,9 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  icon: {
+    marginRight: 8,
   },
   text: {
     fontSize: 18,

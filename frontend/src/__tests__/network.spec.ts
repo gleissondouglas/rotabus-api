@@ -84,14 +84,16 @@ describe("network util", () => {
         API_BASE_URL: "https://api.rotabus.com"
       }));
 
-      // Sobrescrever global.__DEV__ temporariamente
+      // @ts-ignore
       const prevDev = global.__DEV__;
+      // @ts-ignore
       global.__DEV__ = false;
 
       const { isConnected: isConnectedLocal } = require("../utils/network");
       const result = await isConnectedLocal();
       expect(result).toBe(false); // isInternetReachable is false, isConnected is true => false
 
+      // @ts-ignore
       global.__DEV__ = prevDev;
     });
   });

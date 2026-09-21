@@ -10,8 +10,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   TextInput,
+  ScrollView,
+  useColorScheme,
 } from "react-native";
-import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
+import { Ionicons } from "@expo/vector-icons";
+import Animated, { FadeInUp, FadeInDown, ZoomIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { journeyService } from "../src/services/journey.service";
@@ -20,12 +23,12 @@ import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
 import { vibrationService } from "../src/services/vibration.service";
 import { useThemeColors } from "../src/theme/colors";
 import { layout } from "../src/theme/layout";
-import { LiquidGlassView } from "../src/components/LiquidGlassView";
 
 export default function TypeDestinationScreen() {
   const params = useLocalSearchParams();
   const theme = useThemeColors();
   const insets = useSafeAreaInsets();
+  const isDark = useColorScheme() === 'dark';
 
   const latitude = String(params.latitude || "");
   const longitude = String(params.longitude || "");
@@ -33,6 +36,7 @@ export default function TypeDestinationScreen() {
   const [address, setAddress] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
 
   const inputRef = useRef<any>(null);
 
@@ -50,8 +54,12 @@ export default function TypeDestinationScreen() {
 
   const isInputValid = address.trim().length >= 3;
 
-  const handleConfirm = usePreventDoublePress(async function () {
-    if (!isInputValid) {
+  const quickOptions = ["Trabalho", "Casa", "Centro", "Terminal", "Shopping"];
+
+  const handleConfirm = usePreventDoublePress(async function (customAddress?: string) {
+    const targetAddress = typeof customAddress === "string" ? customAddress : address;
+
+    if (targetAddress.trim().length < 3) {
       vibrationService.error();
       setErrorText("Digite pelo menos 3 letras do destino.");
       return;
@@ -65,7 +73,7 @@ export default function TypeDestinationScreen() {
       sessionService.clearSessionId();
 
       const response = await journeyService.resolveDestination({
-        text: address,
+        text: targetAddress,
         origin: {
           lat: Number(latitude),
           lng: Number(longitude),
@@ -145,27 +153,37 @@ export default function TypeDestinationScreen() {
       style={styles.screen}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {/* Overlay escuro semitransparente atrás do sheet */}
       <Pressable style={styles.overlay} onPress={handleCancel} />
 
-      {/* Bottom sheet com suporte a Liquid Glass na content area separada da shadow */}
       <Animated.View
-        entering={FadeInDown.duration(300).springify()}
-        style={styles.sheetShadow}
+        entering={ZoomIn.duration(300).springify()}
+        style={[styles.modalContainer, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}
       >
-        <View style={[styles.sheetContent, { paddingBottom: insets.bottom + 16 }]}>
-          <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
-          
-          {/* Handle bar */}
-          <View style={[styles.handle, { backgroundColor: theme.border }]} />
+        {/* Icone do topo */}
+        <View style={styles.iconContainer}>
+          <View style={styles.iconBackground}>
+            <Ionicons name="bus" size={28} color="#007AFF" />
+          </View>
+        </View>
 
-          {/* Campo de texto */}
+        {/* Textos */}
+        <Text style={[styles.title, { color: theme.text }]}>Destino</Text>
+        <Text style={[styles.subtitle, { color: theme.textMuted }]}>
+          Informe para onde você deseja ir
+        </Text>
+
+        {/* Input */}
+        <View
+          style={[
+            styles.inputWrapper,
+            isFocused && styles.inputWrapperFocused,
+            errorText ? { borderColor: theme.danger } : null,
+          ]}
+        >
+          <Ionicons name="location-outline" size={20} color={isFocused ? "#007AFF" : theme.textMuted} style={styles.inputIcon} />
           <TextInput
             ref={inputRef}
-            style={[
-              styles.input,
-              { backgroundColor: theme.background, color: theme.text },
-              errorText ? { borderColor: theme.danger, backgroundColor: 'transparent' } : null]}
+            style={[styles.input, { color: theme.text }]}
             placeholder="Digite o destino"
             placeholderTextColor={theme.textMuted}
             value={address}
@@ -173,63 +191,83 @@ export default function TypeDestinationScreen() {
               setAddress(text);
               if (errorText) setErrorText("");
             }}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             returnKeyType="search"
-            onSubmitEditing={handleConfirm}
+            onSubmitEditing={() => handleConfirm()}
             autoCorrect={false}
             autoCapitalize="words"
             editable={!isLoading}
+            selectionColor="#007AFF"
             accessibilityLabel="Campo de destino"
             accessibilityHint="Digite o nome do lugar para onde deseja ir"
           />
+        </View>
 
-          {/* Mensagem de erro */}
-          {!!errorText && (
-            <Animated.Text
-              entering={FadeInUp.duration(200)}
-              style={[styles.errorText, { color: theme.danger }]}
-              accessibilityRole="alert"
-            >
-              {errorText}
-            </Animated.Text>
-          )}
+        {/* Mensagem de erro */}
+        {!!errorText && (
+          <Animated.Text
+            entering={FadeInUp.duration(200)}
+            style={[styles.errorText, { color: theme.danger }]}
+            accessibilityRole="alert"
+          >
+            {errorText}
+          </Animated.Text>
+        )}
 
-          {/* Botões lado a lado */}
-          <View style={styles.buttonsRow}>
-            {/* Cancelar */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.btn,
-                { backgroundColor: theme.primaryLight },
-                pressed && { opacity: 0.7 },
-                isLoading && { opacity: 0.4 }]}
-              onPress={handleCancel}
-              disabled={isLoading}
-              accessibilityRole="button"
-              accessibilityLabel="Cancelar e voltar"
-            >
-              <Text style={[styles.btnCancelText, { color: theme.primaryDark }]}>Cancelar</Text>
-            </Pressable>
-            {/* Confirmar */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.btn,
-                styles.btnConfirm,
-                { backgroundColor: theme.primary },
-                (pressed || (!isInputValid && !isLoading)) && { opacity: 0.65 }]}
-              onPress={handleConfirm}
-              disabled={isLoading}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isLoading ? "Buscando destino..." : "Confirmar e buscar destino"
-              }
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color={theme.white} />
-              ) : (
-                <Text style={[styles.btnConfirmText, { color: theme.white }]}>Confirmar</Text>
-              )}
-            </Pressable>
-          </View>
+        {/* Atalhos Rápidos */}
+        <View style={styles.quickOptionsWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickOptionsScroll}
+            keyboardShouldPersistTaps="always"
+          >
+            {quickOptions.map((option) => (
+              <Pressable
+                key={option}
+                style={[styles.quickPill, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF' }]}
+                onPress={() => {
+                  setAddress(option);
+                  handleConfirm(option);
+                }}
+              >
+                <Text style={[styles.quickPillText, { color: theme.text }]}>{option}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Botões */}
+        <View style={styles.buttonsRow}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.btn,
+              styles.btnCancel,
+              pressed && { opacity: 0.7 },
+              isLoading && { opacity: 0.4 }]}
+            onPress={handleCancel}
+            disabled={isLoading}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.btnCancelText, { color: theme.text }]}>Cancelar</Text>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.btn,
+              styles.btnConfirm,
+              (pressed || (!isInputValid && !isLoading)) && { opacity: 0.7 }]}
+            onPress={() => handleConfirm()}
+            disabled={isLoading}
+            accessibilityRole="button"
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.btnConfirmText}>Confirmar</Text>
+            )}
+          </Pressable>
         </View>
       </Animated.View>
     </KeyboardAvoidingView>
@@ -239,76 +277,131 @@ export default function TypeDestinationScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "transparent",
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.2)",
   },
-  sheetShadow: {
+  modalContainer: {
+    width: "90%",
+    maxWidth: 400,
+    borderRadius: 32,
+    padding: 24,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  sheetContent: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-    gap: 14,
-    overflow: "hidden",
+  iconContainer: {
+    alignItems: "center",
+    marginBottom: 16,
   },
-  handle: {
-    alignSelf: "center",
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    marginBottom: 4,
-  },
-  input: {
+  iconBackground: {
+    width: 56,
     height: 56,
     borderRadius: 16,
-    paddingHorizontal: 18,
-    fontSize: 17,
-    fontWeight: "600",
+    backgroundColor: "rgba(0, 122, 255, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 56,
+    borderRadius: 28,
     borderWidth: 1.5,
-    borderColor: "transparent",
+    borderColor: "rgba(0,0,0,0.1)",
+    backgroundColor: "transparent",
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  inputWrapperFocused: {
+    borderColor: "#007AFF",
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "500",
+    height: "100%",
   },
   errorText: {
     fontSize: 13,
-    fontWeight: "700",
-    marginTop: -6,
-    paddingHorizontal: 4,
+    fontWeight: "600",
+    marginTop: -8,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  quickOptionsWrapper: {
+    marginHorizontal: -24, // Para a rolagem ir até a borda
+    marginBottom: 24,
+  },
+  quickOptionsScroll: {
+    paddingHorizontal: 24,
+    gap: 8,
+  },
+  quickPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  quickPillText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   buttonsRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
   },
   btn: {
     flex: 1,
-    height: layout.primaryButtonHeight,
-    borderRadius: layout.buttonBorderRadius,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
   },
+  btnCancel: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
   btnCancelText: {
-    fontSize: 17,
-    fontWeight: "800",
-    letterSpacing: -0.2,
+    fontSize: 16,
+    fontWeight: "700",
   },
   btnConfirm: {
-    shadowColor: "#2563EB",
+    backgroundColor: "#007AFF",
+    shadowColor: "#007AFF",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   btnConfirmText: {
-    fontSize: 17,
-    fontWeight: "800",
-    letterSpacing: -0.2,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });

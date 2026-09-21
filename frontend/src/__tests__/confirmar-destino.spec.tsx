@@ -395,8 +395,8 @@ describe("ConfirmDestinationScreen", () => {
         return fallback;
       });
 
-      const { getByText } = render(<ConfirmDestinationScreen />);
-      expect(getByText("Hospital de Clínicas")).toBeTruthy();
+      const { getByText, getAllByText } = render(<ConfirmDestinationScreen />);
+      expect(getAllByText("Hospital de Clínicas").length).toBeGreaterThan(0);
       expect(getByText("Av. Getúlio Guaritá, s/n")).toBeTruthy();
     });
 

@@ -93,6 +93,9 @@ module.exports = {
             usesCleartextTraffic: process.env.NODE_ENV !== "production",
             memoryMaxHeapSize: "2048M",
           },
+          ios: {
+            deploymentTarget: "15.1",
+          },
         },
       ],
     ],

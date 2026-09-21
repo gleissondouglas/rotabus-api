@@ -115,11 +115,10 @@ const CarouselCardItem = ({
       <Pressable
         style={({ pressed }) => [
           styles.destCard,
-          { minHeight: cardMinHeight, padding: 0, overflow: 'hidden', borderWidth: isCurrent ? 2 : 1, borderColor: isCurrent ? '#3B82F6' : (isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0'), borderRadius: 24 },
+          { minHeight: cardMinHeight, padding: 0, overflow: 'hidden', borderWidth: isCurrent ? 2 : 1, borderColor: isCurrent ? '#007AFF' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)'), borderRadius: 32 },
           isCurrent && styles.destCardActive,
           isDark && {
-            backgroundColor: isCurrent ? 'rgba(30, 41, 59, 1)' : 'rgba(30, 41, 59, 0.75)',
-            borderColor: isCurrent ? '#3B82F6' : 'rgba(255, 255, 255, 0.12)',
+            borderColor: isCurrent ? '#007AFF' : 'rgba(255, 255, 255, 0.12)',
           },
           (pressed || isActionDisabled) && { opacity: 0.8, transform: [{ scale: 0.99 }] }]}
         disabled={isActionDisabled}
@@ -127,9 +126,11 @@ const CarouselCardItem = ({
         accessibilityRole="button"
         accessibilityLabel={`Selecionar ${index + 1}: ${option.name}, ${option.address}`}
       >
+        <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
+        
         <View style={{ flex: 1 }}>
           {/* Mapa Snapshot no topo */}
-          <View style={{ height: 140, width: '100%', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9', position: 'relative' }}>
+          <View style={{ height: 160, width: '100%', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9', position: 'relative' }}>
             {hasCoordinates ? (
               <MapView
                 style={StyleSheet.absoluteFillObject}
@@ -146,7 +147,7 @@ const CarouselCardItem = ({
                 pointerEvents="none"
               >
                 <Marker coordinate={{ latitude: Number(option.lat), longitude: Number(option.lng) }}>
-                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#3B82F6', borderWidth: 2, borderColor: '#fff' }} />
+                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#007AFF', borderWidth: 2, borderColor: '#fff' }} />
                 </Marker>
               </MapView>
             ) : (
@@ -156,68 +157,60 @@ const CarouselCardItem = ({
             )}
             
             {/* Overlay: Badge Opção (Top Left) e Ponto Confirmado (Top Right) */}
-            <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: isCurrent ? '#3B82F6' : '#fff', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
-               <Text style={{ fontSize: 12, fontWeight: '800', color: isCurrent ? '#fff' : '#0F172A' }}>Opção {index + 1} de {optionsLength}</Text>
-               {isCurrent && <Ionicons name="checkmark-circle" size={14} color="#fff" style={{ marginLeft: 6 }} />}
+            <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: isCurrent ? '#007AFF' : '#fff', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+               <Text style={{ fontSize: 13, fontWeight: '700', color: isCurrent ? '#fff' : '#0F172A' }}>Opção {index + 1} de {optionsLength}</Text>
+               {isCurrent && <Ionicons name="checkmark" size={16} color="#fff" style={{ marginLeft: 6 }} />}
             </View>
 
-            <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
-               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: hasCoordinates ? '#10B981' : '#F59E0B', marginRight: 6 }} />
-               <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F172A' }}>{hasCoordinates ? "Confirmado" : "Pendente"}</Text>
+            <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: hasCoordinates ? '#10B981' : '#F59E0B', marginRight: 6 }} />
+               <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{hasCoordinates ? "Confirmado" : "Pendente"}</Text>
             </View>
 
-            <View style={{ position: 'absolute', bottom: 12, left: 12, backgroundColor: '#1E293B', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center' }}>
-               <Ionicons name="location" size={12} color="#fff" />
-               <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff', marginLeft: 4 }}>{city}</Text>
+            <View style={{ position: 'absolute', bottom: 12, left: 12, backgroundColor: '#1E293B', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center' }}>
+               <Ionicons name="location" size={14} color="#fff" />
+               <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff', marginLeft: 4 }}>{city}</Text>
             </View>
           </View>
 
           <View style={{ padding: 20 }}>
             {/* Ícone e Nome */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
                 <DestinationCategoryIcon category={optionCategory} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 2 }} numberOfLines={1}>
+              <View style={{ flex: 1, marginTop: 2 }}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: theme.text, marginBottom: 4 }} numberOfLines={1}>
                   {option.name}
                 </Text>
-                <Text style={{ fontSize: 14, fontWeight: '500', color: theme.textMuted }} numberOfLines={1}>
+                <Text style={{ fontSize: 15, fontWeight: '500', color: theme.textMuted }} numberOfLines={1}>
                   {addressDetails.main}
                 </Text>
                 {!!addressDetails.area && (
-                  <Text style={{ fontSize: 13, fontWeight: '400', color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
+                  <Text style={{ fontSize: 14, fontWeight: '400', color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
                     {addressDetails.area}
                   </Text>
                 )}
               </View>
             </View>
 
-            {/* Divisor */}
-            <View style={{ height: 1, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0', marginVertical: 16 }} />
-
-            {/* Validação */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                <Ionicons name="business-outline" size={18} color={theme.textMuted} />
-                <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted }} numberOfLines={1}>{city}</Text>
+            {/* Tags de validação e categorias (Em row pills) */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                <Ionicons name="business-outline" size={14} color={theme.textMuted} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: theme.textMuted, marginLeft: 4 }}>{city}</Text>
               </View>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>{getDestinationCategoryLabel(optionCategory)}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                  <Ionicons name="checkmark" size={14} color="#10B981" />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981', marginLeft: 4 }}>Validado</Text>
-                </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#007AFF' }}>{getDestinationCategoryLabel(optionCategory)}</Text>
               </View>
             </View>
+
             
             {/* Aviso (Opcional no carrossel, mostra se selecionado) */}
             {isCurrent && (
-              <View style={{ flexDirection: 'row', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7', borderWidth: 1, borderRadius: 12, padding: 12 }}>
-                <Ionicons name="alert-circle" size={18} color="#D97706" style={{ marginTop: 2 }} />
-                <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: "#D97706", marginLeft: 8, lineHeight: 18 }}>
+              <View style={{ flexDirection: 'row', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FCD34D', borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 16 }}>
+                <Ionicons name="alert-circle" size={20} color="#D97706" style={{ marginTop: 2 }} />
+                <Text style={{ flex: 1, fontSize: 14, fontWeight: '500', color: "#B45309", marginLeft: 10, lineHeight: 20 }}>
                   Confira o número predial e referências próximas antes de iniciar o deslocamento.
                 </Text>
               </View>
@@ -558,14 +551,15 @@ export default function ConfirmDestinationScreen() {
               entering={FadeInUp.delay(150).duration(400)}
               style={[
                 styles.destCard,
-                { padding: 0, overflow: 'hidden', width: singleCardWidth, alignSelf: "center", borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0', borderRadius: 24 },
+                { padding: 0, overflow: 'hidden', width: singleCardWidth, alignSelf: "center", borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)', borderRadius: 32 },
                 isDark && {
-                  backgroundColor: 'rgba(30, 41, 59, 1)',
                   borderColor: 'rgba(255, 255, 255, 0.12)',
                 }]}
             >
+              <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
+
               {/* Mapa Snapshot no topo */}
-              <View style={{ height: 140, width: '100%', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9', position: 'relative' }}>
+              <View style={{ height: 160, width: '100%', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9', position: 'relative' }}>
                 {activeHasCoordinates ? (
                   <MapView
                     style={StyleSheet.absoluteFillObject}
@@ -582,7 +576,7 @@ export default function ConfirmDestinationScreen() {
                     pointerEvents="none"
                   >
                     <Marker coordinate={{ latitude: Number(activeDestination.lat), longitude: Number(activeDestination.lng) }}>
-                      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#3B82F6', borderWidth: 2, borderColor: '#fff' }} />
+                      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#007AFF', borderWidth: 2, borderColor: '#fff' }} />
                     </Marker>
                   </MapView>
                 ) : (
@@ -592,71 +586,67 @@ export default function ConfirmDestinationScreen() {
                 )}
                 
                 {/* Overlays do mapa */}
-                <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
-                   <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginRight: 6 }} />
-                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F172A' }}>Ponto confirmado</Text>
+                <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981', marginRight: 6 }} />
+                   <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>Ponto confirmado</Text>
                 </View>
 
-                <View style={{ position: 'absolute', bottom: 12, left: 12, backgroundColor: '#1E293B', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center' }}>
-                   <Ionicons name="location" size={12} color="#fff" />
-                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff', marginLeft: 4 }}>{city}</Text>
+                <View style={{ position: 'absolute', bottom: 12, left: 12, backgroundColor: '#1E293B', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center' }}>
+                   <Ionicons name="location" size={14} color="#fff" />
+                   <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff', marginLeft: 4 }}>{city}</Text>
+                </View>
+
+                <View style={{ position: 'absolute', bottom: 12, right: 12, backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+                   <DestinationCategoryIcon category={activeDestinationCategory} size="small" />
+                   <Text style={{ fontSize: 12, fontWeight: '600', color: '#0F172A', marginLeft: 4 }}>{activeDestinationName.split('-')[0].trim()}</Text>
                 </View>
               </View>
 
               <View style={{ padding: 20 }}>
                 {/* Ícone e Nome */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
-                    <DestinationCategoryIcon category={activeDestinationCategory} />
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14 }}>
+                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
+                    <DestinationCategoryIcon category={activeDestinationCategory} size="small" />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 2 }} numberOfLines={1}>
+                  <View style={{ flex: 1, marginTop: 2 }}>
+                    <Text style={{ fontSize: 20, fontWeight: '800', color: theme.text, marginBottom: 4 }} numberOfLines={1}>
                       {activeDestinationName}
                     </Text>
-                    <Text style={{ fontSize: 14, fontWeight: '500', color: theme.textMuted }} numberOfLines={1}>
+                    <Text style={{ fontSize: 15, fontWeight: '500', color: theme.textMuted }} numberOfLines={1}>
                       {activeAddressDetails.main}
                     </Text>
                     {!!activeAddressDetails.area && (
-                      <Text style={{ fontSize: 13, fontWeight: '400', color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
+                      <Text style={{ fontSize: 14, fontWeight: '400', color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
                         {activeAddressDetails.area}
                       </Text>
                     )}
                   </View>
                 </View>
 
-                {/* Divisor */}
-                <View style={{ height: 1, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0', marginVertical: 16 }} />
-
-                {/* Validação */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                    <Ionicons name="business-outline" size={18} color={theme.textMuted} />
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted }} numberOfLines={1}>{city}</Text>
+                {/* Tags de validação e categorias */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                    <Ionicons name="business-outline" size={14} color={theme.textMuted} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: theme.textMuted, marginLeft: 4 }}>{city}</Text>
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>{getDestinationCategoryLabel(activeDestinationCategory)}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                      <Ionicons name="checkmark" size={14} color="#10B981" />
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981', marginLeft: 4 }}>Validado</Text>
-                    </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#007AFF' }}>{getDestinationCategoryLabel(activeDestinationCategory)}</Text>
                   </View>
                 </View>
 
                 {/* Alerta */}
-                <View style={{ flexDirection: 'row', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 20 }}>
-                  <Ionicons name="alert-circle" size={18} color="#D97706" style={{ marginTop: 2 }} />
-                  <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: "#D97706", marginLeft: 8, lineHeight: 18 }}>
+                <View style={{ flexDirection: 'row', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FCD34D', borderWidth: 1, borderRadius: 16, padding: 16, marginVertical: 20 }}>
+                  <Ionicons name="alert-circle" size={20} color="#D97706" style={{ marginTop: 2 }} />
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '500', color: "#B45309", marginLeft: 10, lineHeight: 20 }}>
                     Confira o número predial e referências próximas antes de iniciar o deslocamento.
                   </Text>
                 </View>
 
                 {/* Botões secundários */}
                 <View style={{ flexDirection: 'row', gap: 12 }}>
-                  <Pressable style={({ pressed }) => [{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#E2E8F0' }, pressed && { opacity: 0.7 }]} onPress={() => router.back()}>
+                  <Pressable style={({ pressed }) => [{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 26, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }, pressed && { opacity: 0.7 }]} onPress={() => router.back()}>
                     <Ionicons name="pencil-outline" size={18} color={theme.text} />
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>Alterar</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: theme.text }}>Alterar</Text>
                   </Pressable>
                 </View>
               </View>
@@ -761,11 +751,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // ─── VoiceVisualizer ────────────────────────────────────────────────
-  visualizerWrapper: {
-    alignItems: "center",
-    marginBottom: 2,
-  },
 
   // ─── Carrossel ──────────────────────────────────────────────────────
   carouselWrapper: {
