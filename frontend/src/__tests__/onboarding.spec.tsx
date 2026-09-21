@@ -84,8 +84,8 @@ describe("OnboardingScreen", () => {
     fireEvent.press(screen.getByLabelText("Ir para próxima página"));
     fireEvent.press(screen.getByLabelText("Ir para próxima página"));
 
-    expect(screen.getByText("Escolha e siga sua rota")).toBeTruthy();
-    fireEvent.press(screen.getByLabelText("Finalizar apresentação e começar"));
+    expect(screen.getByText("Sua rota começa aqui.")).toBeTruthy();
+    fireEvent.press(screen.getByText("Entrar ou criar conta"));
 
     await waitFor(() => expect(mockedCompleteOnboarding).toHaveBeenCalled());
     expect(router.replace).toHaveBeenCalledWith("/");

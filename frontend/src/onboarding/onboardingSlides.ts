@@ -24,8 +24,8 @@ export const onboardingSlides: OnboardingSlideData[] = [
   },
   {
     id: "route",
-    title: "Escolha e siga sua rota",
-    description: "Confirme o destino, escolha o horário e veja a melhor rota para chegar.",
-    visual: "route",
+    title: "Sua rota começa aqui.",
+    description: "Encontre ônibus em tempo real e chegue a qualquer lugar com apenas um toque.",
+    visual: "assistant",
   },
 ];

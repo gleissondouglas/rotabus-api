@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
-import { AssistantPresence } from "../components/AssistantPresence";
+import { LiquidGlassView } from "../components/LiquidGlassView";
 import { useThemeColors } from "../theme/colors";
 import { OnboardingVisualType } from "./onboardingSlides";
 
@@ -13,106 +13,76 @@ type Props = {
 export function OnboardingVisual({ type, compact = false }: Props) {
   const theme = useThemeColors();
 
-  if (type === "assistant") {
+  if (type === "assistant" || type === "route") {
     return (
-      <View style={[styles.visualSurface, compact && styles.visualSurfaceCompact, { backgroundColor: "rgba(255, 255, 255, 0.4)" }]}>
-        <AssistantPresence compact={compact} />
+      <View style={[styles.busContainer, compact && styles.busContainerCompact]}>
+        {/* Placeholder para a ilustração do ônibus. Quando o asset real estiver disponível, substitua o Ionicons abaixo pelo componente <Image /> correspondente. */}
+        <Ionicons name="bus" size={compact ? 120 : 180} color={theme.primary} />
       </View>
     );
   }
 
   if (type === "input") {
     return (
-      <View style={[styles.visualSurface, compact && styles.visualSurfaceCompact, styles.inputVisual, { backgroundColor: "rgba(255, 255, 255, 0.4)" }]}>
-        <View style={[styles.actionBubble, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Ionicons name="mic-outline" size={compact ? 28 : 34} color={theme.primary} />
+      <View style={[styles.inputVisual, compact && styles.inputVisualCompact]}>
+        <View style={styles.actionColumn}>
+          <LiquidGlassView style={styles.actionBubble} intensity={50} fallbackColor={theme.card} disableDefaultStyles>
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(255, 255, 255, 0.4)", borderRadius: 46 }]} />
+            <Ionicons name="mic" size={compact ? 28 : 34} color={theme.primary} />
+          </LiquidGlassView>
           <Text style={[styles.actionLabel, { color: theme.text }]}>Falar</Text>
         </View>
-        <View style={[styles.actionBubble, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Ionicons name="create-outline" size={compact ? 28 : 34} color={theme.primary} />
+
+        <View style={styles.actionColumn}>
+          <LiquidGlassView style={styles.actionBubble} intensity={50} fallbackColor={theme.card} disableDefaultStyles>
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(255, 255, 255, 0.4)", borderRadius: 46 }]} />
+            <Ionicons name="pencil" size={compact ? 26 : 32} color={theme.primary} />
+          </LiquidGlassView>
           <Text style={[styles.actionLabel, { color: theme.text }]}>Digitar</Text>
         </View>
       </View>
     );
   }
 
-  const steps = [
-    { label: "Destino", icon: "location-outline" as const },
-    { label: "Horário", icon: "time-outline" as const },
-    { label: "Rota", icon: "map-outline" as const },
-  ];
-
-  return (
-    <View style={[styles.visualSurface, compact && styles.visualSurfaceCompact, styles.routeVisual, { backgroundColor: "rgba(255, 255, 255, 0.4)" }]}>
-      {steps.map((step, index) => (
-        <View key={step.label} style={styles.routeItemRow}>
-          <View style={[styles.routeStep, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Ionicons name={step.icon} size={compact ? 24 : 28} color={theme.primary} />
-            <Text style={[styles.routeLabel, { color: theme.text }]}>{step.label}</Text>
-          </View>
-          {index < steps.length - 1 && (
-            <Ionicons name="arrow-forward" size={18} color={theme.primary} accessibilityElementsHidden />
-          )}
-        </View>
-      ))}
-    </View>
-  );
+  return null;
 }
 
 const styles = StyleSheet.create({
-  visualSurface: {
+  busContainer: {
     width: "100%",
-    maxWidth: 360,
     minHeight: 188,
-    borderRadius: 40,
-    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-    padding: 22,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.5)",
   },
-  visualSurfaceCompact: {
+  busContainerCompact: {
     minHeight: 142,
-    padding: 16,
   },
   inputVisual: {
     flexDirection: "row",
-    gap: 14,
+    gap: 40,
+    justifyContent: "center",
+    minHeight: 188,
+    alignItems: "center",
+  },
+  inputVisualCompact: {
+    minHeight: 142,
+  },
+  actionColumn: {
+    alignItems: "center",
+    gap: 16,
   },
   actionBubble: {
-    minWidth: 104,
-    minHeight: 92,
-    borderWidth: 1,
-    borderRadius: 24,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.5)",
   },
   actionLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  routeVisual: {
-    flexDirection: "row",
-  },
-  routeItemRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  routeStep: {
-    minWidth: 78,
-    minHeight: 76,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
-  routeLabel: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
+
