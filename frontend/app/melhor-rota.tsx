@@ -897,30 +897,40 @@ export default function BestRouteScreen() {
         </Animated.View>
       </ScrollView>
 
-      {/* 4. RODAPÉ FIXO DE AÇÕES */}
+      {/* 4. RODAPÉ FIXO DE AÇÕES — Floating Card */}
       <Animated.View
         entering={FadeInDown.duration(400).delay(200)}
-        style={styles.bottomActionsShadow}
+        style={[
+          styles.bottomActionsShadow,
+          { bottom: Math.max(insets.bottom, 16) }
+        ]}
       >
-        <View style={[styles.bottomActionsContent, { paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
-          <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
-          <LinearGradient
-            colors={[isDark ? 'rgba(1, 16, 48, 0)' : 'rgba(241, 245, 249, 0)', theme.background]}
-            locations={[0.2, 1]}
-            style={StyleSheet.absoluteFillObject}
-            pointerEvents="none"
-          />
-
-          {/* Botão principal: Se futuro → lembrete, senão → iniciar */}
+        <View style={[
+          styles.bottomActionsCard,
+          isDark
+            ? { backgroundColor: "rgba(15, 23, 42, 0.95)", borderColor: "rgba(255, 255, 255, 0.12)" }
+            : { backgroundColor: "#FFFFFF", borderColor: "rgba(0, 0, 0, 0.06)" }
+        ]}>
+          {/* Botão principal superior */}
           {isFutureTrip && !scheduledReminderTime && reminderTargetTime ? (
-            <PrimaryButton
-              iconName="alarm-outline"
-              title={isSchedulingReminder ? "Agendando..." : `Me avisar 10 min antes (às ${reminderTargetTime})`}
+            <TouchableOpacity
+              style={styles.primaryReminderBtn}
               onPress={handleScheduleReminder}
               disabled={isSchedulingReminder}
-              style={[styles.mainButton]}
+              activeOpacity={0.8}
+              accessibilityRole="button"
               accessibilityLabel="Me avisar dez minutos antes de sair"
-            />
+            >
+              <Ionicons name="notifications" size={19} color="#FFFFFF" style={{ flexShrink: 0 }} />
+              <Text
+                style={styles.primaryReminderBtnText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {isSchedulingReminder ? "Agendando..." : `Me avisar 10 min antes (às ${reminderTargetTime})`}
+              </Text>
+            </TouchableOpacity>
           ) : (
             <PrimaryButton
               iconName={isFutureTrip ? undefined : (isWalkingOnly ? "walk" : "navigate")}
@@ -933,25 +943,54 @@ export default function BestRouteScreen() {
             />
           )}
 
-          {/* Linha inferior: Ouvir resumo + Iniciar agora (quando for futuro) */}
+          {/* Linha inferior: Dois cards lado a lado */}
           <View style={styles.bottomSecondaryRow}>
-            <ListenOptionsButton
-              label={isWalkingOnly ? "Ouvir destino" : "Ouvir resumo"}
-              style={styles.bottomSecondaryBtn}
+            {/* Card Ouvir Resumo */}
+            <TouchableOpacity
+              style={[
+                styles.bottomCardBtn,
+                isDark
+                  ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
+                  : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
+              ]}
               onPress={handleHearRoute}
+              activeOpacity={0.7}
+              accessibilityRole="button"
               accessibilityLabel="Ouvir resumo da rota em voz alta"
-            />
+            >
+              <Ionicons name="volume-high" size={20} color="#0066FE" style={{ flexShrink: 0 }} />
+              <Text style={styles.bottomCardBtnTextBlue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {isWalkingOnly ? "Ouvir destino" : "Ouvir resumo"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Card Iniciar agora (quando for viagem futura) */}
             {isFutureTrip && (
               <TouchableOpacity
-                style={styles.bottomSecondaryInitiarBtn}
+                style={[
+                  styles.bottomCardBtn,
+                  isDark
+                    ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
+                    : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
+                ]}
                 onPress={handleStartNavigation}
                 disabled={isLoadingCommand}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel="Iniciar navegação agora"
               >
-                <Ionicons name="navigate" size={16} color={theme.primary} />
-                <Text style={[styles.bottomSecondaryInitiarText, { color: theme.primary }]}>Iniciar agora</Text>
+                <Ionicons name="navigate" size={17} color={isDark ? "#FFFFFF" : "#0F172A"} style={{ flexShrink: 0 }} />
+                <Text
+                  style={[
+                    styles.bottomCardBtnTextDark,
+                    isDark && { color: "#FFFFFF" }
+                  ]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  Iniciar agora
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1438,51 +1477,70 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
 
-  /* ─── 4. Rodapé fixo ─── */
+  /* ─── 4. Rodapé flutuante (Floating Action Card) ─── */
   bottomActionsShadow: {
     position: "absolute",
     left: 16,
     right: 16,
-    bottom: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  bottomActionsContent: {
-    padding: 16,
-    gap: 10,
+  bottomActionsCard: {
+    borderRadius: 26,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1,
+  },
+  primaryReminderBtn: {
+    flexDirection: "row",
     alignItems: "center",
-    borderRadius: 32,
-    overflow: "hidden",
+    justifyContent: "center",
+    backgroundColor: "#0066FE",
+    height: 54,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  primaryReminderBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15.5,
+    fontWeight: "700",
+    letterSpacing: -0.2,
   },
   mainButton: {
     width: "100%",
-    borderRadius: 100,
-    minHeight: 56,
-    height: 56,
+    borderRadius: 20,
+    minHeight: 54,
+    height: 54,
   },
   bottomSecondaryRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     width: "100%",
   },
-  bottomSecondaryBtn: {
+  bottomCardBtn: {
     flex: 1,
-    height: 52,
-  },
-  bottomSecondaryInitiarBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 20,
+    justifyContent: "center",
+    height: 52,
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 8,
+    paddingHorizontal: 10,
   },
-  bottomSecondaryInitiarText: {
+  bottomCardBtnTextBlue: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "600",
+    color: "#0066FE",
+  },
+  bottomCardBtnTextDark: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0F172A",
   },
 });
