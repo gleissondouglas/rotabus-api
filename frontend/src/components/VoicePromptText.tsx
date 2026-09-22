@@ -3,6 +3,7 @@ import {
   Platform,
   StyleSheet,
   View,
+  ScrollView,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
@@ -92,31 +93,53 @@ export function VoicePromptText({
     return null;
   }
 
+  const isScrollable = text.length > 40;
+
   if (!animated) {
+    const textNode = (
+      <Animated.Text
+        entering={FadeInDown.duration(400)}
+        style={[styles.staticText, { color: theme.text }, align === "left" && styles.leftText, textStyle]}
+      >
+        {text}
+      </Animated.Text>
+    );
+
     return (
       <View style={[styles.container, align === "left" && styles.leftAligned, style]}>
-        <Animated.Text
-          entering={FadeInDown.duration(400)}
-          style={[styles.staticText, { color: theme.text }, align === "left" && styles.leftText, textStyle]}
-        >
-          {text}
-        </Animated.Text>
+        {isScrollable ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {textNode}
+          </ScrollView>
+        ) : (
+          textNode
+        )}
       </View>
     );
   }
 
+  const wordsNode = (
+    <View style={[styles.wordsRow, align === "left" && styles.wordsRowLeft, !isScrollable && { flexWrap: "wrap" }]}>
+      {words.map((word, index) => (
+        <AnimatedWord
+          key={`${word}-${index}`}
+          word={word}
+          index={index}
+          textStyle={[align === "left" && styles.leftText, textStyle]}
+        />
+      ))}
+    </View>
+  );
+
   return (
     <View style={[styles.container, align === "left" && styles.leftAligned, style]}>
-      <View style={[styles.wordsRow, align === "left" && styles.wordsRowLeft]}>
-        {words.map((word, index) => (
-          <AnimatedWord
-            key={`${word}-${index}`}
-            word={word}
-            index={index}
-            textStyle={[align === "left" && styles.leftText, textStyle]}
-          />
-        ))}
-      </View>
+      {isScrollable ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {wordsNode}
+        </ScrollView>
+      ) : (
+        wordsNode
+      )}
     </View>
   );
 }
@@ -138,7 +161,6 @@ const styles = StyleSheet.create({
   },
   wordsRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "center",
     alignItems: "flex-end",
   },

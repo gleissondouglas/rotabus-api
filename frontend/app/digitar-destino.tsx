@@ -54,8 +54,6 @@ export default function TypeDestinationScreen() {
 
   const isInputValid = address.trim().length >= 3;
 
-  const quickOptions = ["Trabalho", "Casa", "Centro", "Terminal", "Shopping"];
-
   const handleConfirm = usePreventDoublePress(async function (customAddress?: string) {
     const targetAddress = typeof customAddress === "string" ? customAddress : address;
 
@@ -215,29 +213,6 @@ export default function TypeDestinationScreen() {
           </Animated.Text>
         )}
 
-        {/* Atalhos Rápidos */}
-        <View style={styles.quickOptionsWrapper}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickOptionsScroll}
-            keyboardShouldPersistTaps="always"
-          >
-            {quickOptions.map((option) => (
-              <Pressable
-                key={option}
-                style={[styles.quickPill, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF' }]}
-                onPress={() => {
-                  setAddress(option);
-                  handleConfirm(option);
-                }}
-              >
-                <Text style={[styles.quickPillText, { color: theme.text }]}>{option}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-
         {/* Botões */}
         <View style={styles.buttonsRow}>
           <Pressable
@@ -348,28 +323,6 @@ const styles = StyleSheet.create({
     marginTop: -8,
     marginBottom: 16,
     textAlign: "center",
-  },
-  quickOptionsWrapper: {
-    marginHorizontal: -24, // Para a rolagem ir até a borda
-    marginBottom: 24,
-  },
-  quickOptionsScroll: {
-    paddingHorizontal: 24,
-    gap: 8,
-  },
-  quickPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  quickPillText: {
-    fontSize: 14,
-    fontWeight: "600",
   },
   buttonsRow: {
     flexDirection: "row",

@@ -288,15 +288,7 @@ export default function ChooseTimeScreen() {
           style={[styles.content, { paddingHorizontal: isSmallHeight ? layout.screenHorizontalPaddingSmall : layout.screenHorizontalPadding, gap: isSmallHeight ? layout.sectionGapSmall : layout.sectionGap }]}
         >
           <View style={[styles.header, { gap: isSmallHeight ? 8 : 12 }]}>
-            <View style={[
-              styles.heroIconCircle, 
-              { backgroundColor: theme.card },
-              { width: isSmallHeight ? layout.heroIconSizeSmall : layout.heroIconSize, 
-                height: isSmallHeight ? layout.heroIconSizeSmall : layout.heroIconSize, 
-                borderRadius: (isSmallHeight ? layout.heroIconSizeSmall : layout.heroIconSize) / 2 }
-            ]}>
-              <AdaptiveIcon iosSymbol="clock" fallbackFamily="Ionicons" fallbackName="time" size={isSmallHeight ? 32 : 40} color={theme.primary} />
-            </View>
+
             <Text style={[
               styles.title, 
               { color: theme.text },
@@ -595,16 +587,6 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-  },
-  heroIconCircle: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 3,
   },
   title: {
     fontWeight: "900",

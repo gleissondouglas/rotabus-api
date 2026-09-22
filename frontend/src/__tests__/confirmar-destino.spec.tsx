@@ -234,9 +234,9 @@ describe("ConfirmDestinationScreen", () => {
     expect(getByText("Buscar rota")).toBeTruthy();
   });
 
-  it("renderiza o botão 'Voltar'", () => {
+  it("renderiza o botão 'Alterar' (voltar)", () => {
     const { getByText } = render(<ConfirmDestinationScreen />);
-    expect(getByText("Voltar")).toBeTruthy();
+    expect(getByText("Alterar")).toBeTruthy();
   });
 
   it("renderiza o link de ajuda", () => {

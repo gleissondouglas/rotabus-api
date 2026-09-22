@@ -27,6 +27,7 @@ import { sessionService } from "../src/services/session.service";
 import { journeyService } from "../src/services/journey.service";
 import { locationService } from "../src/services/location.service";
 import { vibrationService } from "../src/services/vibration.service";
+import { shouldAutoStartHomeVoice, markHomeVoiceAutoStarted } from "../src/state/homeVoiceSession";
 import { useThemeColors } from "../src/theme/colors";
 import { cleanVoiceTranscript } from "../src/utils/helpers";
 import {
@@ -475,10 +476,17 @@ export default function HomeScreen() {
       voiceIssueMessageRef.current = "";
 
       if (!params.searchText && userName) {
-        // Primeira vez: texto anima progressivamente
-        setPromptAnimated(true);
-        const greetingText = `Olá, ${userName}. Bem-vindo ao RotaBus. Para onde você quer ir hoje?`;
-        setPromptText(greetingText);
+        if (shouldAutoStartHomeVoice()) {
+          // Primeira vez na sessão: texto anima progressivamente
+          setPromptAnimated(true);
+          const greetingText = `Olá, ${userName}. Bem-vindo ao RotaBus. Para onde você quer ir hoje?`;
+          setPromptText(greetingText);
+          markHomeVoiceAutoStarted();
+        } else {
+          // Já iniciou na sessão antes: não exibe texto longo
+          setPromptAnimated(false);
+          setPromptText(`Para onde você quer ir hoje?`);
+        }
       } else if (userName) {
         // Retorno à tela: texto aparece completo de uma vez
         setPromptAnimated(false);

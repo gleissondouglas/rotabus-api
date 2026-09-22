@@ -156,15 +156,10 @@ const CarouselCardItem = ({
               </View>
             )}
             
-            {/* Overlay: Badge Opção (Top Left) e Ponto Confirmado (Top Right) */}
-            <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: isCurrent ? '#007AFF' : '#fff', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
-               <Text style={{ fontSize: 13, fontWeight: '700', color: isCurrent ? '#fff' : '#0F172A' }}>Opção {index + 1} de {optionsLength}</Text>
-               {isCurrent && <Ionicons name="checkmark" size={16} color="#fff" style={{ marginLeft: 6 }} />}
-            </View>
-
-            <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
-               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: hasCoordinates ? '#10B981' : '#F59E0B', marginRight: 6 }} />
-               <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{hasCoordinates ? "Confirmado" : "Pendente"}</Text>
+            {/* Overlay: Badge Opção (Top Left) */}
+            <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: isCurrent ? 'rgba(0, 122, 255, 0.9)' : (isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.9)'), borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, flexDirection: 'row', alignItems: 'center' }}>
+               <Text style={{ fontSize: 11, fontWeight: '600', color: isCurrent ? '#fff' : (isDark ? '#fff' : '#0F172A') }}>Opção {index + 1} de {optionsLength}</Text>
+               {isCurrent && <Ionicons name="checkmark" size={12} color="#fff" style={{ marginLeft: 4 }} />}
             </View>
 
             <View style={{ position: 'absolute', bottom: 12, left: 12, backgroundColor: '#1E293B', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center' }}>
@@ -206,15 +201,13 @@ const CarouselCardItem = ({
             </View>
 
             
-            {/* Aviso (Opcional no carrossel, mostra se selecionado) */}
-            {isCurrent && (
-              <View style={{ flexDirection: 'row', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FCD34D', borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 16 }}>
-                <Ionicons name="alert-circle" size={20} color="#D97706" style={{ marginTop: 2 }} />
-                <Text style={{ flex: 1, fontSize: 14, fontWeight: '500', color: "#B45309", marginLeft: 10, lineHeight: 20 }}>
-                  Confira o número predial e referências próximas antes de iniciar o deslocamento.
-                </Text>
-              </View>
-            )}
+            {/* Aviso fixo no carrossel para evitar shift de layout ao rolar */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FCD34D', borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, marginTop: 16, marginHorizontal: -4 }}>
+              <Ionicons name="alert-circle" size={18} color="#D97706" />
+              <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: "#B45309", marginLeft: 8 }}>
+                Confirme o endereço antes de continuar.
+              </Text>
+            </View>
           </View>
         </View>
       </Pressable>
@@ -433,7 +426,7 @@ export default function ConfirmDestinationScreen() {
       {/* TOP BAR — Floating Glass Pills */}
       <View style={[styles.topBar, { top: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.topBarInner} pointerEvents="box-none">
-          <BackButton label="Voltar" accessibilityLabel="Voltar para a tela anterior" />
+          <BackButton label="Alterar" accessibilityLabel="Voltar para alterar destino" />
           <Pressable
             style={({ pressed }) => [
               pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }
@@ -473,9 +466,14 @@ export default function ConfirmDestinationScreen() {
           style={{ flex: 1 }}
         >
 
-          {/* Título + subtítulo — centralizado com mais respiro no topo */}
-          <View style={[styles.header, { paddingHorizontal: screenHorizontalPadding, marginTop: isSmallHeight ? 8 : 16 }]}>
-            <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>
+          {/* Título — centralizado com mais respiro no topo */}
+          <View style={[styles.header, { paddingHorizontal: 16, marginTop: isSmallHeight ? 8 : 16 }]}>
+            <Text 
+              style={[styles.title, { color: theme.text }]} 
+              maxFontSizeMultiplier={1.2}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
               {showSuggestions ? "Destinos encontrados" : "Destino encontrado"}
             </Text>
             <Text style={[styles.subtitle, { color: theme.textMuted }]} maxFontSizeMultiplier={1.1}>
@@ -596,10 +594,6 @@ export default function ConfirmDestinationScreen() {
                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff', marginLeft: 4 }}>{city}</Text>
                 </View>
 
-                <View style={{ position: 'absolute', bottom: 12, right: 12, backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
-                   <DestinationCategoryIcon category={activeDestinationCategory} size="small" />
-                   <Text style={{ fontSize: 12, fontWeight: '600', color: '#0F172A', marginLeft: 4 }}>{activeDestinationName.split('-')[0].trim()}</Text>
-                </View>
               </View>
 
               <View style={{ padding: 20 }}>
@@ -635,20 +629,13 @@ export default function ConfirmDestinationScreen() {
                 </View>
 
                 {/* Alerta */}
-                <View style={{ flexDirection: 'row', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FCD34D', borderWidth: 1, borderRadius: 16, padding: 16, marginVertical: 20 }}>
-                  <Ionicons name="alert-circle" size={20} color="#D97706" style={{ marginTop: 2 }} />
-                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '500', color: "#B45309", marginLeft: 10, lineHeight: 20 }}>
-                    Confira o número predial e referências próximas antes de iniciar o deslocamento.
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FCD34D', borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, marginTop: 20, marginHorizontal: -4 }}>
+                  <Ionicons name="alert-circle" size={18} color="#D97706" />
+                  <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: "#B45309", marginLeft: 8 }}>
+                    Confirme o endereço antes de continuar.
                   </Text>
                 </View>
 
-                {/* Botões secundários */}
-                <View style={{ flexDirection: 'row', gap: 12 }}>
-                  <Pressable style={({ pressed }) => [{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 26, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }, pressed && { opacity: 0.7 }]} onPress={() => router.back()}>
-                    <Ionicons name="pencil-outline" size={18} color={theme.text} />
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: theme.text }}>Alterar</Text>
-                  </Pressable>
-                </View>
               </View>
             </Animated.View>
           )}
@@ -656,15 +643,19 @@ export default function ConfirmDestinationScreen() {
         </Animated.View>
       </ScrollView>
 
-      {/* BOTÕES FIXOS — idêntico ao rodapé da rota pronta */}
-      <View style={styles.fixedBottomActionsShadow}>
-        <View style={[styles.fixedBottomActionsContent, { paddingBottom: insets.bottom + 16 }]}>
-          <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
-          <LinearGradient
-            colors={['transparent', theme.background]}
-            locations={[0.2, 1]}
-            style={StyleSheet.absoluteFillObject}
-            pointerEvents="none"
+      {/* BOTÕES FIXOS — Flutuante */}
+      <View style={[styles.fixedBottomActionsShadow, { bottom: insets.bottom + 16 }]} pointerEvents="box-none">
+        <View style={[
+          styles.fixedBottomActionsContent,
+          isDark ? { borderColor: "rgba(255, 255, 255, 0.2)" } : { borderColor: "rgba(255, 255, 255, 0.8)" }
+        ]}>
+          <LiquidGlassView
+            style={[
+              StyleSheet.absoluteFillObject,
+              isDark && { backgroundColor: "rgba(15, 23, 42, 0.3)" },
+              !isDark && { backgroundColor: "rgba(255, 255, 255, 0.3)" }
+            ]}
+            fallbackColor={theme.card}
           />
           <PrimaryButton
             title="Buscar rota"
@@ -745,7 +736,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "600",
     marginTop: 4,
     textAlign: "center",
@@ -922,29 +913,26 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  // ─── Rodapé fixo (idêntico ao de melhor-rota) ────────────────────────
+  // ─── Rodapé fixo (Flutuante) ────────────────────────
   fixedBottomActionsShadow: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    left: 20,
+    right: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
     elevation: 10,
   },
   fixedBottomActionsContent: {
-    paddingTop: 10,
-    paddingHorizontal: 26,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    padding: 12,
+    borderRadius: 36,
     overflow: "hidden",
-    gap: 10,
-    minHeight: 100, // To ensure background stretches down safely
+    borderWidth: 1.5,
   },
   mainButton: {
-    borderRadius: 30,
+    borderRadius: 24,
+    minHeight: 52,
   },
   secondaryWrapper: {
     alignItems: "center",

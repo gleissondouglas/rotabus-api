@@ -89,6 +89,47 @@ function buildVoiceSummary({
   return `Encontrei uma rota. ${linePart}${departurePart}${arrivalPart}Quer iniciar a navegação?`;
 }
 
+/** Calcula quantos minutos faltam até a saída */
+function calcMinutesUntilLeave(leaveHomeDateTime?: string): number | null {
+  if (!leaveHomeDateTime) return null;
+  const diff = (new Date(leaveHomeDateTime).getTime() - Date.now()) / 60000;
+  if (!isFinite(diff)) return null;
+  return Math.round(diff);
+}
+
+/** Formata o tempo de espera de forma amigável: "Faltam 45 min" | "Falta 1h" | "Faltam 1h 54min" | "Falta 1 dia e 2h" */
+function formatWaitTimePhrase(minutes: number): string {
+  if (minutes <= 1) return "Falta 1 min para sair";
+  if (minutes < 60) return `Faltam ${minutes} min para sair`;
+
+  const totalHours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  if (totalHours < 24) {
+    if (mins === 0) {
+      const verb = totalHours === 1 ? "Falta" : "Faltam";
+      return `${verb} ${totalHours}h para sair`;
+    }
+    return `Faltam ${totalHours}h ${mins}min para sair`;
+  }
+
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const dayStr = days === 1 ? "1 dia" : `${days} dias`;
+  const verb = days === 1 && hours === 0 && mins === 0 ? "Falta" : "Faltam";
+
+  if (hours === 0 && mins === 0) {
+    return `${verb} ${dayStr} para sair`;
+  }
+  if (hours === 0) {
+    return `${verb} ${dayStr} e ${mins}min para sair`;
+  }
+  if (mins === 0) {
+    return `${verb} ${dayStr} e ${hours}h para sair`;
+  }
+  return `${verb} ${dayStr}, ${hours}h ${mins}min para sair`;
+}
+
 export default function BestRouteScreen() {
   const { autoRead } = useAccessibility();
   const isInitialMount = useRef(true);
@@ -98,7 +139,8 @@ export default function BestRouteScreen() {
   const params = useLocalSearchParams();
   const theme = useThemeColors();
   const insets = useSafeAreaInsets();
-  
+  const isDark = useColorScheme() === 'dark';
+
   const latitude = String(params.latitude || "");
   const longitude = String(params.longitude || "");
   const destination = String(params.destination || "seu destino");
@@ -107,13 +149,11 @@ export default function BestRouteScreen() {
   const selectedDestination = String(params.selectedDestination || "");
   const fullBackendMessage = String(params.message || "");
 
-
   const summary = parseJsonParam<any>(params.summary, null);
   const alerts = parseJsonParam<string[]>(params.alerts, []);
   const steps = parseJsonParam<JourneyStep[]>(params.steps, []);
   const mapData = parseJsonParam<any>(params.map, undefined);
   const rawAlternatives = useMemo(() => parseJsonParam<any[]>(params.alternatives, []), [params.alternatives]);
-  const isDark = useColorScheme() === 'dark';
 
   // Monta a lista completa de rotas selecionáveis
   const allRoutes = useMemo(() => {
@@ -130,7 +170,6 @@ export default function BestRouteScreen() {
       ...rawAlternatives.slice(0, 2).map((alt, i) => {
         let altTag = "Alternativa";
         
-        // Comparações lógicas para dar um nome inteligente:
         if (alt.summary?.isWalkingOnly && !main.summary?.isWalkingOnly) {
           altTag = "Ir a pé";
         } else if (alt.summary?.totalDurationMin < main.summary?.totalDurationMin) {
@@ -142,7 +181,7 @@ export default function BestRouteScreen() {
         ) {
           altTag = "Menos trocas";
         } else {
-          altTag = `Alternativa ${i + 1}`;
+          altTag = `Opção ${i + 2}`;
         }
 
         return {
@@ -260,7 +299,6 @@ export default function BestRouteScreen() {
       return;
     }
     
-    // Evita falar novamente se a aba não mudou de verdade (protege contra re-renders)
     if (lastSpokenRouteIndex.current === selectedRouteIndex) {
       return;
     }
@@ -295,8 +333,8 @@ export default function BestRouteScreen() {
   // Auto-scroll para centralizar o card da rota selecionada
   useEffect(() => {
     if (allRoutes.length > 1 && routeScrollViewRef.current) {
-      const ITEM_WIDTH = 145;
-      const GAP = 12;
+      const ITEM_WIDTH = 140;
+      const GAP = 10;
       const PADDING_HORIZONTAL = 20;
 
       const itemX = (ITEM_WIDTH + GAP) * selectedRouteIndex;
@@ -370,8 +408,21 @@ export default function BestRouteScreen() {
     if (!activeSummary?.leaveHomeDateTime) return false;
     const leaveMs = new Date(activeSummary.leaveHomeDateTime).getTime();
     const diffMin = (leaveMs - Date.now()) / (1000 * 60);
-    // Mais de 30 minutos no futuro
     return diffMin > 30;
+  }, [activeSummary?.leaveHomeDateTime]);
+
+  // Minutos faltando para sair (atualiza periodicamente para refletir a contagem diminuindo)
+  const [minutesUntilLeave, setMinutesUntilLeave] = useState<number | null>(
+    () => calcMinutesUntilLeave(activeSummary?.leaveHomeDateTime)
+  );
+
+  useEffect(() => {
+    const updateMinutes = () => {
+      setMinutesUntilLeave(calcMinutesUntilLeave(activeSummary?.leaveHomeDateTime));
+    };
+    updateMinutes();
+    const interval = setInterval(updateMinutes, 5000);
+    return () => clearInterval(interval);
   }, [activeSummary?.leaveHomeDateTime]);
 
   async function handleScheduleReminder() {
@@ -445,13 +496,23 @@ export default function BestRouteScreen() {
     }, 1000);
   }
 
-  // Bottom bar fixed height for padding calculation
-  const bottomBarHeight = 160;
+  // Tempo de espera tranquilo: ≥ 20 minutos até sair
+  const hasComfortableWait = minutesUntilLeave !== null && minutesUntilLeave >= 20;
+
+  // Hora da notificação antecipada (10min antes)
+  const reminderTargetTime = useMemo(() => {
+    if (!activeSummary?.leaveHomeDateTime) return null;
+    const d = new Date(new Date(activeSummary.leaveHomeDateTime).getTime() - 10 * 60 * 1000);
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }, [activeSummary?.leaveHomeDateTime]);
+
+  // Bottom bar para padding
+  const bottomBarHeight = isFutureTrip ? 180 : 140;
 
   return (
     <View style={styles.screen}>
       <BackgroundGradient />
-      {/* Top Bar (Floating Glass Pill) */}
+      {/* Top Bar */}
       <View style={[styles.topBar, { top: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.topBarInner} pointerEvents="box-none">
           <BackButton label="Voltar" accessibilityLabel="Voltar para a tela anterior" />
@@ -461,15 +522,15 @@ export default function BestRouteScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
-          styles.scrollContent, 
-          { 
-            paddingTop: insets.top + 60, 
+          styles.scrollContent,
+          {
+            paddingTop: insets.top + 60,
             paddingBottom: bottomBarHeight + insets.bottom + 24
           }
         ]}
       >
         <Animated.View entering={FadeInUp.duration(400)} style={styles.content}>
-          {/* 1. CABEÇALHO E PREVIEW MAPA */}
+          {/* 1. CABEÇALHO */}
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.2}>Sua melhor rota</Text>
             <Text style={[styles.subtitle, { color: theme.textMuted }]} maxFontSizeMultiplier={1.1}>Para {destination}</Text>
@@ -494,7 +555,10 @@ export default function BestRouteScreen() {
                 {allRoutes.map((r, idx) => {
                   const isSelected = selectedRouteIndex === idx;
                   const dur = r.summary?.totalDurationMin || 0;
+                  const firstTransit = r.steps?.find((s: any) => s.type === "transit");
+                  const headsign = firstTransit?.headsign || "Em direção ao destino";
                   const lineNames = r.summary?.busLines?.join(", ") || (r.summary?.isWalkingOnly ? "A pé" : "Ônibus");
+
                   return (
                     <TouchableOpacity
                       key={`route-opt-${idx}`}
@@ -505,25 +569,53 @@ export default function BestRouteScreen() {
                       style={[
                         styles.routeCardOption,
                         isSelected
-                          ? [styles.routeCardSelected, { borderColor: theme.primary }]
-                          : [styles.routeCardUnselected, isDark ? { backgroundColor: "rgba(255,255,255,0.06)" } : { backgroundColor: "rgba(255,255,255,0.7)" }]]}
+                          ? styles.routeCardSelected
+                          : isDark
+                            ? styles.routeCardUnselectedDark
+                            : styles.routeCardUnselectedLight,
+                      ]}
                       activeOpacity={0.8}
                       accessibilityRole="button"
                       accessibilityLabel={`Opção ${r.tag}, ${dur} minutos`}
                     >
-                      <View style={[styles.routeCardTag, isSelected && { backgroundColor: theme.primary }]}>
-                        <Text style={[styles.routeCardTagText, isSelected && { color: "#FFFFFF" }]}>
-                          {r.tag}
+                      {/* Tag */}
+                      <View style={[
+                        styles.routeCardTag,
+                        isSelected ? styles.routeCardTagSelected : styles.routeCardTagUnselected,
+                      ]}>
+                        <Text style={[
+                          styles.routeCardTagText,
+                          isSelected ? styles.routeCardTagTextSelected : styles.routeCardTagTextUnselected,
+                        ]}>
+                          {r.tag.toUpperCase()}
                         </Text>
                       </View>
-                      <View style={styles.routeCardBody}>
-                        <Text style={[styles.routeCardDuration, { color: isSelected ? theme.primary : theme.text }]}>
-                          {dur} min
-                        </Text>
-                        <Text style={[styles.routeCardLines, { color: theme.textMuted }]} numberOfLines={1}>
-                          {lineNames}
-                        </Text>
-                      </View>
+
+                      {/* Duração */}
+                      <Text style={[styles.routeCardDuration, { color: isSelected ? theme.primary : theme.text }]}>
+                        {dur} min
+                      </Text>
+
+                      {/* Chip de linha */}
+                      {!r.summary?.isWalkingOnly && r.summary?.busLines && r.summary.busLines.length > 0 && (
+                        <View style={[styles.routeCardLinesChip, isSelected ? styles.routeCardChipSelected : styles.routeCardChipUnselected]}>
+                          <MaterialCommunityIcons name="bus" size={13} color={isSelected ? theme.primary : theme.textMuted} />
+                          <Text style={[styles.routeCardLinesChipText, { color: isSelected ? theme.primary : theme.textMuted }]}>
+                            {r.summary.busLines.length === 1 ? `Linha ${r.summary.busLines[0]}` : r.summary.busLines.join(", ")}
+                          </Text>
+                        </View>
+                      )}
+                      {r.summary?.isWalkingOnly && (
+                        <View style={[styles.routeCardLinesChip, isSelected ? styles.routeCardChipSelected : styles.routeCardChipUnselected]}>
+                          <FontAwesome6 name="person-walking" size={12} color={isSelected ? theme.primary : theme.textMuted} />
+                          <Text style={[styles.routeCardLinesChipText, { color: isSelected ? theme.primary : theme.textMuted }]}>A pé</Text>
+                        </View>
+                      )}
+
+                      {/* Direção */}
+                      <Text style={[styles.routeCardDirection, { color: isSelected ? theme.textMuted : (isDark ? "rgba(255,255,255,0.45)" : "#94A3B8") }]} numberOfLines={2}>
+                        {headsign}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -531,15 +623,16 @@ export default function BestRouteScreen() {
             </View>
           )}
 
+          {/* MAPA */}
           {activeMapData && (
             <View style={styles.previewMapContainer}>
-              <Map 
+              <Map
                 key={`map-route-${selectedRouteIndex}`}
-                mapData={activeMapData} 
-                initialRegion={initialRegion} 
+                mapData={activeMapData}
+                initialRegion={initialRegion}
                 userLocation={{ latitude: Number(latitude), longitude: Number(longitude) }}
-                colors={theme} 
-                focusMode={mapFocusMode} 
+                colors={theme}
+                focusMode={mapFocusMode}
                 onFocusModeChange={setMapFocusMode}
                 isNavigating={false}
                 liveBusPosition={liveBusPosition}
@@ -548,17 +641,20 @@ export default function BestRouteScreen() {
           )}
 
           {/* 2. CARD DE RESUMO PRINCIPAL */}
-          <View style={[styles.summaryCard, { backgroundColor: "rgba(15, 23, 42, 0.75)" }]}>
-            {/* Badges do Topo */}
+          <View style={styles.summaryCard}>
+            {/* Badge de tag (centralizado) + live */}
             <View style={styles.topBadgesRow}>
-              <View style={[styles.summaryBadge, isWalkingOnly && { backgroundColor: "rgba(59,130,246,0.15)" }]}>
+              <View style={[
+                styles.summaryBadge,
+                isWalkingOnly ? { backgroundColor: "rgba(59,130,246,0.25)" } : null,
+              ]}>
                 {isWalkingOnly ? (
-                  <FontAwesome6 name="person-walking" size={16} color="#3B82F6" />
+                  <FontAwesome6 name="person-walking" size={15} color="#3B82F6" />
                 ) : (
-                  <Ionicons name="checkmark-circle" size={16} color="#34D399" />
+                  <Ionicons name="checkmark-circle" size={15} color="#34D399" />
                 )}
                 <Text style={[styles.summaryBadgeText, isWalkingOnly && { color: "#3B82F6" }]}>
-                  {isWalkingOnly ? "Você pode ir a pé" : (currentRoute.tag || "Melhor rota encontrada")}
+                  {isWalkingOnly ? "Você pode ir a pé" : `${currentRoute.tag || "Recomendada"} / Opção ${selectedRouteIndex + 1}`}
                 </Text>
               </View>
 
@@ -575,97 +671,176 @@ export default function BestRouteScreen() {
             {/* Chips de indicadores */}
             <View style={styles.chipsRow}>
               <View style={styles.chip}>
-                <Ionicons name="time" size={18} color="#FFF" />
                 <Text style={styles.chipText}>{formatMinutesToFriendlyText(totalDurationMin)}{isWalkingOnly ? " a pé" : ""}</Text>
               </View>
               {isWalkingOnly ? (
                 <View style={styles.chip}>
-                  <MaterialCommunityIcons name="map-marker-distance" size={18} color="#FFF" />
                   <Text style={styles.chipText}>{activeSummary?.totalDistanceMeters || activeSummary?.initialWalkDistanceMeters || 0}m</Text>
                 </View>
               ) : (
                 <>
                   <View style={styles.chip}>
-                    <FontAwesome6 name="person-walking" size={15} color="#FBBF24" />
                     <Text style={styles.chipText}>{formatMinutesToFriendlyText(initialWalkTimeMin)} a pé</Text>
                   </View>
                   <View style={styles.chip}>
-                    <MaterialCommunityIcons name="bus" size={18} color="#34D399" />
                     <Text style={styles.chipText}>{transitSteps.length} {transitSteps.length === 1 ? 'ônibus' : 'ônibus'}</Text>
                   </View>
                 </>
               )}
             </View>
 
-            {/* Linha divisória e detalhes */}
+            {/* Linha divisória + detalhes de horário */}
             {!isWalkingOnly && (
               <>
                 <View style={styles.summaryDivider} />
                 <View style={styles.summaryDetailsGrid}>
+                  {/* Coluna esquerda: primeiro ônibus */}
                   {busLine ? (
-                    <View style={styles.summaryDetailItem}>
-                      <Text style={styles.summaryDetailLabel}>Primeiro ônibus</Text>
+                    <View style={[styles.summaryDetailItem, { flex: 1 }]}>
+                      <Text style={styles.summaryDetailLabel} numberOfLines={1}>PRIMEIRO ÔNIBUS</Text>
                       <View style={styles.busLineHighlight}>
-                        <MaterialCommunityIcons name="bus" size={16} color="#FFF" />
-                        <Text style={styles.busLineNumber}>{busLine}</Text>
+                        <MaterialCommunityIcons name="bus" size={15} color="#FFF" />
+                        <Text style={styles.busLineNumber}>Linha {busLine}</Text>
                       </View>
+                      <Text style={styles.summaryDetailSubtext} numberOfLines={1}>
+                        {direction || "Em direção ao destino"}
+                      </Text>
                     </View>
                   ) : null}
-                  {activeSummary?.leaveHomeAt ? (
-                    <View style={styles.summaryDetailItem}>
-                      <Text style={styles.summaryDetailLabel}>Saída</Text>
-                      <Text style={styles.summaryDetailValue}>{activeSummary.leaveHomeAt}</Text>
+
+                  {/* Divisor vertical */}
+                  {busLine && (activeSummary?.leaveHomeAt || activeSummary?.arrivalAtDestination) && (
+                    <View style={styles.summaryVerticalDivider} />
+                  )}
+
+                  {/* Coluna direita: saída e chegada empilhadas */}
+                  {(activeSummary?.leaveHomeAt || activeSummary?.arrivalAtDestination) && (
+                    <View style={styles.summaryTimesCol}>
+                      {activeSummary?.leaveHomeAt && (
+                        <View style={styles.summaryTimeRow}>
+                          <Text style={styles.summaryTimeLabel} numberOfLines={1}>SAÍDA</Text>
+                          <Text style={styles.summaryTimeValue} numberOfLines={1}>{activeSummary.leaveHomeAt}</Text>
+                        </View>
+                      )}
+                      {activeSummary?.arrivalAtDestination && (
+                        <View style={styles.summaryTimeRow}>
+                          <Text style={styles.summaryTimeLabel} numberOfLines={1}>CHEGADA</Text>
+                          <Text style={styles.summaryTimeValue} numberOfLines={1}>{activeSummary.arrivalAtDestination}</Text>
+                        </View>
+                      )}
                     </View>
-                  ) : null}
-                  {activeSummary?.arrivalAtDestination ? (
-                    <View style={styles.summaryDetailItem}>
-                      <Text style={styles.summaryDetailLabel}>Chegada</Text>
-                      <Text style={styles.summaryDetailValue}>{activeSummary.arrivalAtDestination}</Text>
-                    </View>
-                  ) : null}
+                  )}
                 </View>
               </>
             )}
 
-            {/* Lembrete de saída antecipada */}
-            {isFutureTrip && (
-              <View style={[styles.reminderCard, { backgroundColor: "rgba(59, 130, 246, 0.16)", borderColor: "rgba(96, 165, 250, 0.45)" }]}>
-                <View style={styles.reminderHeader}>
-                  <Ionicons 
-                    name={scheduledReminderTime ? "checkmark-circle" : "notifications"} 
-                    size={22} 
-                    color={scheduledReminderTime ? "#34D399" : "#60A5FA"} 
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.reminderTitle}>
-                      {scheduledReminderTime
-                        ? `Lembrete agendado para às ${scheduledReminderTime}`
-                        : "Viagem programada para mais tarde"}
-                    </Text>
-                    <Text style={styles.reminderSubtitle}>
-                      {scheduledReminderTime
-                        ? `Avisaremos você 10 minutos antes de sair (saída prevista às ${activeSummary?.leaveHomeAt}).`
-                        : `Você só precisa sair de onde está às ${activeSummary?.leaveHomeAt}. Quer que eu te avise 10 min antes?`}
-                    </Text>
+            {/* Bloco "Tempo de espera tranquilo" */}
+            {!isWalkingOnly && hasComfortableWait && minutesUntilLeave !== null && (
+              <>
+                <View style={styles.summaryDivider} />
+                <View style={styles.comfortWaitCard}>
+                  {/* Linha superior: Ícone do sino + Badge + Título */}
+                  <View style={styles.comfortWaitHeader}>
+                    <View style={styles.comfortWaitIconCircle}>
+                      <Ionicons name="notifications" size={18} color="#60A5FA" />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.comfortWaitBadge}>
+                        <View style={styles.comfortWaitDot} />
+                        <Text style={styles.comfortWaitBadgeText} numberOfLines={1}>TEMPO DE ESPERA TRANQUILO</Text>
+                      </View>
+                      {/* Título com tempo formatado dinâmico — sempre 1 linha */}
+                      <Text style={styles.comfortWaitTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                        {formatWaitTimePhrase(minutesUntilLeave)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                {!scheduledReminderTime && (
-                  <TouchableOpacity
-                    style={[styles.reminderButton, { backgroundColor: theme.primary }]}
-                    onPress={handleScheduleReminder}
-                    disabled={isSchedulingReminder}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                    accessibilityLabel="Me avisar dez minutos antes de sair"
-                  >
-                    <Ionicons name="alarm-outline" size={18} color="#FFF" />
-                    <Text style={styles.reminderButtonText}>
-                      {isSchedulingReminder ? "Agendando..." : "Me avisar 10 min antes de sair"}
+                  {/* Subtítulo agora estende-se até as bordas do card em até 2 linhas */}
+                  {scheduledReminderTime ? (
+                    <Text style={styles.comfortWaitSubtitle} numberOfLines={2}>
+                      Avisaremos você às{" "}
+                      <Text style={styles.comfortWaitSubtitleBold}>{scheduledReminderTime}</Text>
+                      {" "}para sair.
                     </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+                  ) : (
+                    <Text style={styles.comfortWaitSubtitle} numberOfLines={2}>
+                      Fique tranquilo! Saia às{" "}
+                      <Text style={styles.comfortWaitSubtitleBold}>{activeSummary?.leaveHomeAt}</Text>
+                      {" "}para embarcar sem pressa.
+                    </Text>
+                  )}
+
+                  {!scheduledReminderTime && reminderTargetTime && (
+                    <TouchableOpacity
+                      style={styles.comfortWaitButton}
+                      onPress={handleScheduleReminder}
+                      disabled={isSchedulingReminder}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Me avisar 10 minutos antes de sair"
+                    >
+                      <Ionicons name="alarm-outline" size={16} color="#FFF" style={{ flexShrink: 0 }} />
+                      <Text style={styles.comfortWaitButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                        {isSchedulingReminder ? "Agendando..." : `Me avisar 10 min antes (às ${reminderTargetTime})`}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {scheduledReminderTime && (
+                    <View style={styles.comfortWaitButtonScheduled}>
+                      <Ionicons name="checkmark-circle" size={16} color="#34D399" />
+                      <Text style={styles.comfortWaitButtonScheduledText} numberOfLines={1}>
+                        Lembrete agendado para às {scheduledReminderTime}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
+
+            {/* Lembrete para viagem futura (> 30 min) sem o bloco de espera */}
+            {isFutureTrip && !hasComfortableWait && (
+              <>
+                <View style={styles.summaryDivider} />
+                <View style={styles.reminderCard}>
+                  <View style={styles.reminderHeader}>
+                    <Ionicons
+                      name={scheduledReminderTime ? "checkmark-circle" : "notifications"}
+                      size={22}
+                      color={scheduledReminderTime ? "#34D399" : "#60A5FA"}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reminderTitle}>
+                        {scheduledReminderTime
+                          ? `Lembrete agendado para às ${scheduledReminderTime}`
+                          : "Viagem programada para mais tarde"}
+                      </Text>
+                      <Text style={styles.reminderSubtitle}>
+                        {scheduledReminderTime
+                          ? `Avisaremos você 10 minutos antes de sair (saída prevista às ${activeSummary?.leaveHomeAt}).`
+                          : `Você só precisa sair de onde está às ${activeSummary?.leaveHomeAt}. Quer que eu te avise 10 min antes?`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {!scheduledReminderTime && (
+                    <TouchableOpacity
+                      style={[styles.reminderButton, { backgroundColor: theme.primary }]}
+                      onPress={handleScheduleReminder}
+                      disabled={isSchedulingReminder}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Me avisar dez minutos antes de sair"
+                    >
+                      <Ionicons name="alarm-outline" size={18} color="#FFF" />
+                      <Text style={styles.reminderButtonText}>
+                        {isSchedulingReminder ? "Agendando..." : "Me avisar 10 min antes de sair"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
             )}
           </View>
 
@@ -677,16 +852,16 @@ export default function BestRouteScreen() {
             </View>
 
             <View style={[
-              styles.stepsList, 
-              isDark 
+              styles.stepsList,
+              isDark
                 ? { backgroundColor: "rgba(255, 255, 255, 0.02)", borderColor: "rgba(255, 255, 255, 0.04)" }
                 : { backgroundColor: "rgba(255, 255, 255, 0.3)", borderColor: "rgba(255, 255, 255, 0.5)" }
             ]}>
-              <RouteStep 
+              <RouteStep
                 type="start"
                 time={activeSummary?.leaveHomeAt || "Agora"}
                 title="Saia do seu local"
-                description={leaveHomeText || "Comece agora."}
+                description={`hoje às ${activeSummary?.leaveHomeAt || "agora"} da noite`}
               />
 
               {isWalkingOnly && (
@@ -698,18 +873,19 @@ export default function BestRouteScreen() {
               )}
 
               {!isWalkingOnly && transitSteps.map((step, index) => (
-                <RouteStep 
+                <RouteStep
                   key={`step-${selectedRouteIndex}-${index}`}
                   type="bus"
                   time={step.departureTime || (index === 0 ? activeSummary?.beAtStopAt : "") || "--"}
-                  title={`Pegue o ônibus ${step.line}`}
-                  description={step.lineName || step.headsign || ""}
+                  title={`Pegue o ônibus ${step.line} - ${step.headsign || step.lineName || ""}`}
+                  description={step.headsign ? `LETREIRO: ${step.line} ${step.headsign.toUpperCase()}` : ""}
                   highlight={getShortStopName(step.from)}
                   highlightSecondary={getShortStopName(step.to)}
+                  stopCount={step.stopCount}
                 />
               ))}
 
-              <RouteStep 
+              <RouteStep
                 type="finish"
                 time={activeSummary?.arrivalAtDestination || "--"}
                 title="Chegada"
@@ -722,11 +898,11 @@ export default function BestRouteScreen() {
       </ScrollView>
 
       {/* 4. RODAPÉ FIXO DE AÇÕES */}
-      <Animated.View 
-        entering={FadeInDown.duration(400).delay(200)} 
+      <Animated.View
+        entering={FadeInDown.duration(400).delay(200)}
         style={styles.bottomActionsShadow}
       >
-        <View style={[styles.bottomActionsContent, { paddingBottom: 16 }]}>
+        <View style={[styles.bottomActionsContent, { paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
           <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
           <LinearGradient
             colors={[isDark ? 'rgba(1, 16, 48, 0)' : 'rgba(241, 245, 249, 0)', theme.background]}
@@ -734,21 +910,51 @@ export default function BestRouteScreen() {
             style={StyleSheet.absoluteFillObject}
             pointerEvents="none"
           />
-          <PrimaryButton
-            iconName={isFutureTrip ? undefined : "navigate"}
-            title={isFutureTrip ? "Concluir e voltar para o início" : (isWalkingOnly ? "Iniciar caminhada" : "Iniciar navegação")}
-            onPress={isFutureTrip ? () => router.replace("/inicio") : handleStartNavigation}
-            disabled={isLoadingCommand}
-            isLoading={isLoadingCommand}
-            style={[styles.mainButton, { borderRadius: 100, minHeight: 56, height: 56 }]}
-            accessibilityLabel={isFutureTrip ? "Concluir e voltar para a tela inicial" : "Iniciar navegação para esta rota"}
-          />
-          <ListenOptionsButton 
-            label={isWalkingOnly ? "Ouvir destino" : "Ouvir resumo"}
-            style={{ width: "100%", height: 64 }}
-            onPress={handleHearRoute} 
-            accessibilityLabel="Ouvir resumo da rota em voz alta"
-          />
+
+          {/* Botão principal: Se futuro → lembrete, senão → iniciar */}
+          {isFutureTrip && !scheduledReminderTime && reminderTargetTime ? (
+            <PrimaryButton
+              iconName="alarm-outline"
+              title={isSchedulingReminder ? "Agendando..." : `Me avisar 10 min antes (às ${reminderTargetTime})`}
+              onPress={handleScheduleReminder}
+              disabled={isSchedulingReminder}
+              style={[styles.mainButton]}
+              accessibilityLabel="Me avisar dez minutos antes de sair"
+            />
+          ) : (
+            <PrimaryButton
+              iconName={isFutureTrip ? undefined : (isWalkingOnly ? "walk" : "navigate")}
+              title={isFutureTrip ? "Concluir e voltar para o início" : (isWalkingOnly ? "Iniciar caminhada" : "Iniciar agora")}
+              onPress={isFutureTrip ? () => router.replace("/inicio") : handleStartNavigation}
+              disabled={isLoadingCommand}
+              isLoading={isLoadingCommand}
+              style={[styles.mainButton]}
+              accessibilityLabel={isFutureTrip ? "Concluir e voltar para a tela inicial" : "Iniciar navegação para esta rota"}
+            />
+          )}
+
+          {/* Linha inferior: Ouvir resumo + Iniciar agora (quando for futuro) */}
+          <View style={styles.bottomSecondaryRow}>
+            <ListenOptionsButton
+              label={isWalkingOnly ? "Ouvir destino" : "Ouvir resumo"}
+              style={styles.bottomSecondaryBtn}
+              onPress={handleHearRoute}
+              accessibilityLabel="Ouvir resumo da rota em voz alta"
+            />
+            {isFutureTrip && (
+              <TouchableOpacity
+                style={styles.bottomSecondaryInitiarBtn}
+                onPress={handleStartNavigation}
+                disabled={isLoadingCommand}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Iniciar navegação agora"
+              >
+                <Ionicons name="navigate" size={16} color={theme.primary} />
+                <Text style={[styles.bottomSecondaryInitiarText, { color: theme.primary }]}>Iniciar agora</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </Animated.View>
     </View>
@@ -777,10 +983,10 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    gap: 28,
+    gap: 24,
   },
 
-  /* ─── 1. Cabeçalho e Mapa ─── */
+  /* ─── 1. Cabeçalho ─── */
   header: {
     alignItems: "center",
     marginBottom: 0,
@@ -829,67 +1035,105 @@ const styles = StyleSheet.create({
   },
   routeSelectorScroll: {
     paddingHorizontal: 20,
-    gap: 12,
+    gap: 10,
     paddingVertical: 4,
   },
   routeCardOption: {
-    width: 145,
+    width: 140,
     borderRadius: 18,
-    padding: 12,
-    gap: 8,
+    padding: 14,
+    gap: 6,
     borderWidth: 1.5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 2,
   },
   routeCardSelected: {
     backgroundColor: "rgba(59, 130, 246, 0.12)",
+    borderColor: "#3B82F6",
   },
-  routeCardUnselected: {
-    borderColor: "rgba(255, 255, 255, 0.1)",
+  routeCardUnselectedLight: {
+    backgroundColor: "rgba(255,255,255,0.75)",
+    borderColor: "rgba(0,0,0,0.06)",
+  },
+  routeCardUnselectedDark: {
+    backgroundColor: "rgba(15,23,42,0.75)",
+    borderColor: "rgba(255,255,255,0.08)",
   },
   routeCardTag: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(100, 116, 139, 0.2)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  routeCardTagText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#94A3B8",
-    textTransform: "uppercase",
+  routeCardTagSelected: {
+    backgroundColor: "#3B82F6",
   },
-  routeCardBody: {
-    gap: 2,
+  routeCardTagUnselected: {
+    backgroundColor: "rgba(100, 116, 139, 0.15)",
+  },
+  routeCardTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  routeCardTagTextSelected: {
+    color: "#FFFFFF",
+  },
+  routeCardTagTextUnselected: {
+    color: "#64748B",
   },
   routeCardDuration: {
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: "900",
+    letterSpacing: -0.3,
   },
-  routeCardLines: {
+  routeCardLinesChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+    marginTop: 2,
+  },
+  routeCardChipSelected: {
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
+  },
+  routeCardChipUnselected: {
+    backgroundColor: "rgba(100, 116, 139, 0.12)",
+  },
+  routeCardLinesChipText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  routeCardDirection: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 2,
+    lineHeight: 15,
   },
 
   /* ─── 2. Card de resumo ─── */
   summaryCard: {
     borderRadius: 24,
-    padding: 24,
+    padding: 22,
+    backgroundColor: "rgba(15, 23, 42, 0.88)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.25,
     shadowRadius: 24,
     elevation: 8,
-    gap: 16,
+    gap: 18,
+    overflow: "hidden",
   },
   topBadgesRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     flexWrap: "wrap",
     gap: 8,
   },
@@ -897,14 +1141,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(52,211,153,0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    alignSelf: "center",
+    backgroundColor: "rgba(52,211,153,0.22)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 100,
   },
   summaryBadgeText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "800",
     color: "#34D399",
   },
@@ -928,67 +1172,245 @@ const styles = StyleSheet.create({
   },
   liveBusBadgeText: {
     color: "#4ADE80",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "800",
   },
   chipsRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+    gap: 6,
   },
   chip: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    gap: 8,
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 6,
+    paddingVertical: 11,
+    borderRadius: 14,
   },
   chipText: {
-    fontSize: 15,
-    fontWeight: "800",
+    fontSize: 13,
+    fontWeight: "700",
     color: "#FFFFFF",
+    flexShrink: 1,
+    textAlign: "center",
   },
   summaryDivider: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
+  /* Grid de detalhes: coluna esquerda + divisor + coluna de horários */
   summaryDetailsGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
+    alignItems: "stretch",
+    gap: 0,
   },
   summaryDetailItem: {
-    minWidth: 80,
-    gap: 4,
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
   },
   summaryDetailLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: "rgba(255,255,255,0.55)",
+    color: "rgba(255,255,255,0.6)",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   summaryDetailValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
     color: "#FFFFFF",
+  },
+  summaryVerticalDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    marginHorizontal: 12,
+  },
+  summaryTimesCol: {
+    gap: 10,
+    flexShrink: 0,
+    justifyContent: "center",
+  },
+  summaryTimeRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 10,
+  },
+  summaryTimeLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.6)",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    flexShrink: 0,
+    width: 68,
+  },
+  summaryTimeValue: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
+    flexShrink: 0,
   },
   busLineHighlight: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(59,130,246,0.4)",
+    backgroundColor: "#3B82F6",
     alignSelf: "flex-start",
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 12,
+    marginTop: 4,
   },
   busLineNumber: {
-    fontSize: 20,
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  summaryDetailSubtext: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 2,
+    lineHeight: 17,
+  },
+
+  /* ─── Bloco de tempo de espera tranquilo ─── */
+  comfortWaitCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 18,
+    padding: 14,
+    gap: 12,
+  },
+  comfortWaitHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  comfortWaitIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(59, 130, 246, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  comfortWaitBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(59, 130, 246, 0.3)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 100,
+    marginBottom: 4,
+  },
+  comfortWaitDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#60A5FA",
+  },
+  comfortWaitBadgeText: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: "#93C5FD",
+    letterSpacing: 0.5,
+  },
+  comfortWaitTitle: {
+    fontSize: 17,
     fontWeight: "900",
     color: "#FFFFFF",
+    lineHeight: 22,
+  },
+  comfortWaitSubtitle: {
+    fontSize: 13.5,
+    fontWeight: "400",
+    color: "rgba(255,255,255,0.68)",
+    lineHeight: 19,
+    marginTop: 0,
+  },
+  comfortWaitSubtitleBold: {
+    fontWeight: "800",
+    color: "rgba(255,255,255,0.95)",
+  },
+  comfortWaitButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 100,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  comfortWaitButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  comfortWaitButtonScheduled: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(52, 211, 153, 0.12)",
+    borderRadius: 100,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  comfortWaitButtonScheduledText: {
+    color: "#34D399",
+    fontSize: 13.5,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+
+  /* ─── Reminder card (viagem futura sem comfort wait) ─── */
+  reminderCard: {
+    gap: 12,
+  },
+  reminderHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  reminderTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  reminderSubtitle: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  reminderButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  reminderButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   /* ─── 3. Passo a passo ─── */
@@ -1030,50 +1452,36 @@ const styles = StyleSheet.create({
   },
   bottomActionsContent: {
     padding: 16,
-    gap: 8,
+    gap: 10,
     alignItems: "center",
     borderRadius: 32,
     overflow: "hidden",
   },
   mainButton: {
-    height: 64,
-    borderRadius: 32,
+    width: "100%",
+    borderRadius: 100,
+    minHeight: 56,
+    height: 56,
   },
-  reminderCard: {
+  bottomSecondaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+  },
+  bottomSecondaryBtn: {
+    flex: 1,
+    height: 52,
+  },
+  bottomSecondaryInitiarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderRadius: 20,
-    borderWidth: 1.5,
-    padding: 16,
-    gap: 12,
-    marginTop: 8,
   },
-  reminderHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  reminderTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  reminderSubtitle: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "rgba(255, 255, 255, 0.85)",
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  reminderButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  reminderButtonText: {
-    color: "#FFFFFF",
+  bottomSecondaryInitiarText: {
     fontSize: 15,
     fontWeight: "700",
   },

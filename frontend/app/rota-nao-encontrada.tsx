@@ -107,7 +107,7 @@ export default function RouteNotFoundScreen() {
                   ? "wifi-off" 
                   : "map-marker-off"
               } 
-              size={64} 
+              size={40} 
               color={(isDailyLimit || isConnectionError) ? "#FF9800" : theme.danger} 
             />
           </View>
@@ -173,24 +173,24 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 20,
-    gap: 32,
+    paddingTop: 16,
+    gap: 20,
   },
   iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   textContainer: {
     alignItems: "center",
-    gap: 16,
+    gap: 12,
     width: "100%",
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "900",
     textAlign: "center",
   },
@@ -203,30 +203,30 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   messageCardContent: {
-    padding: 24,
-    borderRadius: 24,
+    padding: 16,
+    borderRadius: 20,
     borderWidth: 1,
     overflow: "hidden",
   },
   messageText: {
-    fontSize: 18,
+    fontSize: 16,
     textAlign: "center",
-    lineHeight: 26,
+    lineHeight: 24,
     fontWeight: "600",
   },
   hintText: {
-    fontSize: 15,
+    fontSize: 14,
     textAlign: "center",
-    lineHeight: 22,
-    paddingHorizontal: 20,
+    lineHeight: 20,
+    paddingHorizontal: 16,
   },
   actions: {
     width: "100%",
-    gap: 16,
+    gap: 12,
   },
   secondaryButton: {
     width: "100%",
-    minHeight: 64,
+    minHeight: 56,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",

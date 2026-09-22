@@ -11,6 +11,7 @@ interface JourneyStepProps {
   isLast?: boolean;
   highlight?: string;
   highlightSecondary?: string;
+  stopCount?: number;
 }
 
 export const RouteStep = ({ 
@@ -20,7 +21,8 @@ export const RouteStep = ({
   type, 
   isLast, 
   highlight, 
-  highlightSecondary 
+  highlightSecondary,
+  stopCount,
 }: JourneyStepProps) => {
   const theme = useThemeColors();
   const isDark = useColorScheme() === 'dark';
@@ -59,7 +61,13 @@ export const RouteStep = ({
         <Text style={[styles.stepTitle, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{title}</Text>
         
         {type === 'bus' ? (
-          <View style={[styles.busDetailsCard, isDark && { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.05)' }]}>
+          <>
+            {description ? (
+              <View style={[styles.busSignChip, isDark && { backgroundColor: 'rgba(59,130,246,0.15)' }]}>
+                <Text style={styles.busSignChipText}>{description}</Text>
+              </View>
+            ) : null}
+            <View style={[styles.busDetailsCard, isDark && { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.05)' }]}>
             {highlight ? (
               <View style={styles.detailRow}>
                 <View style={styles.detailIconCircle}>
@@ -77,12 +85,21 @@ export const RouteStep = ({
                   <Ionicons name="flag" size={12} color={colors.success} />
                 </View>
                 <View style={styles.detailTextCol}>
-                  <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Desça em</Text>
+                  <Text style={[styles.detailLabel, { color: theme.textMuted }]}>
+                    <Text style={{ color: colors.success, fontWeight: '800' }}>● Próxima parada para desembarcar</Text>
+                  </Text>
                   <Text style={[styles.detailValue, { color: theme.text }]} maxFontSizeMultiplier={1.2}>{highlightSecondary}</Text>
+                  <Text style={[styles.detailLabel, { color: theme.textMuted, textTransform: 'none' }]}>Prepare-se para desembarcar pela porta central/traseira</Text>
                 </View>
               </View>
             ) : null}
+            {stopCount !== undefined && stopCount > 0 ? (
+              <Text style={[styles.stopCountText, { color: theme.textMuted }]}>
+                • {stopCount} paradas (aproximadamente {stopCount * 2} min)
+              </Text>
+            ) : null}
           </View>
+          </>
         ) : (
           description ? (
             <Text style={[styles.stepDescription, { color: theme.textMuted }]} maxFontSizeMultiplier={1.1}>{description}</Text>
@@ -178,8 +195,22 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 2,
   },
+  busSignChip: {
+    backgroundColor: 'rgba(59,130,246,0.1)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  busSignChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#3B82F6',
+  },
   busDetailsCard: {
-    marginTop: 10,
+    marginTop: 6,
     backgroundColor: '#F8FAFC',
     borderRadius: 14,
     padding: 14,
@@ -223,5 +254,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 22,
     marginTop: 2,
+  },
+  stopCountText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 4,
   },
 });

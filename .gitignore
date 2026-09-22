@@ -41,3 +41,9 @@ docs/MAPA-CONHECIMENTO-IA.md
 
 # Editor config (personal preferences)
 .vscode/
+
+# Temporary scripts and automation patches
+frontend/extract*
+frontend/patch_*.js
+frontend/fix_*.js
+frontend/reapply_*.js

@@ -77,7 +77,7 @@ export const AssistantLoadingState: React.FC<AssistantLoadingStateProps> = ({
         </View>
       </View>
 
-      <View style={[styles.header, { marginBottom: isSmallHeight ? 20 : 28 }]}>
+      <View style={[styles.header, { marginBottom: isSmallHeight ? 12 : 16 }]}>
         <Text style={[styles.title, { fontSize: isSmallHeight ? 24 : 28, color: theme.text }]} maxFontSizeMultiplier={1.4}>{title}</Text>
         
         {destinationName && (
@@ -100,7 +100,7 @@ export const AssistantLoadingState: React.FC<AssistantLoadingStateProps> = ({
       )}
 
       {steps && steps.length > 0 && (
-        <Animated.View entering={FadeIn.delay(200)} style={[styles.stepsCard, { padding: isSmallHeight ? 20 : 28, backgroundColor: isDark ? 'rgba(30, 41, 59, 0.75)' : 'rgba(255, 255, 255, 0.85)', borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.9)' }]}>
+        <Animated.View entering={FadeIn.delay(200)} style={[styles.stepsCard, { padding: isSmallHeight ? 16 : 20, backgroundColor: isDark ? 'rgba(30, 41, 59, 0.75)' : 'rgba(255, 255, 255, 0.85)', borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.9)' }]}>
           {steps.map((step, index) => {
             const isLast = index === steps.length - 1;
             const isCompleted = step.status === 'completed';
@@ -126,17 +126,12 @@ export const AssistantLoadingState: React.FC<AssistantLoadingStateProps> = ({
                       maxFontSizeMultiplier={1.2}
                       style={[
                         styles.stepText,
-                        { fontSize: isSmallHeight ? 16 : 17, color: theme.textMuted },
+                        { fontSize: isSmallHeight ? 15 : 16, color: theme.textMuted },
                         isCompleted && { color: theme.text },
                         isLoading && { color: '#007AFF', fontWeight: '800' }]}
                     >
                       {step.label}
                     </Text>
-                    {step.description && (
-                       <Text style={[styles.stepDescription, { color: isLoading ? '#60A5FA' : theme.textMuted, opacity: isPending ? 0.6 : 1 }]} maxFontSizeMultiplier={1.1}>
-                         {step.description}
-                       </Text>
-                    )}
                   </View>
                 </View>
                 {!isLast && (
@@ -255,7 +250,7 @@ const styles = StyleSheet.create({
   },
   stepLine: {
     width: 2,
-    height: 24,
+    height: 16,
     marginLeft: 13, // center under the 28px icon container
     marginVertical: 4,
     borderRadius: 1,

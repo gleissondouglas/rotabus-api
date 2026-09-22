@@ -60,15 +60,12 @@ describe('RouteStep', () => {
     expect(getByText('08:15')).toBeTruthy();
     expect(getByText('Pegue o ônibus 100')).toBeTruthy();
     
-    // In bus mode, description text is not rendered if highlight cards take precedence in our implementation,
-    // or maybe they are both rendered? Actually, in our code:
-    // {type === 'bus' ? ( <View style={styles.busDetailsCard}>... ) : ( description ? ... )}
-    // So description is NOT rendered for bus type.
-    expect(queryByText('Destino Centro')).toBeNull();
+    // Em modo bus, description é renderizado no chip de itinerário
+    expect(getByText('Destino Centro')).toBeTruthy();
 
     expect(getByText('Ponto')).toBeTruthy(); // detailLabel
     expect(getByText('Ponto A')).toBeTruthy(); // highlight value
-    expect(getByText('Desça em')).toBeTruthy(); // detailLabel
+    expect(getByText('● Próxima parada para desembarcar')).toBeTruthy(); // novo label de destaque
     expect(getByText('Ponto B')).toBeTruthy(); // highlightSecondary value
   });
 
