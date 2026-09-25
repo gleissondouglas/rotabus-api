@@ -10,6 +10,7 @@ import {
   View,
   LayoutChangeEvent,
   useColorScheme,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeInDown, useAnimatedStyle, withSpring, withTiming, useSharedValue, withSequence } from "react-native-reanimated";
@@ -43,6 +44,11 @@ import { BottomActionBar } from "../src/components/BottomActionBar";
 import { FavoritesAndHistoryView } from "../src/components/FavoritesAndHistoryView";
 import { LiquidGlassView } from "../src/components/LiquidGlassView";
 import { AdaptiveIcon } from "../src/components/AdaptiveIcon";
+import { RecentSearchTicker } from "../src/components/RecentSearchTicker";
+import {
+  recentSearchService,
+  type FormattedRecentSearch,
+} from "../src/services/recentSearch.service";
 import { logUserInteraction } from "../src/utils/devLogger";
 
 type ScreenStatus = "idle" | "listening" | "processing" | "error" | "success";
@@ -176,6 +182,32 @@ export default function HomeScreen() {
    */
   const [promptAnimated, setPromptAnimated] = useState(false);
   const [promptText, setPromptText] = useState("");
+  const [recentSearches, setRecentSearches] = useState<FormattedRecentSearch[]>(
+    recentSearchService.DEFAULT_FALLBACK_SEARCHES
+  );
+
+  const loadRecentSearches = useCallback(async () => {
+    try {
+      const searches = await recentSearchService.getRecentSearches();
+      if (searches && searches.length > 0) {
+        setRecentSearches((prev) => {
+          if (
+            prev.length === searches.length &&
+            prev.every(
+              (item, i) =>
+                item.query === searches[i].query &&
+                item.title === searches[i].title
+            )
+          ) {
+            return prev;
+          }
+          return searches;
+        });
+      }
+    } catch (err) {
+      console.log("[inicio] Erro ao carregar buscas recentes:", err);
+    }
+  }, []);
 
   const lastHandledSearchTextRef = useRef<string | null>(null);
   const voiceIssueMessageRef = useRef("");
@@ -234,6 +266,13 @@ export default function HomeScreen() {
         if (response.mode === "resolved" || response.mode === "suggestions") {
           const bestOption = resolvedOptions[0];
           vibrationService.success();
+          void recentSearchService.addRecentSearch({
+            query: bestOption?.name || response.interpretedDestination || destinationText,
+            title: bestOption?.name || response.interpretedDestination || destinationText,
+            address: bestOption?.address || "",
+            lat: Number(bestOption?.lat) || undefined,
+            lng: Number(bestOption?.lng) || undefined,
+          });
           router.push({
             pathname: "/confirmar-destino",
             params: {
@@ -474,6 +513,7 @@ export default function HomeScreen() {
       setIsTranscriptFinal(false);
       setErrorMessage("");
       voiceIssueMessageRef.current = "";
+      void loadRecentSearches();
 
       if (!params.searchText && userName) {
         if (shouldAutoStartHomeVoice()) {
@@ -546,7 +586,7 @@ export default function HomeScreen() {
     }
 
     if (status === "listening") {
-      return "Parar e enviar";
+      return "Parar e\nenviar";
     }
 
     if (status === "processing") {
@@ -554,10 +594,10 @@ export default function HomeScreen() {
     }
 
     if (status === "error") {
-      return "Tentar de novo";
+      return "Tentar de\nnovo";
     }
 
-    return "Falar destino";
+    return "Falar\ndestino";
   }
 
   const handleTypeDestination = usePreventDoublePress(async function () {
@@ -706,7 +746,7 @@ export default function HomeScreen() {
       </Animated.View>
 
       {/* ─── ZONA 2: CENTRO ─── */}
-      <View style={styles.centerZone} pointerEvents={(activeTab === "favorites" || activeTab === "settings") ? "auto" : "none"}>
+      <View style={styles.centerZone} pointerEvents={(activeTab === "favorites" || activeTab === "settings") ? "auto" : "box-none"}>
         {activeTab === "settings" ? (
           <View style={{ width: "100%", maxWidth: 380, marginTop: 20, gap: 12 }}>
             <Pressable style={[styles.settingsCard, { backgroundColor: theme.card }]} onPress={handleSettings}>
@@ -739,15 +779,14 @@ export default function HomeScreen() {
             entering={FadeIn.duration(250)}
             style={styles.unifiedCard}
           >
-            <Text style={[styles.messageLabel, { color: theme.textMuted }]}>Assistente</Text>
-            <LiquidGlassView
+            <Text style={[styles.messageLabel, { color: theme.textMuted }]}>Rota Bus</Text>
+            <View
               style={[
                 styles.assistantBubble,
-                isDark && {
-                  borderColor: 'rgba(255,255,255,0.10)',
-                  backgroundColor: 'rgba(255,255,255,0.05)',
-                }]}
-              fallbackColor={theme.card}
+                isDark
+                  ? { backgroundColor: theme.card, borderColor: 'rgba(255,255,255,0.08)' }
+                  : { backgroundColor: '#FFFFFF', borderColor: 'rgba(255,255,255,0.9)' },
+              ]}
             >
               <VoicePromptText
                 text={promptText}
@@ -776,40 +815,23 @@ export default function HomeScreen() {
                 </Animated.View>
               )}
 
-              {/* Botões Rápidos */}
-              <View style={styles.quickPillsRow}>
-                <Pressable style={[styles.quickPill, { borderColor: theme.border }]} onPress={() => { setTranscript("Casa"); processTranscription("Casa", false); }}>
-                  <Ionicons name="home-outline" size={16} color={theme.primary} />
-                  <Text style={[styles.quickPillText, { color: theme.primary }]}>Casa</Text>
-                </Pressable>
-                <Pressable style={[styles.quickPill, { borderColor: theme.border }]} onPress={() => { setTranscript("Trabalho"); processTranscription("Trabalho", false); }}>
-                  <Ionicons name="briefcase-outline" size={16} color={theme.primary} />
-                  <Text style={[styles.quickPillText, { color: theme.primary }]}>Trabalho</Text>
-                </Pressable>
-                <Pressable style={[styles.quickPill, { borderColor: theme.border }]} onPress={() => { setTranscript("Uniube"); processTranscription("Uniube", false); }}>
-                  <Ionicons name="school-outline" size={16} color={theme.primary} />
-                  <Text style={[styles.quickPillText, { color: theme.primary }]}>Uniube</Text>
-                </Pressable>
-              </View>
-
               <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-              {/* Seção Recentes */}
+              {/* Seção Recentes — Letreiro Vertical Automático com histórico */}
               <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>RECENTES</Text>
               
               <View style={styles.recentList}>
-                <Pressable style={styles.recentItem} onPress={() => { setTranscript("Av. Leopoldino de Oliveira"); processTranscription("Av. Leopoldino de Oliveira", false); }}>
-                  <View style={[styles.recentIcon, { backgroundColor: theme.primary + "1A" }]}>
-                    <Ionicons name="time-outline" size={20} color={theme.primary} />
-                  </View>
-                  <View style={styles.recentTexts}>
-                    <Text style={[styles.recentTitle, { color: theme.text }]} numberOfLines={1}>Av. Leopoldino de Oliveira</Text>
-                    <Text style={[styles.recentSubtitle, { color: theme.textMuted }]} numberOfLines={1}>Centro • Próximo ao Calçadão</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
-                </Pressable>
+                <RecentSearchTicker
+                  items={recentSearches}
+                  onSelectItem={(item) => {
+                    const searchText = item.query || item.title;
+                    setTranscript(searchText);
+                    setIsTranscriptFinal(true);
+                    void processTranscription(searchText, false);
+                  }}
+                />
               </View>
-            </LiquidGlassView>
+            </View>
           </Animated.View>
         )}
 
@@ -950,19 +972,16 @@ const styles = StyleSheet.create({
     ...APPLE_FONT,
   },
   assistantBubble: {
-    borderRadius: 30,
-    borderTopLeftRadius: 10,
+    borderRadius: 20,
     paddingHorizontal: 24,
     paddingVertical: 22,
     minHeight: 190,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.9)",
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    elevation: 4,
   },
   promptTextWrapper: {
     paddingHorizontal: 0,
@@ -999,25 +1018,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     ...APPLE_FONT,
   },
-  quickPillsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 16,
-  },
-  quickPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  quickPillText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
   divider: {
     height: 1,
     marginVertical: 16,
@@ -1029,30 +1029,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   recentList: {
-    gap: 16,
-  },
-  recentItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  recentIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  recentTexts: {
-    flex: 1,
-  },
-  recentTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  recentSubtitle: {
-    fontSize: 14,
-    marginTop: 2,
+    gap: 8,
   },
   errorBanner: {
     flexDirection: "row",
