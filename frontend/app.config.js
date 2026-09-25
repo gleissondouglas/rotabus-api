@@ -9,6 +9,7 @@ module.exports = {
   expo: {
     name: "RotaBus",
     slug: "rotaBus-front",
+    owner: "d.ougl",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
@@ -108,7 +109,7 @@ module.exports = {
     extra: {
       router: {},
       eas: {
-        projectId: "195e0109-91dd-4336-a8cb-e0fff01bb41e",
+        projectId: "536338f8-29bd-4c6a-a8c9-7b655eb70d2e",
       },
       apiBaseUrl: process.env.API_BASE_URL || "http://localhost:3000",
       sentryDsn: process.env.SENTRY_DSN || "",
