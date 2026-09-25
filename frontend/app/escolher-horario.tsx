@@ -23,6 +23,7 @@ import { useAutoSpeakOnce } from "../src/hooks/useAutoSpeakOnce";
 
 import { BackButton } from "../src/components/BackButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
+import { MarqueeText } from "../src/components/MarqueeText";
 import { useThemeColors } from "../src/theme/colors";
 import { layout } from "../src/theme/layout";
 import { vibrationService } from "../src/services/vibration.service";
@@ -294,18 +295,31 @@ export default function ChooseTimeScreen() {
               { color: theme.text },
               { fontSize: isSmallHeight ? layout.titleFontSizeSmall : layout.titleFontSize }
             ]} maxFontSizeMultiplier={1.2}>Quando você quer ir?</Text>
-            <Text 
-              style={[
-                styles.subtitle, 
-                { color: theme.textMuted },
-                { fontSize: isSmallHeight ? layout.subtitleFontSizeSmall : layout.subtitleFontSize }
-              ]} 
-              maxFontSizeMultiplier={1.1}
-              numberOfLines={2}
-              ellipsizeMode="tail"
-            >
-              Escolha o horário da viagem até <Text style={[styles.bold, { color: theme.primary }]}>{destination}</Text>.
-            </Text>
+            <View style={{ width: '100%', alignItems: 'center' }}>
+              <Text 
+                style={[
+                  styles.subtitle, 
+                  { color: theme.textMuted, textAlign: "center" },
+                  { fontSize: isSmallHeight ? layout.subtitleFontSizeSmall : layout.subtitleFontSize }
+                ]} 
+                maxFontSizeMultiplier={1.1}
+              >
+                Escolha o horário da viagem até
+              </Text>
+              <View style={{ width: '100%', alignItems: 'center', marginTop: 2 }}>
+                <MarqueeText
+                  style={[
+                    styles.bold,
+                    { color: theme.primary, textAlign: 'center' },
+                    { fontSize: isSmallHeight ? layout.subtitleFontSizeSmall + 1 : layout.subtitleFontSize + 1 }
+                  ]}
+                  speed={32}
+                  delay={1400}
+                >
+                  {destination}
+                </MarqueeText>
+              </View>
+            </View>
           </View>
 
 
