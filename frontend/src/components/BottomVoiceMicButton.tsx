@@ -132,7 +132,7 @@ export function BottomVoiceMicButton({
           ) : (
             <Ionicons name={isError ? "refresh" : "mic"} size={20} color={foregroundColor} style={styles.icon} />
           )}
-          <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.label, compact && styles.compactLabel, { color: foregroundColor }]}>
+          <Text numberOfLines={2} adjustsFontSizeToFit style={[styles.label, compact && styles.compactLabel, { color: foregroundColor }]}>
             {label}
           </Text>
         </Pressable>
@@ -144,15 +144,15 @@ export function BottomVoiceMicButton({
 
 const styles = StyleSheet.create({
   wrapper: { alignItems: "center", justifyContent: "center", minHeight: 74, position: "relative" },
-  compactWrapper: { flex: 1, minHeight: 52 },
-  compactAnimatedWrapper: { width: "100%" },
+  compactWrapper: { flex: 1.15, minHeight: 64 },
+  compactAnimatedWrapper: { width: "100%", height: "100%" },
   glow: { position: "absolute", top: 0, width: 230, height: 52, borderRadius: 999 },
-  compactGlow: { width: "100%" },
+  compactGlow: { width: "100%", height: "100%" },
   button: { height: 52, borderRadius: 999, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 24, minWidth: 220, backgroundColor: "rgba(59, 130, 246, 0.08)", shadowColor: "#2563EB", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 },
-  compactButton: { minWidth: 0, width: "100%", paddingHorizontal: 12, borderRadius: 36 },
+  compactButton: { minWidth: 0, width: "100%", height: "100%", paddingHorizontal: 12, borderRadius: 32 },
   errorButton: { backgroundColor: "#FFFFFF" },
   icon: { marginRight: 8 },
-  label: { fontSize: 16, fontWeight: "800" },
-  compactLabel: { fontSize: 14 },
+  label: { fontSize: 16, fontWeight: "800", lineHeight: 18 },
+  compactLabel: { fontSize: 15 },
   helperText: { color: "#64748B", fontSize: 12, fontWeight: "700", marginTop: 7, textAlign: "center" },
 });

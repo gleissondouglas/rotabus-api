@@ -21,6 +21,7 @@ import { journeyService } from "../src/services/journey.service";
 import { sessionService } from "../src/services/session.service";
 import { useAutoSpeak } from "../src/hooks/useAutoSpeak";
 import { vibrationService } from "../src/services/vibration.service";
+import { recentSearchService } from "../src/services/recentSearch.service";
 import { useThemeColors } from "../src/theme/colors";
 import { layout } from "../src/theme/layout";
 
@@ -105,6 +106,13 @@ export default function TypeDestinationScreen() {
       if (response.mode === "resolved" || response.mode === "suggestions") {
         const bestOption = resolvedOptions[0];
         vibrationService.success();
+        void recentSearchService.addRecentSearch({
+          query: bestOption?.name || response.interpretedDestination || targetAddress,
+          title: bestOption?.name || response.interpretedDestination || targetAddress,
+          address: bestOption?.address || "",
+          lat: Number(bestOption?.lat) || undefined,
+          lng: Number(bestOption?.lng) || undefined,
+        });
         router.push({
           pathname: "/confirmar-destino",
           params: {
@@ -155,12 +163,22 @@ export default function TypeDestinationScreen() {
 
       <Animated.View
         entering={ZoomIn.duration(300).springify()}
-        style={[styles.modalContainer, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}
+        style={[
+          styles.modalContainer,
+          isDark
+            ? { backgroundColor: '#131A26', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, shadowColor: '#007AFF', shadowOpacity: 0.15, shadowRadius: 40 }
+            : { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 20 }
+        ]}
       >
         {/* Icone do topo */}
         <View style={styles.iconContainer}>
-          <View style={styles.iconBackground}>
-            <Ionicons name="bus" size={28} color="#007AFF" />
+          <View style={[
+            styles.iconBackground,
+            isDark 
+              ? { backgroundColor: 'rgba(0, 122, 255, 0.1)', borderColor: 'rgba(0, 122, 255, 0.3)', borderWidth: 1 }
+              : { backgroundColor: 'rgba(0, 122, 255, 0.08)', borderWidth: 0 }
+          ]}>
+            <Ionicons name="bus" size={26} color="#007AFF" />
           </View>
         </View>
 
@@ -174,11 +192,13 @@ export default function TypeDestinationScreen() {
         <View
           style={[
             styles.inputWrapper,
-            isFocused && styles.inputWrapperFocused,
+            isDark
+              ? { backgroundColor: '#1E293B', borderColor: isFocused ? '#007AFF' : 'rgba(0, 122, 255, 0.4)' }
+              : { backgroundColor: '#F8FAFC', borderColor: isFocused ? '#007AFF' : 'rgba(0,0,0,0.06)' },
             errorText ? { borderColor: theme.danger } : null,
           ]}
         >
-          <Ionicons name="location-outline" size={20} color={isFocused ? "#007AFF" : theme.textMuted} style={styles.inputIcon} />
+          <Ionicons name="location-outline" size={20} color={isDark ? "#007AFF" : (isFocused ? "#007AFF" : theme.textMuted)} style={styles.inputIcon} />
           <TextInput
             ref={inputRef}
             style={[styles.input, { color: theme.text }]}
@@ -218,7 +238,9 @@ export default function TypeDestinationScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.btn,
-              styles.btnCancel,
+              isDark
+                ? { backgroundColor: '#2E3A4B' }
+                : { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
               pressed && { opacity: 0.7 },
               isLoading && { opacity: 0.4 }]}
             onPress={handleCancel}
@@ -232,6 +254,7 @@ export default function TypeDestinationScreen() {
             style={({ pressed }) => [
               styles.btn,
               styles.btnConfirm,
+              isDark && { shadowColor: '#007AFF', shadowOpacity: 0.4, shadowRadius: 15, elevation: 8 },
               (pressed || (!isInputValid && !isLoading)) && { opacity: 0.7 }]}
             onPress={() => handleConfirm()}
             disabled={isLoading}
@@ -279,7 +302,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: "rgba(0, 122, 255, 0.1)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -300,13 +322,8 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     borderWidth: 1.5,
-    borderColor: "rgba(0,0,0,0.1)",
-    backgroundColor: "transparent",
     paddingHorizontal: 16,
     marginBottom: 16,
-  },
-  inputWrapperFocused: {
-    borderColor: "#007AFF",
   },
   inputIcon: {
     marginRight: 10,
@@ -334,11 +351,6 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-  },
-  btnCancel: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
   },
   btnCancelText: {
     fontSize: 16,
