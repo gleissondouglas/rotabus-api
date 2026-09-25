@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "../src/components/BackButton";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { DestinationCategoryIcon } from "../src/components/DestinationCategoryIcon";
+import { MarqueeText } from "../src/components/MarqueeText";
 import { useAutoSpeakOnce } from "../src/hooks/useAutoSpeakOnce";
 import { useThemeColors } from "../src/theme/colors";
 import { LiquidGlassView } from "../src/components/LiquidGlassView";
@@ -26,6 +27,7 @@ import { usePreventDoublePress } from "../src/hooks/usePreventDoublePress";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { vibrationService } from "../src/services/vibration.service";
+import { recentSearchService } from "../src/services/recentSearch.service";
 import { parseJsonParam } from "../src/utils/helpers";
 import { layout } from "../src/theme/layout";
 import {
@@ -115,18 +117,16 @@ const CarouselCardItem = ({
       <Pressable
         style={({ pressed }) => [
           styles.destCard,
-          { minHeight: cardMinHeight, padding: 0, overflow: 'hidden', borderWidth: isCurrent ? 2 : 1, borderColor: isCurrent ? '#007AFF' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)'), borderRadius: 32 },
-          isCurrent && styles.destCardActive,
-          isDark && {
-            borderColor: isCurrent ? '#007AFF' : 'rgba(255, 255, 255, 0.12)',
-          },
+          { minHeight: cardMinHeight, padding: 0, overflow: 'hidden', borderRadius: 32 },
+          isDark 
+            ? { backgroundColor: '#131A26', borderColor: isCurrent ? '#007AFF' : 'rgba(255,255,255,0.08)', borderWidth: isCurrent ? 2 : 1, shadowColor: isCurrent ? '#007AFF' : '#000', shadowOpacity: isCurrent ? 0.4 : 0.15, shadowRadius: isCurrent ? 20 : 10, elevation: 5 }
+            : { backgroundColor: '#FFFFFF', borderColor: isCurrent ? '#007AFF' : 'rgba(0,0,0,0.05)', borderWidth: isCurrent ? 2 : 1, shadowColor: isCurrent ? '#007AFF' : '#000', shadowOpacity: isCurrent ? 0.3 : 0.1, shadowRadius: isCurrent ? 20 : 10, elevation: 5 },
           (pressed || isActionDisabled) && { opacity: 0.8, transform: [{ scale: 0.99 }] }]}
         disabled={isActionDisabled}
         onPress={() => handleSelectSuggestion(option, index)}
         accessibilityRole="button"
         accessibilityLabel={`Selecionar ${index + 1}: ${option.name}, ${option.address}`}
       >
-        <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
         
         <View style={{ flex: 1 }}>
           {/* Mapa Snapshot no topo */}
@@ -169,34 +169,42 @@ const CarouselCardItem = ({
           </View>
 
           <View style={{ padding: 20 }}>
-            {/* Ícone e Nome */}
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14 }}>
-              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
-                <DestinationCategoryIcon category={optionCategory} />
-              </View>
-              <View style={{ flex: 1, marginTop: 2 }}>
-                <Text style={{ fontSize: 20, fontWeight: '800', color: theme.text, marginBottom: 4 }} numberOfLines={1}>
-                  {option.name}
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '500', color: theme.textMuted }} numberOfLines={1}>
-                  {addressDetails.main}
-                </Text>
-                {!!addressDetails.area && (
-                  <Text style={{ fontSize: 14, fontWeight: '400', color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
-                    {addressDetails.area}
-                  </Text>
-                )}
-              </View>
+            {/* Nome e Endereço */}
+            <View style={{ flex: 1, marginTop: 2 }}>
+              <MarqueeText
+                style={{ fontSize: 20, fontWeight: '800', color: theme.text }}
+                containerStyle={{ marginBottom: 4 }}
+                active={isCurrent}
+                speed={32}
+                delay={1400}
+              >
+                {option.name}
+              </MarqueeText>
+              <MarqueeText
+                style={{ fontSize: 15, fontWeight: '500', color: theme.textMuted }}
+                active={isCurrent}
+                speed={28}
+                delay={1800}
+              >
+                {addressDetails.main}
+              </MarqueeText>
+              {!!addressDetails.area && (
+                <MarqueeText
+                  style={{ fontSize: 14, fontWeight: '400', color: theme.textMuted, marginTop: 2 }}
+                  active={isCurrent}
+                  speed={28}
+                  delay={2000}
+                >
+                  {addressDetails.area}
+                </MarqueeText>
+              )}
             </View>
 
-            {/* Tags de validação e categorias (Em row pills) */}
+            {/* Tags de validação e categorias */}
             <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
                 <Ionicons name="business-outline" size={14} color={theme.textMuted} />
                 <Text style={{ fontSize: 13, fontWeight: '600', color: theme.textMuted, marginLeft: 4 }}>{city}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#007AFF' }}>{getDestinationCategoryLabel(optionCategory)}</Text>
               </View>
             </View>
 
@@ -349,6 +357,14 @@ export default function ConfirmDestinationScreen() {
         return;
       }
 
+      void recentSearchService.addRecentSearch({
+        query: selected.name || displayDestination,
+        title: selected.name || displayDestination,
+        address: selected.address || address || "",
+        lat: destLat,
+        lng: destLng,
+      });
+
       router.push({
         pathname: "/escolher-horario",
         params: {
@@ -426,7 +442,7 @@ export default function ConfirmDestinationScreen() {
       {/* TOP BAR — Floating Glass Pills */}
       <View style={[styles.topBar, { top: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.topBarInner} pointerEvents="box-none">
-          <BackButton label="Alterar" accessibilityLabel="Voltar para alterar destino" />
+          <BackButton label="Voltar" accessibilityLabel="Voltar para alterar destino" />
           <Pressable
             style={({ pressed }) => [
               pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }
@@ -476,11 +492,13 @@ export default function ConfirmDestinationScreen() {
             >
               {showSuggestions ? "Destinos encontrados" : "Destino encontrado"}
             </Text>
-            <Text style={[styles.subtitle, { color: theme.textMuted }]} maxFontSizeMultiplier={1.1}>
-              {isChoosingSuggestion
-                ? `${options.length} ${options.length === 1 ? "opção" : "opções"} para escolher`
-                : `Confira os dados do local antes de prosseguir`}
-            </Text>
+            <View style={{ width: '100%', alignItems: 'center', overflow: 'hidden' }}>
+              <MarqueeText style={[styles.subtitle, { color: theme.textMuted }]} maxFontSizeMultiplier={1.1}>
+                {isChoosingSuggestion
+                  ? `${options.length} ${options.length === 1 ? "opção" : "opções"} para escolher`
+                  : `Confira os dados do local antes de prosseguir`}
+              </MarqueeText>
+            </View>
           </View>
 
           {isChoosingSuggestion ? (
@@ -549,12 +567,12 @@ export default function ConfirmDestinationScreen() {
               entering={FadeInUp.delay(150).duration(400)}
               style={[
                 styles.destCard,
-                { padding: 0, overflow: 'hidden', width: singleCardWidth, alignSelf: "center", borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)', borderRadius: 32 },
-                isDark && {
-                  borderColor: 'rgba(255, 255, 255, 0.12)',
-                }]}
+                { padding: 0, overflow: 'hidden', width: singleCardWidth, alignSelf: "center", borderRadius: 32 },
+                isDark 
+                  ? { backgroundColor: '#131A26', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, elevation: 5 }
+                  : { backgroundColor: '#FFFFFF', borderColor: 'rgba(0,0,0,0.05)', borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 20, elevation: 5 }
+              ]}
             >
-              <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
 
               {/* Mapa Snapshot no topo */}
               <View style={{ height: 160, width: '100%', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9', position: 'relative' }}>
@@ -597,24 +615,35 @@ export default function ConfirmDestinationScreen() {
               </View>
 
               <View style={{ padding: 20 }}>
-                {/* Ícone e Nome */}
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14 }}>
-                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
-                    <DestinationCategoryIcon category={activeDestinationCategory} size="small" />
-                  </View>
-                  <View style={{ flex: 1, marginTop: 2 }}>
-                    <Text style={{ fontSize: 20, fontWeight: '800', color: theme.text, marginBottom: 4 }} numberOfLines={1}>
-                      {activeDestinationName}
-                    </Text>
-                    <Text style={{ fontSize: 15, fontWeight: '500', color: theme.textMuted }} numberOfLines={1}>
-                      {activeAddressDetails.main}
-                    </Text>
-                    {!!activeAddressDetails.area && (
-                      <Text style={{ fontSize: 14, fontWeight: '400', color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
-                        {activeAddressDetails.area}
-                      </Text>
-                    )}
-                  </View>
+                {/* Nome e Endereço */}
+                <View style={{ flex: 1, marginTop: 2 }}>
+                  <MarqueeText
+                    style={{ fontSize: 20, fontWeight: '800', color: theme.text }}
+                    containerStyle={{ marginBottom: 4 }}
+                    active={true}
+                    speed={32}
+                    delay={1400}
+                  >
+                    {activeDestinationName}
+                  </MarqueeText>
+                  <MarqueeText
+                    style={{ fontSize: 15, fontWeight: '500', color: theme.textMuted }}
+                    active={true}
+                    speed={28}
+                    delay={1800}
+                  >
+                    {activeAddressDetails.main}
+                  </MarqueeText>
+                  {!!activeAddressDetails.area && (
+                    <MarqueeText
+                      style={{ fontSize: 14, fontWeight: '400', color: theme.textMuted, marginTop: 2 }}
+                      active={true}
+                      speed={28}
+                      delay={2000}
+                    >
+                      {activeAddressDetails.area}
+                    </MarqueeText>
+                  )}
                 </View>
 
                 {/* Tags de validação e categorias */}
@@ -622,9 +651,6 @@ export default function ConfirmDestinationScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
                     <Ionicons name="business-outline" size={14} color={theme.textMuted} />
                     <Text style={{ fontSize: 13, fontWeight: '600', color: theme.textMuted, marginLeft: 4 }}>{city}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#007AFF' }}>{getDestinationCategoryLabel(activeDestinationCategory)}</Text>
                   </View>
                 </View>
 
@@ -636,6 +662,36 @@ export default function ConfirmDestinationScreen() {
                   </Text>
                 </View>
 
+                {/* Alterar Button */}
+                <Pressable
+                  style={({ pressed }) => [
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      paddingVertical: 16,
+                      borderRadius: 16,
+                      marginTop: 24,
+                      borderWidth: 1,
+                      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: isDark ? 0 : 0.03,
+                      shadowRadius: 8,
+                      elevation: 2,
+                    },
+                    pressed && { opacity: 0.7 }
+                  ]}
+                  onPress={() => router.back()}
+                  accessibilityLabel="Alterar destino"
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="pencil-outline" size={16} color={theme.text} />
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: theme.text }}>Alterar</Text>
+                </Pressable>
+
               </View>
             </Animated.View>
           )}
@@ -644,32 +700,30 @@ export default function ConfirmDestinationScreen() {
       </ScrollView>
 
       {/* BOTÕES FIXOS — Flutuante */}
-      <View style={[styles.fixedBottomActionsShadow, { bottom: insets.bottom + 16 }]} pointerEvents="box-none">
-        <View style={[
-          styles.fixedBottomActionsContent,
-          isDark ? { borderColor: "rgba(255, 255, 255, 0.2)" } : { borderColor: "rgba(255, 255, 255, 0.8)" }
-        ]}>
-          <LiquidGlassView
-            style={[
-              StyleSheet.absoluteFillObject,
-              isDark && { backgroundColor: "rgba(15, 23, 42, 0.3)" },
-              !isDark && { backgroundColor: "rgba(255, 255, 255, 0.3)" }
-            ]}
-            fallbackColor={theme.card}
-          />
-          <PrimaryButton
-            title="Buscar rota"
-            onPress={handlePrimaryAction}
-            isLoading={isLoadingCommand}
-            disabled={isActionDisabled}
-            style={styles.mainButton}
-            accessibilityLabel={
-              isChoosingSuggestion
-                ? "Buscar rota para o destino selecionado"
-                : "Buscar rota"
+      <View style={[styles.fixedBottomContainer, { bottom: insets.bottom + 16 }]} pointerEvents="box-none">
+        <PrimaryButton
+          title="Buscar rota"
+          onPress={handlePrimaryAction}
+          isLoading={isLoadingCommand}
+          disabled={isActionDisabled}
+          style={[
+            styles.mainButton,
+            {
+              shadowColor: '#007AFF',
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: isDark ? 0.4 : 0.25,
+              shadowRadius: 16,
+              elevation: 8,
+              borderRadius: 32,
+              height: 64,
             }
-          />
-        </View>
+          ]}
+          accessibilityLabel={
+            isChoosingSuggestion
+              ? "Buscar rota para o destino selecionado"
+              : "Buscar rota"
+          }
+        />
       </View>
     </View>
   );
@@ -914,25 +968,17 @@ const styles = StyleSheet.create({
   },
 
   // ─── Rodapé fixo (Flutuante) ────────────────────────
-  fixedBottomActionsShadow: {
+  fixedBottomContainer: {
     position: "absolute",
     left: 20,
     right: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  fixedBottomActionsContent: {
-    padding: 12,
-    borderRadius: 36,
-    overflow: "hidden",
-    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
   },
   mainButton: {
-    borderRadius: 24,
-    minHeight: 52,
+    width: "100%",
+    borderRadius: 32,
+    minHeight: 64,
   },
   secondaryWrapper: {
     alignItems: "center",
