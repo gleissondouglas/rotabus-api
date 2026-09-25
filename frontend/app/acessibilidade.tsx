@@ -12,9 +12,7 @@ import { useThemeColors } from "../src/theme/colors";
 
 export default function AccessibilityScreen() {
   const {
-    largeText,
     slowVoice,
-    highContrast,
     autoRead,
     vibration,
     updateSettings,
@@ -24,7 +22,7 @@ export default function AccessibilityScreen() {
   const insets = useSafeAreaInsets();
 
   const screenMessage =
-    "Você está na tela de acessibilidade. Aqui você pode configurar texto maior, voz mais lenta, alto contraste, leitura automática das telas e vibração.";
+    "Você está na tela de acessibilidade. Aqui você pode configurar voz mais lenta, leitura automática das telas e vibração.";
 
   useAutoSpeakOnce("acessibilidade", screenMessage);
 
@@ -43,28 +41,11 @@ export default function AccessibilityScreen() {
           <View style={styles.textHeader}>
             <Text style={[styles.title, { color: theme.text }]}>Acessibilidade</Text>
             <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-              Ajuste o app para ficar mais fácil de usar de acordo com suas necessidades.
+              Personalize voz e avisos para sua navegação.
             </Text>
           </View>
 
           <LiquidGlassView style={styles.card} fallbackColor={theme.card}>
-            <View style={styles.option}>
-              <View style={styles.optionTextBox}>
-                <Text style={[styles.optionTitle, { color: theme.text }]}>Texto maior</Text>
-                <Text style={[styles.optionDescription, { color: theme.textMuted }]}>
-                  Aumenta o tamanho das letras no app para facilitar a leitura.
-                </Text>
-              </View>
-
-              <Switch
-                value={largeText}
-                onValueChange={(val) => updateSettings({ largeText: val })}
-                trackColor={{ false: "#E2E8F0", true: "#3B82F6" }}
-              />
-            </View>
-
-            <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
             <View style={styles.option}>
               <View style={styles.optionTextBox}>
                 <Text style={[styles.optionTitle, { color: theme.text }]}>Voz mais lenta</Text>
@@ -76,23 +57,6 @@ export default function AccessibilityScreen() {
               <Switch
                 value={slowVoice}
                 onValueChange={(val) => updateSettings({ slowVoice: val })}
-                trackColor={{ false: "#E2E8F0", true: "#3B82F6" }}
-              />
-            </View>
-
-            <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-            <View style={styles.option}>
-              <View style={styles.optionTextBox}>
-                <Text style={[styles.optionTitle, { color: theme.text }]}>Alto contraste</Text>
-                <Text style={[styles.optionDescription, { color: theme.textMuted }]}>
-                  Melhora a visualização com cores mais fortes.
-                </Text>
-              </View>
-
-              <Switch
-                value={highContrast}
-                onValueChange={(val) => updateSettings({ highContrast: val })}
                 trackColor={{ false: "#E2E8F0", true: "#3B82F6" }}
               />
             </View>

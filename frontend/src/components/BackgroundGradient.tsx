@@ -8,8 +8,8 @@ export function BackgroundGradient() {
   const scheme = useColorScheme();
 
   const gradientColors = scheme === 'dark'
-    ? ['#1E3A5F', '#111827', theme.background] as const
-    : ['#BFDBFE', '#DBEAFE', theme.background] as const;
+    ? ['#0D1B2E', '#0F172A', theme.background] as const
+    : ['#C8D9F4', '#DDE9F9', '#EEF3FF'] as const;
 
   return (
     <LinearGradient 
