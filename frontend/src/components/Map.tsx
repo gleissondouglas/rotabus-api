@@ -5,7 +5,6 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { MapData, MapMarker, MapFocusMode } from '../types/journey.types';
 import { decodePolyline } from '../utils/polyline';
 import { useThemeColors } from '../theme/colors';
-import { LiquidGlassView } from './LiquidGlassView';
 
 interface MapProps {
   mapData?: MapData;
@@ -34,6 +33,8 @@ interface MapProps {
   currentStepIndex?: number;
   isNavigating?: boolean;
   hideControls?: boolean;
+  busLine?: string;
+  isWaitingBus?: boolean;
 }
 
 const cleanMapStyle = [
@@ -85,6 +86,8 @@ const Map: React.FC<MapProps> = ({
   isNavigating = false,
   userHeading,
   hideControls = false,
+  busLine,
+  isWaitingBus = false,
 }) => {
   const mapRef = useRef<MapView>(null);
   // No início da caminhada, mostramos a rota inteira até o ponto enquadrada próxima.
@@ -194,6 +197,17 @@ const Map: React.FC<MapProps> = ({
           const decoded = decodePolyline(polyline.encodedPolyline);
           decoded.forEach(coord => coordinatesToFit.push({ latitude: Number(coord.latitude), longitude: Number(coord.longitude) }));
         });
+      }
+    } else if (effectiveFocusMode === 'waiting_bus') {
+      // Quando está aguardando o ônibus no ponto, foca no ponto de embarque e na aproximação
+      if (mapData?.markers) {
+        const boardingMarker = mapData.markers.find(m => m.type === 'boarding_stop');
+        if (boardingMarker) {
+          coordinatesToFit.push({ latitude: Number(boardingMarker.lat), longitude: Number(boardingMarker.lng) });
+        }
+      }
+      if (liveBusPosition) {
+        coordinatesToFit.push({ latitude: Number(liveBusPosition.lat), longitude: Number(liveBusPosition.lng) });
       }
     } else if (effectiveFocusMode === 'walking_to_stop' || effectiveFocusMode === 'walking_to_destination' || effectiveFocusMode === 'on_bus' || effectiveFocusMode === 'transfer') {
       // Sempre focamos a câmera no trecho atual em andamento
@@ -546,19 +560,38 @@ const Map: React.FC<MapProps> = ({
               {isBoardingStop ? (
                 <View style={styles.modernStopPinContainer}>
                   {/* Badge Flutuante com Nome do Ponto */}
-                  <View style={[styles.modernStopBadge, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#FFFFFF' }]}>
-                    <View style={styles.modernStopBadgeDot} />
-                    <Text 
-                      style={[styles.modernStopBadgeText, { color: colorScheme === 'dark' ? '#F1F5F9' : '#0F172A' }]} 
-                      numberOfLines={1}
-                    >
-                      {marker.title || 'Ponto de Embarque'}
-                    </Text>
-                  </View>
+                  {isWaitingBus ? (
+                    <View style={styles.waitingStopBadge}>
+                      <View style={styles.waitingStopBadgeDot} />
+                      <Text style={styles.waitingStopBadgeText}>Seu Ponto</Text>
+                    </View>
+                  ) : (
+                    <View style={[
+                      styles.modernStopBadge, 
+                      isNavigating 
+                        ? styles.modernStopBadgeNavigating 
+                        : { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#FFFFFF' }
+                    ]}>
+                      <View style={[styles.modernStopBadgeDot, isNavigating && styles.modernStopBadgeDotNavigating]} />
+                      <Text 
+                        style={[
+                          styles.modernStopBadgeText, 
+                          isNavigating ? styles.modernStopBadgeTextNavigating : { color: colorScheme === 'dark' ? '#F1F5F9' : '#0F172A' }
+                        ]} 
+                        numberOfLines={1}
+                      >
+                        {isNavigating ? 'Embarque' : (marker.title || 'Ponto de Embarque')}
+                      </Text>
+                    </View>
+                  )}
 
-                  {/* Pin Circular com Ícone de Ônibus */}
-                  <View style={styles.modernStopPinCircle}>
-                    <MaterialCommunityIcons name="bus" size={19} color="#FFFFFF" />
+                  {/* Pin Circular com Ícone de Alvo no WaitingBus ou Ônibus no Walking */}
+                  <View style={[styles.modernStopPinCircle, isWaitingBus && styles.waitingStopPinCircle]}>
+                    <MaterialCommunityIcons 
+                      name={isWaitingBus ? "crosshairs-gps" : "bus"} 
+                      size={isWaitingBus ? 22 : 19} 
+                      color="#FFFFFF" 
+                    />
                   </View>
 
                   {/* Ponta da Agulha do Pin */}
@@ -585,47 +618,64 @@ const Map: React.FC<MapProps> = ({
           );
         })}
 
-        {/* Marcador do Ônibus ao Vivo (Crowdsourcing) */}
-        {liveBusPosition && (
-          <Marker
-            key="live-bus-marker"
-            coordinate={{ latitude: liveBusPosition.lat, longitude: liveBusPosition.lng }}
-            zIndex={30}
-            anchor={{ x: 0.5, y: 0.5 }}
-            flat={true}
-            rotation={liveBusPosition.heading || 0}
-          >
-            <View style={styles.liveBusMarker}>
-              <MaterialCommunityIcons name="bus-side" size={22} color="white" />
-            </View>
-          </Marker>
-        )}
+        {/* Marcador do Ônibus (Ao Vivo ou Aproximação no Waiting Bus) */}
+        {(liveBusPosition || (isWaitingBus && mapData?.markers?.find(m => m.type === 'boarding_stop'))) && (() => {
+          const boardingStop = mapData?.markers?.find(m => m.type === 'boarding_stop');
+          const busPos = liveBusPosition || {
+            lat: (boardingStop ? Number(boardingStop.lat) : -19.7472) - 0.0003,
+            lng: (boardingStop ? Number(boardingStop.lng) : -47.9392) - 0.0014,
+            heading: 85
+          };
+
+          return (
+            <Marker
+              key="live-bus-marker"
+              coordinate={{ latitude: busPos.lat, longitude: busPos.lng }}
+              zIndex={30}
+              anchor={{ x: 0.5, y: 0.5 }}
+              flat={true}
+              rotation={busPos.heading || 0}
+            >
+              <View style={styles.busMarkerContainer}>
+                <View style={styles.busMarkerBadge}>
+                  <Text style={styles.busMarkerBadgeText}>{busLine ? `Linha ${busLine}` : 'Linha 31'}</Text>
+                  <View style={styles.busMarkerBadgeDot} />
+                </View>
+                <View style={styles.busMarkerCircle}>
+                  <MaterialCommunityIcons name="bus" size={19} color="#FFFFFF" />
+                </View>
+              </View>
+            </Marker>
+          );
+        })()}
       </MapView>
       {!hideControls && (
-        <View style={[styles.controls, { bottom: controlsBottomOffset + 32 }]} pointerEvents="box-none">
-          <LiquidGlassView style={styles.controlGroup}>
-            <TouchableOpacity 
-              style={styles.controlButton} 
-              onPress={handleRecenter} 
-              activeOpacity={0.7}
-              accessibilityLabel="Centralizar minha localização"
-              accessibilityRole="button"
-            >
-              <MaterialCommunityIcons name="crosshairs-gps" size={24} color={theme.primary} />
-            </TouchableOpacity>
-            
-            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+        <View style={[styles.controls, { bottom: controlsBottomOffset + 18 }]} pointerEvents="box-none">
+          <TouchableOpacity 
+            style={[
+              styles.floatingCircleBtn, 
+              colorScheme === 'dark' ? styles.floatingCircleBtnDark : styles.floatingCircleBtnLight
+            ]} 
+            onPress={handleRecenter} 
+            activeOpacity={0.7}
+            accessibilityLabel="Centralizar minha localização"
+            accessibilityRole="button"
+          >
+            <MaterialCommunityIcons name="crosshairs-gps" size={22} color="#007AFF" />
+          </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.controlButton} 
-              onPress={toggleFocusMode} 
-              activeOpacity={0.7}
-              accessibilityLabel={effectiveFocusMode === 'full_route' ? "Focar na caminhada" : "Ver rota completa"}
-              accessibilityRole="button"
-            >
-              <Ionicons name={effectiveFocusMode === 'full_route' ? "eye-off" : "map"} size={24} color={theme.primary} />
-            </TouchableOpacity>
-          </LiquidGlassView>
+          <TouchableOpacity 
+            style={[
+              styles.floatingCircleBtn, 
+              colorScheme === 'dark' ? styles.floatingCircleBtnDark : styles.floatingCircleBtnLight
+            ]} 
+            onPress={toggleFocusMode} 
+            activeOpacity={0.7}
+            accessibilityLabel={effectiveFocusMode === 'full_route' ? "Focar no ponto" : "Ver rota completa"}
+            accessibilityRole="button"
+          >
+            <Ionicons name="layers-outline" size={22} color={colorScheme === 'dark' ? '#D1D5DB' : '#374151'} />
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -637,8 +687,31 @@ const styles = StyleSheet.create({
   map: { width: '100%', height: '100%' },
   controls: { 
     position: 'absolute', 
-    right: 12, 
+    right: 16, 
+    gap: 12,
     zIndex: 100 
+  },
+  floatingCircleBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  floatingCircleBtnLight: {
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  floatingCircleBtnDark: {
+    backgroundColor: 'rgba(25, 28, 34, 0.90)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   controlGroup: {
     flexDirection: 'row',
@@ -694,6 +767,33 @@ const styles = StyleSheet.create({
   modernStopBadgeText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  modernStopBadgeNavigating: {
+    backgroundColor: '#0066FF',
+    borderColor: '#FFFFFF',
+    borderWidth: 1.5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    marginBottom: 5,
+    shadowColor: '#0066FF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modernStopBadgeDotNavigating: {
+    backgroundColor: '#FFFFFF',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  modernStopBadgeTextNavigating: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
   modernStopPinCircle: {
     width: 36,
@@ -757,6 +857,92 @@ const styles = StyleSheet.create({
   callout: { padding: 10, minWidth: 140, borderRadius: 12 },
   calloutTitle: { fontWeight: '800', fontSize: 15 },
   calloutDesc: { fontSize: 13, marginTop: 2 },
+  waitingStopBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 14,
+    marginBottom: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  waitingStopBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#10B981',
+    marginRight: 6,
+  },
+  waitingStopBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  waitingStopPinCircle: {
+    backgroundColor: '#007AFF',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  busMarkerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  busMarkerBadge: {
+    backgroundColor: '#111827',
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  busMarkerBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  busMarkerBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  busMarkerCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 6,
+  },
 });
 
 export default Map;
