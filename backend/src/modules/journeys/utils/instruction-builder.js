@@ -27,14 +27,17 @@ function humanizeWalkingInstruction(instruction, maneuver) {
 
   // Remoção de termos técnicos e direções cardeais
   text = text.replace(
-    /Siga na direção (norte|sul|leste|oeste|nordeste|sudeste|noroeste|sudoeste)/gi,
-    "Siga",
+    /Siga na direção (norte|sul|leste|oeste|nordeste|sudeste|noroeste|sudoeste)\s*/gi,
+    "Siga ",
   );
   text = text.replace(
-    /na direção (norte|sul|leste|oeste|nordeste|sudeste|noroeste|sudoeste)/gi,
+    /na direção (norte|sul|leste|oeste|nordeste|sudeste|noroeste|sudoeste)\s*/gi,
     "",
   );
-  text = text.replace(/ em direção a (.*)/gi, "");
+
+  // Preserva o nome da via se houver 'em direção a Rua/Av...'
+  text = text.replace(/ em direção [aà]\s+(R\.|Rua|Av\.|Avenida|Praça|Alameda|Travessa|Rodovia|Beco|Estrada)/gi, " pela $1");
+  text = text.replace(/ em direção [aà]\s+/gi, " até ");
 
   // Padronização de nomes de ruas
   text = text.replace(/Siga na R\. /gi, "Siga pela Rua ");
@@ -43,8 +46,12 @@ function humanizeWalkingInstruction(instruction, maneuver) {
   text = text.replace(/ na R\. /gi, " na Rua ");
   text = text.replace(/ à R\. /gi, " à Rua ");
 
+  if (text.trim().toLowerCase() === "siga") {
+    text = "Siga em frente";
+  }
+
   // Garante primeira letra maiúscula
-  return text.charAt(0).toUpperCase() + text.slice(1);
+  return text.trim().charAt(0).toUpperCase() + text.trim().slice(1);
 }
 
 function getStepDepartureText(step, referenceDateTime) {

@@ -1078,7 +1078,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   routeCardOption: {
-    width: 140,
+    minWidth: 140,
     borderRadius: 18,
     padding: 14,
     gap: 6,
@@ -1088,6 +1088,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 2,
+    flexShrink: 0,
   },
   routeCardSelected: {
     backgroundColor: "rgba(59, 130, 246, 0.12)",

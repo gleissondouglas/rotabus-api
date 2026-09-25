@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
+import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 
 import { PrimaryButton } from "../src/components/PrimaryButton";
@@ -23,12 +24,14 @@ import Map from "../src/components/Map";
 import { LiquidGlassView } from "../src/components/LiquidGlassView";
 import { LinearGradient } from "expo-linear-gradient";
 import { AdaptiveIcon } from "../src/components/AdaptiveIcon";
+import { MarqueeText } from "../src/components/MarqueeText";
 import { speak } from "../src/services/speech.service";
 import { MapData } from "../src/types/journey.types";
 import { formatBusWaitingTimeToFriendlyTextShort } from "../src/utils/date-time";
 import { formatWalkingInstruction } from "../src/utils/navigationInstructionFormatter";
 import { parseJsonParam, calculateDistance } from "../src/utils/helpers";
 import { trackingService } from "../src/services/tracking.service";
+import { logUserInteraction } from "../src/utils/devLogger";
 
 interface Coords { 
   latitude: number; 
@@ -96,6 +99,7 @@ export default function NavigatingScreen() {
   
   const [busCountdown, setBusCountdown] = useState<string>(""); // Tempo para o ônibus chegar
   const [busCountdownDiff, setBusCountdownDiff] = useState<number | null>(null);
+  const [isBusReminderSet, setIsBusReminderSet] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [bottomCardHeight, setBottomCardHeight] = useState(260);
 
@@ -135,6 +139,71 @@ export default function NavigatingScreen() {
 
 
   const targetStopDateTime = summary?.beAtStopDateTime;
+
+  const stopDisplayName = useMemo(() => {
+    if (stopName && stopName !== "ponto indicado") {
+      return stopName;
+    }
+    if (isWalkingOnly) {
+      return "Destino Final";
+    }
+    return "Ponto de Embarque";
+  }, [stopName, isWalkingOnly]);
+
+  const formattedBusArrival = useMemo(() => {
+    if (targetStopDateTime) {
+      try {
+        const d = new Date(targetStopDateTime);
+        if (!isNaN(d.getTime())) {
+          const hours = d.getHours();
+          const minutes = String(d.getMinutes()).padStart(2, "0");
+          return `Chega ${hours}h${minutes}`;
+        }
+      } catch {}
+    }
+    if (busCountdownDiff !== null && busCountdownDiff > 0) {
+      try {
+        const d = new Date(Date.now() + busCountdownDiff * 60000);
+        const hours = d.getHours();
+        const minutes = String(d.getMinutes()).padStart(2, "0");
+        return `Chega ${hours}h${minutes}`;
+      } catch {}
+    }
+    if (busCountdown) {
+      const cleanCountdown = busCountdown.replace(/^em\s+/i, "");
+      return `Chega ${cleanCountdown}`;
+    }
+    return "No horário";
+  }, [targetStopDateTime, busCountdownDiff, busCountdown]);
+
+  const displayCountdownText = useMemo(() => {
+    if (busCountdownDiff !== null && busCountdownDiff > 0) {
+      return `${busCountdownDiff} min`;
+    }
+    if (busCountdown) {
+      const clean = busCountdown.replace(/^em\s+/i, "").trim();
+      if (clean) return clean;
+    }
+    return "3 min";
+  }, [busCountdownDiff, busCountdown]);
+
+  const predictedArrivalHour = useMemo(() => {
+    if (targetStopDateTime) {
+      try {
+        const d = new Date(targetStopDateTime);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+      } catch {}
+    }
+    if (busCountdownDiff !== null && busCountdownDiff > 0) {
+      const d = new Date(Date.now() + busCountdownDiff * 60000);
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+    const d = new Date(Date.now() + 3 * 60000);
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }, [targetStopDateTime, busCountdownDiff]);
+
   const destinationMarker = useMemo(() => {
     if (!mapData || !mapData.markers) return undefined;
     return mapData.markers.find(m => m.type === 'destination');
@@ -336,9 +405,27 @@ export default function NavigatingScreen() {
     return formatWalkingInstruction({ 
       rawInstruction: rawText, 
       distanceMeters: distToNext, 
-      maneuver: currentStep?.maneuver 
+      maneuver: currentStep?.maneuver,
+      destinationStreet: stopDisplayName || stopName
     });
-  }, [stage, hasValidWalkRoute, allSteps, globalStepIndex, stopName, userLocation, busLine, lineDetails]);
+  }, [stage, hasValidWalkRoute, allSteps, globalStepIndex, stopName, stopDisplayName, userLocation, busLine, lineDetails]);
+
+  // Título da instrução com o nome da rua ou parada para evitar ficar apenas 'Siga'
+  const walkInstructionTitle = useMemo(() => {
+    let title = formattedInstruction.displayTitle || "Siga pelo caminho";
+    const isGenericSiga = /^(siga|siga em frente|siga pelo caminho)$/i.test(title.trim());
+    if (isGenericSiga) {
+      const streetOrStop = stopDisplayName || stopName;
+      if (streetOrStop && streetOrStop !== "ponto indicado" && streetOrStop !== "Destino Final") {
+        if (/^(rua|av|avenida|praça|alameda|rodovia|travessa|beco|estrada)/i.test(streetOrStop.trim())) {
+          title = `Siga pela ${streetOrStop}`;
+        } else {
+          title = `Siga até ${streetOrStop}`;
+        }
+      }
+    }
+    return title;
+  }, [formattedInstruction.displayTitle, stopDisplayName, stopName]);
 
   // Initial announcement
   useEffect(() => {
@@ -444,35 +531,9 @@ export default function NavigatingScreen() {
   };
 
   const handleStageTransition = (forced = false) => {
-    // Validação de segurança de distância (Evitar cliques acidentais)
+    // Validação de segurança de distância para descida do ônibus
     if (forced !== true && userLocation) {
-      if (stage === "walking") {
-        const nextTransitStep = allSteps.slice(globalStepIndex).find(s => s.type === "transit");
-        let targetLat, targetLng;
-        
-        if (nextTransitStep) {
-          targetLat = nextTransitStep.departureLocation?.lat;
-          targetLng = nextTransitStep.departureLocation?.lng;
-        } else if (destinationMarker) {
-          targetLat = destinationMarker.lat;
-          targetLng = destinationMarker.lng;
-        }
-
-        if (targetLat && targetLng) {
-          const dist = calculateDistance(userLocation.latitude, userLocation.longitude, targetLat, targetLng);
-          if (dist > 150) {
-            Alert.alert(
-              "Você parece distante",
-              `O GPS indica que você ainda está a ${Math.round(dist)} metros. Tem certeza que já chegou?`,
-              [
-                { text: "Não, cancelar", style: "cancel" },
-                { text: "Sim, cheguei", onPress: () => handleStageTransition(true) }
-              ]
-            );
-            return;
-          }
-        }
-      } else if (stage === "on_bus" && currentGlobalStep?.type === "transit") {
+      if (stage === "on_bus" && currentGlobalStep?.type === "transit") {
         const dropoffLat = currentGlobalStep.arrivalLocation?.lat;
         const dropoffLng = currentGlobalStep.arrivalLocation?.lng;
         if (dropoffLat && dropoffLng) {
@@ -496,19 +557,18 @@ export default function NavigatingScreen() {
       const nextTransitStep = allSteps.slice(globalStepIndex).find(s => s.type === "transit");
       if (nextTransitStep) {
         setStage("waiting_bus");
-        speakControlled("Você chegou ao ponto. Aguarde o embarque.", true);
+        speakControlled(`Você chegou ao ponto. Aguarde o ônibus ${nextTransitStep.line || busLine}.`, true);
       } else {
         setStage("arrived");
         speakControlled("Você chegou ao seu destino.", true);
       }
     } else if (stage === "waiting_bus") {
-      router.replace({
-        pathname: "/inicio",
-        params: {
-          latitude: String(userLocation?.latitude || params.latitude || ""),
-          longitude: String(userLocation?.longitude || params.longitude || "")
-        }
-      });
+      setStage("on_bus");
+      const nextTransitIndex = allSteps.findIndex((s, idx) => idx >= globalStepIndex && s.type === "transit");
+      if (nextTransitIndex !== -1) {
+        setGlobalStepIndex(nextTransitIndex);
+      }
+      speakControlled(`Você embarcou no ônibus Linha ${busLine}. Boa viagem! Eu aviso quando estiver perto de descer.`, true);
     } else if (stage === "on_bus") {
       const hasTransitAhead = allSteps.slice(globalStepIndex + 1).some(s => s.type === "transit");
       if (hasTransitAhead) {
@@ -531,12 +591,50 @@ export default function NavigatingScreen() {
     }
   };
 
+  const handleToggleReminder = () => {
+    logUserInteraction({
+      component: "WaitingBusReminderButton",
+      label: isBusReminderSet ? "Lembrete desativado" : "Me notifique faltando 2 minutos",
+      fileOrScreen: "app/navegando.tsx",
+      action: "Alternar lembrete de chegada de ônibus",
+    });
+    const nextState = !isBusReminderSet;
+    setIsBusReminderSet(nextState);
+    if (nextState) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      speakControlled("Tudo bem! Vou te avisar 2 minutos antes do ônibus chegar ao ponto.", true);
+    } else {
+      speakControlled("Lembrete desativado.", true);
+    }
+  };
+
+  const handleEnteredBus = () => {
+    logUserInteraction({
+      component: "WaitingBusEnteredButton",
+      label: "Já entrei no ônibus",
+      fileOrScreen: "app/navegando.tsx",
+      action: "Confirmar embarque no ônibus",
+    });
+    handleStageTransition(true);
+  };
+
+  const handleListenStatus = () => {
+    logUserInteraction({
+      component: "WaitingBusListenStatusButton",
+      label: "Ouvir status da linha",
+      fileOrScreen: "app/navegando.tsx",
+      action: "Ouvir status da linha por voz",
+    });
+    const statusText = `Você chegou ao ponto. O ônibus da Linha ${busLine} com destino a ${lineDetails || 'seu itinerário'} chega em aproximadamente ${displayCountdownText}. Aguarde no local.`;
+    speakControlled(statusText, true);
+  };
+
   const getPrimaryButtonTitle = () => {
     switch (stage) {
       case "walking": 
         const hasTransitAhead = allSteps.slice(globalStepIndex).some(s => s.type === "transit");
         return hasTransitAhead ? "Cheguei ao ponto" : "Cheguei ao destino";
-      case "waiting_bus": return "Ir para início";
+      case "waiting_bus": return "Já entrei no ônibus";
       case "on_bus": return "Desci do ônibus";
       case "arrived": return "Ir para início";
       default: return "Continuar";
@@ -580,17 +678,19 @@ export default function NavigatingScreen() {
           userHeading={userHeading}
           initialRegion={initialRegion} 
           colors={theme} 
-          focusMode={stage === "on_bus" ? "on_bus" : (isWalkingOnly ? "walking_to_destination" : "walking_to_stop")} 
+          focusMode={stage === "waiting_bus" ? "waiting_bus" : (stage === "on_bus" ? "on_bus" : (isWalkingOnly ? "walking_to_destination" : "walking_to_stop"))} 
           controlsBottomOffset={bottomCardHeight}
           walkSteps={allSteps}
           currentStepIndex={globalStepIndex}
           isNavigating={true}
-          hideControls={stage !== "walking"}
+          hideControls={stage === "on_bus" || stage === "arrived"}
+          busLine={busLine}
+          isWaitingBus={stage === "waiting_bus"}
         />
       </View>
 
       {/* Top Bar (Floating Glass Pills over Map) */}
-      <View style={[styles.topBar, { top: insets.top + 8 }]} pointerEvents="box-none">
+      <View style={[styles.topBar, { top: insets.top + 10 }]} pointerEvents="box-none">
         <View style={styles.topBarInner} pointerEvents="box-none">
           {(stage !== "on_bus" && stage !== "arrived") ? (
             <Pressable 
@@ -603,13 +703,27 @@ export default function NavigatingScreen() {
                 style={[
                   styles.glassPill, 
                   isDark 
-                    ? { backgroundColor: "rgba(15, 23, 42, 0.5)", borderColor: "rgba(255, 255, 255, 0.15)" } 
-                    : { backgroundColor: "rgba(255, 255, 255, 0.75)", borderColor: "rgba(255, 255, 255, 0.85)" }
+                    ? { backgroundColor: "rgba(25, 28, 34, 0.85)", borderColor: "rgba(255, 255, 255, 0.15)" } 
+                    : { backgroundColor: "rgba(255, 255, 255, 0.90)", borderColor: "rgba(255, 255, 255, 0.95)" }
                 ]} 
                 fallbackColor={theme.card}
               >
-                <Ionicons name="chevron-back" size={18} color={theme.text} />
-                <Text style={[styles.glassPillText, { color: theme.text }]}>Voltar</Text>
+                <Ionicons 
+                  name="chevron-back" 
+                  size={18} 
+                  color={stage === "waiting_bus" ? (isDark ? '#0A84FF' : '#007AFF') : theme.text} 
+                />
+                <Text 
+                  style={[
+                    styles.glassPillText, 
+                    { 
+                      color: stage === "waiting_bus" ? (isDark ? '#0A84FF' : '#007AFF') : theme.text,
+                      fontWeight: stage === "waiting_bus" ? '700' : '600'
+                    }
+                  ]}
+                >
+                  Voltar
+                </Text>
               </LiquidGlassView>
             </Pressable>
           ) : (
@@ -621,25 +735,32 @@ export default function NavigatingScreen() {
               style={[
                 styles.glassPill, 
                 isDark 
-                  ? { backgroundColor: "rgba(15, 23, 42, 0.5)", borderColor: "rgba(255, 255, 255, 0.15)" } 
-                  : { backgroundColor: "rgba(255, 255, 255, 0.75)", borderColor: "rgba(255, 255, 255, 0.85)" }
+                  ? { backgroundColor: "rgba(25, 28, 34, 0.85)", borderColor: "rgba(255, 255, 255, 0.15)" } 
+                  : { backgroundColor: "rgba(255, 255, 255, 0.90)", borderColor: "rgba(255, 255, 255, 0.95)" }
               ]} 
               fallbackColor={theme.card}
             >
               {stage === "waiting_bus" ? (
-                <View style={[styles.badgeDot, { backgroundColor: theme.primary }]} />
+                <View style={styles.topBarLiveGroup}>
+                  <View style={styles.topBarGreenDot} />
+                  <Text style={[styles.topBarLiveBusText, { color: theme.text }]}>Linha {busLine}</Text>
+                  <Text style={[styles.topBarBullet, { color: theme.textMuted }]}>•</Text>
+                  <Text style={[styles.topBarLiveCountdownText, { color: isDark ? '#34D399' : '#059669' }]}>Em {displayCountdownText}</Text>
+                </View>
               ) : (
-                <AdaptiveIcon
-                  iosSymbol="figure.walk"
-                  fallbackFamily="FontAwesome6"
-                  fallbackName="person-walking"
-                  size={14}
-                  color={isDark ? '#60A5FA' : theme.primary}
-                />
+                <>
+                  <AdaptiveIcon
+                    iosSymbol="figure.walk"
+                    fallbackFamily="FontAwesome6"
+                    fallbackName="person-walking"
+                    size={14}
+                    color={isDark ? '#60A5FA' : theme.primary}
+                  />
+                  <Text style={[styles.glassPillText, { color: theme.text }]}>
+                    {`${walkTimeMinutes} min caminhando`}
+                  </Text>
+                </>
               )}
-              <Text style={[styles.glassPillText, { color: theme.text }]}>
-                {stage === "waiting_bus" ? "No ponto" : `${walkTimeMinutes} min caminhando`}
-              </Text>
             </LiquidGlassView>
           )}
         </View>
@@ -647,7 +768,7 @@ export default function NavigatingScreen() {
 
       {/* Instruction Card (Fixed during walking) */}
       {(stage === "walking") && (
-        <View style={[styles.instructionCardContainer, { top: insets.top + 62 }]} pointerEvents="box-none">
+        <View style={[styles.instructionCardContainer, { top: insets.top + 66 }]} pointerEvents="box-none">
           {!!formattedInstruction.warning && (
             <View style={styles.warningPill}>
               <Ionicons name="warning" size={16} color="#B45309" />
@@ -676,7 +797,13 @@ export default function NavigatingScreen() {
                   />
                 </View>
                 <View style={styles.instructionTextContent}>
-                  <Text style={[styles.instructionTitle, { color: theme.text }]} numberOfLines={1}>{formattedInstruction.displayTitle}</Text>
+                  <MarqueeText
+                    style={[styles.instructionTitle, { color: theme.text }]}
+                    speed={32}
+                    delay={1400}
+                  >
+                    {walkInstructionTitle}
+                  </MarqueeText>
                   <Text style={[styles.instructionSubtitle, { color: theme.textMuted }]}>{formattedInstruction.displaySubtitle}</Text>
                 </View>
               </LiquidGlassView>
@@ -687,7 +814,7 @@ export default function NavigatingScreen() {
 
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         {/* Status Content (Scrollable) */}
-        {(stage === "waiting_bus" || stage === "on_bus" || stage === "arrived") && (
+        {(stage === "on_bus" || stage === "arrived") && (
           <ScrollView
             contentContainerStyle={[
               styles.statusContentContainer,
@@ -707,60 +834,19 @@ export default function NavigatingScreen() {
               <View style={[styles.largeStatusCardContent, isDark ? { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.05)' } : { borderColor: theme.border }]}>
                 <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
               <View style={[styles.largeStatusIconBox, { backgroundColor: (stage === "on_bus" || stage === "arrived") ? "rgba(16, 185, 129, 0.15)" : (isDark ? 'rgba(59,130,246,0.15)' : theme.primaryLight) }]}>
-                 {stage === "waiting_bus" ? (
-                   <AdaptiveIcon iosSymbol="bus" fallbackFamily="FontAwesome6" fallbackName="bus-simple" size={40} color={theme.primary} />
-                 ) : (
-                   <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-                     <Ionicons name="checkmark-circle" size={(stage === "on_bus" || stage === "arrived") ? 64 : 56} color="#10B981" />
-                   </Animated.View>
-                 )}
+                <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                  <Ionicons name="checkmark-circle" size={(stage === "on_bus" || stage === "arrived") ? 64 : 56} color="#10B981" />
+                </Animated.View>
               </View>
 
               <View style={{ gap: 14, alignItems: "center", marginBottom: 24 }}>
                 <Text style={[styles.largeStatusTitle, { color: theme.text }]}>{getStageTitle()}</Text>
-                
-                
 
                 <Text style={[styles.largeStatusSubtitle, { color: theme.textMuted }]}>
-                  {stage === "waiting_bus" 
-                    ? formattedInstruction.displaySubtitle 
-                    : stage === "arrived"
+                  {stage === "arrived"
                     ? `Destino: ${stopName}`
                     : "Boa viagem. Eu aviso quando estiver perto de descer."}
                 </Text>
-                
-                {stage === "waiting_bus" && !!stopName && stopName !== "ponto indicado" && (
-                  <View style={[styles.stopNamePill, isDark && { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                    <Ionicons name="location" size={16} color={isDark ? '#60A5FA' : theme.primary} />
-                    <Text style={[styles.stopNameStatusText, { color: theme.text }]} numberOfLines={1}>Ponto: {stopName}</Text>
-                  </View>
-                )}
-
-                {stage === "waiting_bus" && (
-                  <Text style={[styles.helperText, { color: theme.textMuted }]}>Confira o número antes de embarcar.</Text>
-                )}
-
-                {stage === "waiting_bus" && (() => {
-                  const hasEmPrefix = busCountdown.startsWith("em ");
-                  const chegaLabel = hasEmPrefix ? "CHEGA EM" : "CHEGA";
-                  const chegaValue = hasEmPrefix ? busCountdown.substring(3) : (busCountdown || "...");
-
-                  return (
-                    <View style={styles.infoCardsGrid}>
-                      <LiquidGlassView style={styles.infoCard} fallbackColor={theme.card}>
-                        <Text style={[styles.infoCardLabel, { color: theme.textMuted }]}>LINHA {busLine}</Text>
-                        <Text style={[styles.infoCardValue, { color: theme.text, fontSize: 18 }]} numberOfLines={2} adjustsFontSizeToFit>{lineDetails || busLine}</Text>
-                      </LiquidGlassView>
-                      <LiquidGlassView style={styles.infoCard} fallbackColor={theme.card}>
-                        <Text style={[styles.infoCardLabel, { color: theme.textMuted }]}>{chegaLabel}</Text>
-                        <Text style={[styles.infoCardValue, { color: isDark ? '#60A5FA' : theme.primary }]} numberOfLines={1} adjustsFontSizeToFit>{chegaValue}</Text>
-                        {!!stopName && stopName !== "ponto indicado" && (
-                          <Text style={[styles.infoCardSubValue, { color: theme.textMuted }]} numberOfLines={2}>{stopName}</Text>
-                        )}
-                      </LiquidGlassView>
-                    </View>
-                  );
-                })()}
               </View>
               </View>
             </Animated.View>
@@ -768,7 +854,7 @@ export default function NavigatingScreen() {
         )}
 
         {/* Fixed Actions for Status Stages */}
-        {(stage === "waiting_bus" || stage === "on_bus" || stage === "arrived") && (
+        {(stage === "on_bus" || stage === "arrived") && (
           <Animated.View style={[styles.fixedStatusActionsShadow, { opacity: (stage === "on_bus" || stage === "arrived") ? buttonFadeAnim : fadeAnim }]} pointerEvents="box-none">
             <View style={[styles.fixedStatusActionsContent, { paddingBottom: insets.bottom + 16 }]} pointerEvents="box-none">
               <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -806,94 +892,144 @@ export default function NavigatingScreen() {
 
         {/* Bottom Card for Waiting Bus Stage */}
         {(stage === "waiting_bus") && (
-          <View style={[styles.bottomCardShadow, { bottom: 20 }]} pointerEvents="box-none">
-            <View style={[styles.bottomCardContent, { padding: 16, marginHorizontal: 16, borderRadius: 32 }]}>
+          <View 
+            style={[styles.waitingCardShadow, { bottom: Math.max(insets.bottom, 12) + 6 }]} 
+            pointerEvents="box-none"
+          >
+            <View 
+              onLayout={(e) => setBottomCardHeight(e.nativeEvent.layout.height + insets.bottom + 18)}
+              style={[
+                styles.waitingCardContent,
+                isDark 
+                  ? { backgroundColor: 'rgba(25, 28, 34, 0.90)', borderColor: 'rgba(255, 255, 255, 0.12)' }
+                  : { backgroundColor: 'rgba(255, 255, 255, 0.88)', borderColor: 'rgba(255, 255, 255, 0.80)' }
+              ]}
+            >
               <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
 
               {/* Row 1: Header */}
               <View style={styles.waitingHeaderRow}>
                 <View style={styles.waitingHeaderLeft}>
-                  <View style={styles.checkCircleGreen}>
-                    <Ionicons name="checkmark" size={16} color="#10B981" />
+                  <View style={[styles.waitingCheckCircle, isDark && styles.waitingCheckCircleDark]}>
+                    <Ionicons name="checkmark" size={20} color={isDark ? '#34D399' : '#10B981'} />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.waitingTitle, { color: theme.text }]} numberOfLines={2}>Você chegou ao ponto</Text>
-                    <Text style={[styles.waitingSubtitle, { color: theme.textMuted }]} numberOfLines={1}>Aguarde no local • Ônibus a caminho</Text>
-                  </View>
-                </View>
-                <View style={styles.confirmedPill}>
-                  <Text style={styles.confirmedText}>Confirmado</Text>
-                </View>
-              </View>
-
-              {/* Main Info Card */}
-              <View style={[styles.waitingInnerCard, isDark ? { backgroundColor: 'rgba(255,255,255,0.05)' } : { backgroundColor: '#F8FAFC' }]}>
-                {/* Info Top Row */}
-                <View style={styles.waitingInnerTop}>
-                  <View style={styles.waitingBusPill}>
-                    <Ionicons name="bus" size={14} color="#2563EB" />
-                    <Text style={styles.waitingBusPillText}>Linha {busLine}</Text>
-                  </View>
-                  <View style={styles.livePill}>
-                    <View style={styles.greenDot} />
-                    <Text style={styles.liveText}>AO VIVO</Text>
-                  </View>
-                </View>
-
-                {/* Info Middle Row */}
-                <View style={styles.waitingInnerMiddle}>
-                  <View style={{ flex: 1, paddingRight: 16 }}>
-                    <Text style={[styles.waitingDestTitle, { color: theme.text }]} numberOfLines={1}>{lineDetails || "Direção indicada"}</Text>
-                    <Text style={[styles.waitingViaText, { color: theme.textMuted }]} numberOfLines={1}>Via {stopName || "Ponto indicado"}</Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={styles.waitingTimeGiant}>{busCountdown.replace("em ", "")}</Text>
-                    <Text style={[styles.waitingViaText, { color: theme.textMuted }]}>Previsão {new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</Text>
-                  </View>
-                </View>
-
-                {/* Info Bottom Row */}
-                <View style={styles.waitingInnerBottom}>
-                  <Ionicons name="location" size={16} color="#2563EB" style={{ marginTop: 2 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.waitingParadaText, { color: theme.text }]}>
-                      <Text style={{ fontWeight: "700" }}>Parada: </Text>{stopName || "Ponto indicado"}
-                    </Text>
-                    <Text style={[styles.waitingViaText, { color: theme.textMuted, marginTop: 4 }]} numberOfLines={2}>
-                      🚪 Embarque pela porta dianteira • Letreiro frontal
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={[styles.waitingTitle, { color: theme.text }]} numberOfLines={1}>Você chegou ao ponto</Text>
+                    <Text style={[styles.waitingSubtitle, { color: theme.textMuted }]} numberOfLines={1}>
+                      Aguarde o Ônibus Linha {busLine}
                     </Text>
                   </View>
                 </View>
+
+                <View style={styles.waitingHeaderRight}>
+                  <Text style={[styles.waitingGiantCountdown, { color: isDark ? '#0A84FF' : '#007AFF' }]}>
+                    {displayCountdownText}
+                  </Text>
+                  <Text style={[styles.waitingPredictionText, { color: theme.textMuted }]}>
+                    {predictedArrivalHour}
+                  </Text>
+                </View>
               </View>
 
-              {/* Actions */}
-              <View style={{ gap: 12, marginTop: 20 }}>
-                <PrimaryButton 
-                  iconName="notifications"
-                  title="Me notifique faltando 2 minutos" 
-                  onPress={() => {
-                     
-                  }} 
-                  style={[styles.mainButton, { borderRadius: 100, minHeight: 56, height: 56 }]} 
-                />
-                
-                <Pressable 
+              {/* Row 2: Mini Card Interno do Ônibus */}
+              <View style={[styles.waitingInnerCard, isDark ? styles.waitingInnerCardDark : styles.waitingInnerCardLight]}>
+                {/* Chip da Linha */}
+                <View style={[styles.waitingLineChip, isDark ? styles.waitingLineChipDark : styles.waitingLineChipLight]}>
+                  <Text style={[styles.waitingLineChipText, { color: isDark ? '#60A5FA' : '#007AFF' }]}>
+                    Linha {busLine}
+                  </Text>
+                </View>
+
+                {/* Destino / Itinerário */}
+                <View style={{ width: "100%", alignItems: "center", overflow: "hidden" }}>
+                  <MarqueeText
+                    style={[styles.waitingDestTitle, { color: theme.text }]}
+                    speed={28}
+                    delay={1600}
+                  >
+                    {lineDetails || "Parque dos Girassóis"}
+                  </MarqueeText>
+                </View>
+
+                {/* Endereço da Parada com Pino */}
+                <View style={styles.waitingStopAddressRow}>
+                  <Ionicons name="location-sharp" size={14} color={isDark ? '#60A5FA' : '#007AFF'} style={{ marginRight: 4 }} />
+                  <View style={{ flex: 1, overflow: "hidden" }}>
+                    <MarqueeText
+                      style={[styles.waitingStopAddressText, { color: isDark ? '#E2E8F0' : '#334155' }]}
+                      speed={30}
+                      delay={1400}
+                    >
+                      {stopDisplayName}
+                    </MarqueeText>
+                  </View>
+                </View>
+
+                {/* Via / Instrução */}
+                <Text style={[styles.waitingViaDetailText, { color: theme.textMuted }]} numberOfLines={1}>
+                  Via {direction && direction !== "--" ? direction : (activeTransitStep?.via || "Santos Dumont")}
+                </Text>
+              </View>
+
+              {/* Row 3: Ações e Botões Inferiores (Thumb Zone) */}
+              <View style={styles.waitingActionsCol}>
+                {/* Botão Primário: Notificação */}
+                <Pressable
+                  onPress={handleToggleReminder}
+                  accessibilityRole="button"
+                  accessibilityLabel={isBusReminderSet ? "Lembrete ativado" : "Me notifique faltando 2 minutos"}
                   style={({ pressed }) => [
-                    styles.waitingSecondaryBtn, 
-                    isDark ? { borderColor: 'rgba(255,255,255,0.1)' } : { borderColor: theme.border },
-                    pressed && { opacity: 0.7 }
+                    styles.waitingPrimaryBtn,
+                    { backgroundColor: isDark ? '#0A84FF' : '#007AFF' },
+                    pressed && { opacity: 0.85 }
                   ]}
-                  onPress={() => handleStageTransition()}
                 >
-                  <Text style={[styles.waitingSecondaryText, { color: "#2563EB" }]}>Já entrei no ônibus</Text>
+                  <Ionicons 
+                    name={isBusReminderSet ? "checkmark-circle" : "notifications"} 
+                    size={18} 
+                    color="#FFFFFF" 
+                    style={{ marginRight: 8 }} 
+                  />
+                  <Text style={styles.waitingPrimaryBtnText}>
+                    {isBusReminderSet ? "✓ Lembrete ativado (2 min antes)" : "Me notifique faltando 2 minutos"}
+                  </Text>
                 </Pressable>
 
-                <Pressable 
-                  style={({ pressed }) => [styles.waitingTertiaryBtn, pressed && { opacity: 0.7 }]}
-                  onPress={() => speakControlled(formattedInstruction.speechText, true)}
+                {/* Botão Secundário: Já entrei no ônibus */}
+                <Pressable
+                  onPress={handleEnteredBus}
+                  accessibilityRole="button"
+                  accessibilityLabel="Já entrei no ônibus"
+                  style={({ pressed }) => [
+                    styles.waitingSecondaryBtn,
+                    isDark ? styles.waitingSecondaryBtnDark : styles.waitingSecondaryBtnLight,
+                    pressed && { opacity: 0.75 }
+                  ]}
                 >
-                  <Ionicons name="volume-high-outline" size={18} color="#2563EB" />
-                  <Text style={[styles.waitingTertiaryText, { color: "#2563EB" }]}>Ouvir status da linha em voz alta</Text>
+                  <Text style={[styles.waitingSecondaryBtnText, { color: isDark ? '#FFFFFF' : '#111827' }]}>
+                    Já entrei no ônibus
+                  </Text>
+                </Pressable>
+
+                {/* Botão Acessibilidade: Ouvir status da linha */}
+                <Pressable
+                  onPress={handleListenStatus}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ouvir status da linha em voz alta"
+                  style={({ pressed }) => [
+                    styles.waitingAudioBtn,
+                    pressed && { opacity: 0.6 }
+                  ]}
+                >
+                  <Ionicons 
+                    name="volume-medium-outline" 
+                    size={18} 
+                    color={isDark ? '#60A5FA' : '#4B5563'} 
+                    style={{ marginRight: 6 }} 
+                  />
+                  <Text style={[styles.waitingAudioBtnText, { color: isDark ? '#60A5FA' : '#4B5563' }]}>
+                    Ouvir status da linha
+                  </Text>
                 </Pressable>
               </View>
 
@@ -903,83 +1039,124 @@ export default function NavigatingScreen() {
 
         {/* Bottom Card for Walking Stage */}
 
-        {/* Bottom Card for Walking Stage */}
+        {/* Floating Bottom Card for Walking Stage (Design Ref: Opção 2) */}
         {(stage === "walking") && (
-          <View style={[styles.bottomCardShadow, { bottom: 0 }]} pointerEvents="box-none">
+          <View 
+            style={[styles.floatingBottomCardShadow, { bottom: Math.max(insets.bottom, 12) + 6 }]} 
+            pointerEvents="box-none"
+          >
             <View 
-              onLayout={(e) => setBottomCardHeight(e.nativeEvent.layout.height)}
-              style={[styles.bottomCardContent, { paddingBottom: Math.max(insets.bottom, 12) + 4 }]}
+              onLayout={(e) => setBottomCardHeight(e.nativeEvent.layout.height + insets.bottom + 18)}
+              style={[
+                styles.floatingBottomCardContent, 
+                { 
+                  backgroundColor: isDark ? theme.card : '#FFFFFF',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                }
+              ]}
             >
               <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
-              <View style={[styles.dragHandle, { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : theme.border }]} />
 
-            <View style={styles.bottomSheetHeader}>
-              <Text style={[styles.bottomSheetLabel, { color: theme.text }]}>
-                {(() => {
-                  if (isWalkingOnly) return "Caminho até o destino";
-                  const hasTransitAhead = allSteps.slice(globalStepIndex).some(s => s.type === "transit");
-                  return hasTransitAhead ? "Caminho até o ponto" : "Caminho até o destino";
-                })()}
-              </Text>
-              {!!stopName && stopName !== "ponto indicado" && (
-                <Text style={[styles.stopNameText, { color: theme.textMuted }]} numberOfLines={1}>
-                  {(() => {
-                    if (isWalkingOnly) return `Destino: ${stopName}`;
-                    const hasTransitAhead = allSteps.slice(globalStepIndex).some(s => s.type === "transit");
-                    return hasTransitAhead ? `Ponto: ${stopName}` : `Destino Final`;
-                  })()}
-                </Text>
-              )}
-            </View>
-
-            {showBusArrivalWarning && (
-              <View style={styles.arrivalWarningBox}>
-                <Ionicons name="alert-circle" size={16} color="#bd2a09" />
-                <Text style={styles.arrivalWarningText}>O ônibus pode chegar antes de você.</Text>
-              </View>
-            )}
-
-            {!isWalkingOnly && (() => {
-              const hasTransitAhead = allSteps.slice(globalStepIndex).some(s => s.type === "transit");
-              if (!hasTransitAhead) return null;
-              
-              const hasEmPrefix = busCountdown.startsWith("em ");
-              const chegaLabel = hasEmPrefix ? "CHEGA EM" : "CHEGA";
-              const chegaValue = hasEmPrefix ? busCountdown.substring(3) : (busCountdown || "...");
-
-              return (
-                <View style={styles.infoCardsGrid}>
-                  <LiquidGlassView style={styles.infoCard} fallbackColor={theme.card}>
-                    <Text style={[styles.infoCardLabel, { color: theme.textMuted }]}>LINHA {busLine}</Text>
-                    <Text style={[styles.infoCardValue, { color: theme.text, fontSize: 16 }]} numberOfLines={1} adjustsFontSizeToFit>{lineDetails || busLine}</Text>
-                  </LiquidGlassView>
-                  <LiquidGlassView style={styles.infoCard} fallbackColor={theme.card}>
-                    <Text style={[styles.infoCardLabel, { color: theme.textMuted }]}>{chegaLabel}</Text>
-                    <Text style={[styles.infoCardValue, { color: isDark ? '#60A5FA' : theme.primary, fontSize: 18 }]} numberOfLines={1} adjustsFontSizeToFit>{chegaValue}</Text>
-                    {!!stopName && stopName !== "ponto indicado" && (
-                      <Text style={[styles.infoCardSubValue, { color: theme.textMuted }]} numberOfLines={1}>{stopName}</Text>
-                    )}
-                  </LiquidGlassView>
+              {/* Linha 1: Ponto / Destino + Previsão de Chegada */}
+              <View style={styles.floatingCardHeaderRow}>
+                <View style={styles.floatingStopNameGroup}>
+                  <Ionicons name="location" size={18} color="#2563EB" style={{ marginRight: 6 }} />
+                  <View style={{ flex: 1 }}>
+                    <MarqueeText
+                      style={[styles.floatingStopNameText, { color: theme.text }]}
+                      speed={32}
+                      delay={1400}
+                    >
+                      {stopDisplayName}
+                    </MarqueeText>
+                  </View>
                 </View>
-              );
-            })()}
-            <View style={styles.actionArea}>
-              <PrimaryButton 
-                title={getPrimaryButtonTitle()} 
-                onPress={handleStageTransition} 
-                style={styles.mainButton} 
-                accessibilityLabel={getPrimaryButtonTitle()}
-              />
-              <View style={styles.ttsWrapper}>
-                <ListenOptionsButton 
-                  label="Ouvir caminho" 
-                  textToSpeak={formattedInstruction.speechText} 
-                  accessibilityLabel="Ouvir caminho"
-                />
+                {!isWalkingOnly && (
+                  <View style={[styles.floatingArrivalPill, isDark && { backgroundColor: 'rgba(37, 99, 235, 0.2)' }]}>
+                    <Ionicons name="time-outline" size={14} color="#2563EB" style={{ marginRight: 4 }} />
+                    <Text style={[styles.floatingArrivalPillText, isDark && { color: '#60A5FA' }]}>
+                      {formattedBusArrival}
+                    </Text>
+                  </View>
+                )}
               </View>
+
+              {/* Linha 2: Linha + Destino + Status */}
+              {!isWalkingOnly && (
+                <View style={styles.floatingCardMiddleRow}>
+                  <View style={styles.floatingBusInfoGroup}>
+                    <View style={styles.floatingBusLineBadge}>
+                      <Text style={styles.floatingBusLineBadgeText}>{busLine}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <MarqueeText
+                        style={[styles.floatingBusDestText, { color: theme.textMuted }]}
+                        speed={28}
+                        delay={1800}
+                      >
+                        {lineDetails || busLine}
+                      </MarqueeText>
+                    </View>
+                  </View>
+                  <View style={styles.floatingStatusGroup}>
+                    <View 
+                      style={[
+                        styles.floatingStatusDot, 
+                        { backgroundColor: showBusArrivalWarning ? '#F59E0B' : '#10B981' }
+                      ]} 
+                    />
+                    <Text 
+                      style={[
+                        styles.floatingStatusText, 
+                        { color: showBusArrivalWarning ? '#D97706' : '#059669' }
+                      ]}
+                    >
+                      {showBusArrivalWarning ? 'Pode adiantar' : 'No horário'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Linha 3: Botões de Ação lado a lado */}
+              <View style={styles.floatingCardActionsRow}>
+                <PrimaryButton 
+                  title={getPrimaryButtonTitle()} 
+                  onPress={() => {
+                    logUserInteraction({
+                      component: "PrimaryButton",
+                      label: getPrimaryButtonTitle(),
+                      fileOrScreen: "app/navegando.tsx",
+                      action: "Avançar estágio de navegação",
+                    });
+                    handleStageTransition();
+                  }} 
+                  style={styles.floatingMainButton} 
+                  accessibilityLabel={getPrimaryButtonTitle()}
+                />
+                <Pressable
+                  onPress={() => {
+                    logUserInteraction({
+                      component: "NavigatingVoiceButton",
+                      label: "Ouvir caminho",
+                      fileOrScreen: "app/navegando.tsx",
+                      action: "Tocar instrução por voz",
+                    });
+                    speakControlled(formattedInstruction.speechText, true);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ouvir instrução de caminho por voz"
+                  style={({ pressed }) => [
+                    styles.floatingVoiceIconButton,
+                    isDark && { backgroundColor: 'rgba(37, 99, 235, 0.15)', borderColor: 'rgba(59, 130, 246, 0.3)' },
+                    pressed && { opacity: 0.7 }
+                  ]}
+                >
+                  <Ionicons name="volume-high" size={24} color="#2563EB" />
+                </Pressable>
+              </View>
+
             </View>
           </View>
-        </View>
         )}
       </View>
 
@@ -1095,7 +1272,7 @@ const styles = StyleSheet.create({
   instructionCardShadow: { shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10 },
   instructionCardContent: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 12, borderRadius: 22, alignItems: "center", borderWidth: 1 },
   iconCircle: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  instructionTextContent: { flex: 1 },
+  instructionTextContent: { flex: 1, overflow: "hidden" },
   instructionTitle: { fontSize: 16, fontWeight: "900", letterSpacing: -0.3, lineHeight: 22 },
   instructionSubtitle: { fontSize: 15, fontWeight: "700", marginTop: 1 },
   warningPill: { flexDirection: "row", alignSelf: "flex-start", backgroundColor: "#FEF3C7", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, gap: 6, alignItems: "center", borderWidth: 1, borderColor: "#FDE68A" },
@@ -1139,58 +1316,121 @@ const styles = StyleSheet.create({
   confirmExitBtn: { marginTop: 20, paddingVertical: 8, alignSelf: "center" },
   confirmExitText: { color: "#f21515", fontWeight: "800", fontSize: 20 },
 
-  // Novos Estilos do Card Flutuante (Walking)
-  walkingCardRow: {
+  // Novos Estilos do Card Flutuante (Walking - Opção 2)
+  floatingBottomCardShadow: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    zIndex: 95,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  floatingBottomCardContent: {
+    borderRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+    overflow: "hidden",
+    borderWidth: 1,
+  },
+  floatingCardHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 12,
   },
-  walkingCardIconRow: {
+  floatingStopNameGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
     flex: 1,
-    marginRight: 16,
+    marginRight: 10,
+    overflow: "hidden",
   },
-  walkingCardMainText: {
-    fontSize: 18,
+  floatingStopNameText: {
+    fontSize: 16,
     fontWeight: "800",
-    flexShrink: 1,
+    letterSpacing: -0.3,
   },
-  walkingTimePill: {
+  floatingArrivalPill: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#EFF6FF",
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    borderRadius: 20,
   },
-  walkingTimeText: {
-    fontSize: 14,
+  floatingArrivalPillText: {
+    fontSize: 13,
     fontWeight: "700",
+    color: "#2563EB",
   },
-  busLineCircle: {
+  floatingCardMiddleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  floatingBusInfoGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 12,
+    overflow: "hidden",
+  },
+  floatingBusLineBadge: {
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: "#2563EB",
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 8,
   },
-  busLineCircleText: {
+  floatingBusLineBadgeText: {
     color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  floatingBusDestText: {
     fontSize: 14,
-    fontWeight: "800",
-  },
-  walkingCardSubText: {
-    fontSize: 15,
     fontWeight: "600",
-    flexShrink: 1,
   },
-  walkingStatusRow: {
+  floatingStatusGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
+  },
+  floatingStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  floatingStatusText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  floatingCardActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  floatingMainButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 100,
+  },
+  floatingVoiceIconButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(37, 99, 235, 0.2)",
   },
   greenDot: {
     width: 6,
@@ -1198,150 +1438,204 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: "#10B981",
   },
-  walkingStatusText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#10B981",
-  },
-  walkingActionsRow: {
+
+  // Top Bar Live Pill Estilos
+  topBarLiveGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 6,
+  },
+  topBarGreenDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#10B981",
+  },
+  topBarLiveBusText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  topBarBullet: {
+    fontSize: 14,
+    marginHorizontal: 1,
+  },
+  topBarLiveCountdownText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
 
-  // Novos Estilos do Card Flutuante (Waiting Bus)
+  // Novos Estilos do Card Flutuante (Waiting Bus - Alta Fidelidade)
+  waitingCardShadow: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    marginHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  waitingCardContent: {
+    borderRadius: 32,
+    borderWidth: 1,
+    overflow: "hidden",
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 20,
+  },
   waitingHeaderRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
     marginBottom: 16,
   },
   waitingHeaderLeft: {
     flexDirection: "row",
-    gap: 12,
+    alignItems: "center",
     flex: 1,
   },
-  checkCircleGreen: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#D1FAE5",
+  waitingCheckCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#DCFCE7",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
+    marginRight: 12,
+  },
+  waitingCheckCircleDark: {
+    backgroundColor: "rgba(16, 185, 129, 0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
   },
   waitingTitle: {
     fontSize: 20,
     fontWeight: "800",
-    lineHeight: 24,
+    letterSpacing: -0.3,
   },
   waitingSubtitle: {
     fontSize: 14,
     fontWeight: "500",
-    marginTop: 4,
+    marginTop: 2,
   },
-  confirmedPill: {
-    backgroundColor: "#D1FAE5",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  waitingHeaderRight: {
+    alignItems: "flex-end",
     marginLeft: 8,
   },
-  confirmedText: {
-    color: "#059669",
-    fontSize: 12,
-    fontWeight: "700",
+  waitingGiantCountdown: {
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+    lineHeight: 32,
+  },
+  waitingPredictionText: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 2,
   },
   waitingInnerCard: {
-    borderRadius: 24,
-    padding: 16,
-  },
-  waitingInnerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
+    borderWidth: 1,
   },
-  waitingBusPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 10,
+  waitingInnerCardLight: {
+    backgroundColor: "rgba(243, 244, 246, 0.75)",
+    borderColor: "rgba(0, 0, 0, 0.04)",
+  },
+  waitingInnerCardDark: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  waitingLineChip: {
+    paddingHorizontal: 14,
     paddingVertical: 4,
     borderRadius: 12,
-    gap: 6,
+    marginBottom: 8,
   },
-  waitingBusPillText: {
-    color: "#2563EB",
-    fontSize: 14,
-    fontWeight: "700",
+  waitingLineChipLight: {
+    backgroundColor: "#E0EDFF",
   },
-  livePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#D1FAE5",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+  waitingLineChipDark: {
+    backgroundColor: "rgba(10, 132, 255, 0.18)",
   },
-  liveText: {
-    color: "#059669",
-    fontSize: 12,
+  waitingLineChipText: {
+    fontSize: 13,
     fontWeight: "800",
-  },
-  waitingInnerMiddle: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
-    paddingBottom: 12,
-    marginBottom: 12,
   },
   waitingDestTitle: {
     fontSize: 18,
     fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 8,
+    letterSpacing: -0.2,
   },
-  waitingViaText: {
-    fontSize: 13,
-    fontWeight: "500",
-    marginTop: 2,
-  },
-  waitingTimeGiant: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#2563EB",
-    lineHeight: 36,
-  },
-  waitingInnerBottom: {
+  waitingStopAddressRow: {
     flexDirection: "row",
-    gap: 8,
-  },
-  waitingParadaText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  waitingSecondaryBtn: {
-    height: 56,
-    borderRadius: 100,
-    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 4,
   },
-  waitingSecondaryText: {
+  waitingStopAddressText: {
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  waitingViaDetailText: {
+    fontSize: 12,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  waitingActionsCol: {
+    gap: 10,
+  },
+  waitingPrimaryBtn: {
+    height: 54,
+    borderRadius: 27,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  waitingPrimaryBtnText: {
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
   },
-  waitingTertiaryBtn: {
+  waitingSecondaryBtn: {
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  waitingSecondaryBtnLight: {
+    backgroundColor: "rgba(243, 244, 246, 0.85)",
+    borderColor: "rgba(0, 0, 0, 0.04)",
+  },
+  waitingSecondaryBtnDark: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  waitingSecondaryBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  waitingAudioBtn: {
+    height: 38,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    height: 48,
   },
-  waitingTertiaryText: {
-    fontSize: 15,
+  waitingAudioBtnText: {
+    fontSize: 14,
     fontWeight: "600",
   },
 

@@ -126,7 +126,7 @@ export type MapPolyline = {
   line?: string;
 };
 
-export type MapFocusMode = 'walking_to_stop' | 'on_bus' | 'transfer' | 'walking_to_destination' | 'full_route';
+export type MapFocusMode = 'walking_to_stop' | 'waiting_bus' | 'on_bus' | 'transfer' | 'walking_to_destination' | 'full_route';
 
 export type MapData = {
   userLocation: {
