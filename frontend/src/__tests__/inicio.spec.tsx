@@ -103,6 +103,21 @@ jest.mock("../components/VoicePromptText", () => ({
   },
 }));
 
+jest.mock("../components/RecentSearchTicker", () => ({
+  RecentSearchTicker: ({ items, onSelectItem }: { items: any[]; onSelectItem: (item: any) => void }) => {
+    const { View: MockView, Text: MockText, Pressable: MockPressable } = jest.requireActual("react-native");
+    return (
+      <MockView testID="mock-recent-search-ticker">
+        {items?.map((item: any, idx: number) => (
+          <MockPressable key={item.id || idx} onPress={() => onSelectItem(item)}>
+            <MockText>{item.title}</MockText>
+          </MockPressable>
+        ))}
+      </MockView>
+    );
+  },
+}));
+
 jest.mock("../components/LiveTranscript", () => ({
   LiveTranscript: ({ transcript, isFinal }: { transcript: string; isFinal: boolean }) => {
     const { Text: MockText } = jest.requireActual("react-native");
