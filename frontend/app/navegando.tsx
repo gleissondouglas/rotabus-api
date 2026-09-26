@@ -917,16 +917,17 @@ export default function NavigatingScreen() {
             style={[styles.waitingCardShadow, { bottom: Math.max(insets.bottom, 12) + 6 }]} 
             pointerEvents="box-none"
           >
-            <View 
+            <LiquidGlassView 
               onLayout={(e) => setBottomCardHeight(e.nativeEvent.layout.height + insets.bottom + 18)}
+              disableDefaultStyles
               style={[
                 styles.waitingCardContent,
                 isDark 
-                  ? { backgroundColor: 'rgba(25, 28, 34, 0.90)', borderColor: 'rgba(255, 255, 255, 0.12)' }
-                  : { backgroundColor: 'rgba(255, 255, 255, 0.88)', borderColor: 'rgba(255, 255, 255, 0.80)' }
+                  ? { backgroundColor: 'rgba(25, 28, 34, 0.55)', borderColor: 'rgba(255, 255, 255, 0.12)' }
+                  : { backgroundColor: 'rgba(255, 255, 255, 0.75)', borderColor: 'rgba(255, 255, 255, 0.80)' }
               ]}
+              fallbackColor={theme.card}
             >
-              <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
 
               {/* Row 1: Header */}
               <View style={styles.waitingHeaderRow}>
@@ -1040,7 +1041,7 @@ export default function NavigatingScreen() {
                 </View>
               </View>
 
-            </View>
+            </LiquidGlassView>
           </View>
         )}
 
@@ -1052,17 +1053,18 @@ export default function NavigatingScreen() {
             style={[styles.floatingBottomCardShadow, { bottom: Math.max(insets.bottom, 12) + 6 }]} 
             pointerEvents="box-none"
           >
-            <View 
+            <LiquidGlassView 
               onLayout={(e) => setBottomCardHeight(e.nativeEvent.layout.height + insets.bottom + 18)}
+              disableDefaultStyles
               style={[
                 styles.floatingBottomCardContent, 
                 { 
-                  backgroundColor: isDark ? theme.card : '#FFFFFF',
-                  borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                  backgroundColor: isDark ? 'rgba(25, 28, 34, 0.55)' : 'rgba(255, 255, 255, 0.75)',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.80)',
                 }
               ]}
+              fallbackColor={theme.card}
             >
-              <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
 
               {/* Linha 1: Ponto / Destino + Previsão de Chegada */}
               <View style={styles.floatingCardHeaderRow}>
@@ -1162,7 +1164,7 @@ export default function NavigatingScreen() {
                 </Pressable>
               </View>
 
-            </View>
+            </LiquidGlassView>
           </View>
         )}
       </View>
