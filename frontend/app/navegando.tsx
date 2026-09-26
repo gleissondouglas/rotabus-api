@@ -1529,9 +1529,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.35)",
   },
   waitingTitle: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: "900",
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
+    lineHeight: 26,
   },
   waitingHeaderRight: {
     alignItems: "flex-end",
