@@ -196,16 +196,18 @@ export default function NavigatingScreen() {
         const d = new Date(targetStopDateTime);
         if (!isNaN(d.getTime())) {
           const timeString = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-          return `às ${timeString}`;
+          return `Chega às ${timeString}`;
         }
       } catch {}
     }
     if (busCountdownDiff !== null && busCountdownDiff > 0) {
       const d = new Date(Date.now() + busCountdownDiff * 60000);
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const timeString = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return `Chega às ${timeString}`;
     }
     const d = new Date(Date.now() + 3 * 60000);
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const timeString = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return `Chega às ${timeString}`;
   }, [targetStopDateTime, busCountdownDiff]);
 
   const destinationMarker = useMemo(() => {
