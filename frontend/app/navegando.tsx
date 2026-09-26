@@ -120,6 +120,7 @@ export default function NavigatingScreen() {
   const warnedDropoffRef = useRef(false);
   const lastSpokenAtRef = useRef(0);
   const lastSpokenStepIndexRef = useRef(-1);
+  const didAlertBusApproaching = useRef(false);
   const lastSpokenStageRef = useRef<NavigationStage | null>(null);
   const lastPingAtRef = useRef(0);
 
@@ -467,6 +468,21 @@ export default function NavigatingScreen() {
 
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const headingSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
+
+  // Efeito para disparar o alarme de 2 minutos do ônibus
+  useEffect(() => {
+    if (isBusReminderSet && busCountdownDiff !== null && busCountdownDiff <= 2 && busCountdownDiff > 0) {
+      if (!didAlertBusApproaching.current) {
+        didAlertBusApproaching.current = true;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        speakControlled(`Atenção! O ônibus da linha ${busLine} está se aproximando. Prepare-se para embarcar.`, true);
+      }
+    }
+    // Reseta caso o botão seja desligado ou o tempo volte a subir (refresh)
+    if (!isBusReminderSet || (busCountdownDiff !== null && busCountdownDiff > 2)) {
+      didAlertBusApproaching.current = false;
+    }
+  }, [isBusReminderSet, busCountdownDiff, busLine, speakControlled]);
 
   // Location tracking init
   useEffect(() => {
@@ -967,15 +983,20 @@ export default function NavigatingScreen() {
                 <Pressable
                   onPress={handleToggleReminder}
                   accessibilityRole="button"
-                  accessibilityLabel={isBusReminderSet ? "Alerta 2 min Ativado" : "Notificar 2 min antes"}
+                  accessibilityLabel={isBusReminderSet ? "Cancelar alerta de 2 minutos" : "Me notificar 2 minutos antes"}
                   style={({ pressed }) => [
                     styles.waitingPrimaryBtn,
-                    { backgroundColor: isDark ? '#0A84FF' : '#007AFF' },
+                    isBusReminderSet
+                      ? { backgroundColor: "transparent", borderWidth: 2, borderColor: isDark ? '#EF4444' : '#DC2626' }
+                      : { backgroundColor: isDark ? '#0A84FF' : '#007AFF', borderWidth: 2, borderColor: 'transparent' },
                     pressed && { opacity: 0.85 }
                   ]}
                 >
-                  <Text style={styles.waitingPrimaryBtnText}>
-                    {isBusReminderSet ? "Alerta 2 min Ativado" : "Notificar 2 min antes"}
+                  <Text style={[
+                    styles.waitingPrimaryBtnText,
+                    isBusReminderSet && { color: isDark ? '#EF4444' : '#DC2626' }
+                  ]}>
+                    {isBusReminderSet ? "Cancelar Alerta" : "Notificar 2 min antes"}
                   </Text>
                 </Pressable>
 

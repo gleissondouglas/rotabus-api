@@ -39,6 +39,21 @@ async function schedulePushReminder({ userId, pushToken, title, body, data, trig
   return job.id;
 }
 
+/**
+ * Cancela um lembrete previamente agendado.
+ */
+async function cancelPushReminder(jobId) {
+  if (!jobId) return false;
+  
+  const job = await remindersQueue.getJob(jobId);
+  if (job) {
+    await job.remove();
+    return true;
+  }
+  return false;
+}
+
 module.exports = {
   schedulePushReminder,
+  cancelPushReminder,
 };

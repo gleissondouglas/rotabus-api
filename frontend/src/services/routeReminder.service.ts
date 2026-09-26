@@ -140,6 +140,13 @@ export const routeReminderService = {
    */
   async cancelReminder(notificationId: string): Promise<boolean> {
     try {
+      try {
+        const { api } = require("../utils/api");
+        await api.delete(`/reminders/${notificationId}`);
+      } catch (backendError: any) {
+        console.warn("[RouteReminderService] Falha ou ID não é do backend, prosseguindo para cancelamento local.", backendError?.message);
+      }
+      
       await Notifications.cancelScheduledNotificationAsync(notificationId);
       return true;
     } catch {

@@ -31,6 +31,23 @@ async function scheduleReminder(req, res, next) {
   }
 }
 
+async function cancelReminder(req, res, next) {
+  try {
+    const { jobId } = req.params;
+    const { cancelPushReminder } = require("./reminders.service");
+    const success = await cancelPushReminder(jobId);
+    
+    if (success) {
+      res.status(200).json({ message: "Lembrete cancelado com sucesso." });
+    } else {
+      res.status(404).json({ error: "Lembrete não encontrado ou já executado." });
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   scheduleReminder,
+  cancelReminder,
 };
