@@ -278,13 +278,13 @@ describe("date-time utility", () => {
       expect(formatMinutesToFriendlyText(180)).toBe("3h");
     });
 
-    it("deve retornar dias, horas e minutos para durações acima de 24h", () => {
+    it("deve retornar apenas dias e horas para durações acima de 24h (ocultando minutos)", () => {
       expect(formatMinutesToFriendlyText(1440)).toBe("1 dia");
       expect(formatMinutesToFriendlyText(1500)).toBe("1 dia 1h");
-      expect(formatMinutesToFriendlyText(1515)).toBe("1 dia 1h 15min");
+      expect(formatMinutesToFriendlyText(1515)).toBe("1 dia 1h");
       expect(formatMinutesToFriendlyText(2880)).toBe("2 dias");
-      expect(formatMinutesToFriendlyText(2945)).toBe("2 dias 1h 5min");
-      expect(formatMinutesToFriendlyText(4350)).toBe("3 dias 30min");
+      expect(formatMinutesToFriendlyText(2945)).toBe("2 dias 1h");
+      expect(formatMinutesToFriendlyText(4350)).toBe("3 dias");
     });
   });
 
