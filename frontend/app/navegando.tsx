@@ -764,15 +764,9 @@ export default function NavigatingScreen() {
               {stage === "waiting_bus" ? (
                 <View style={styles.topBarLiveGroup}>
                   <View style={styles.topBarGreenDot} />
-                  <Text style={[styles.topBarLiveBusText, { color: theme.text }]}>Linha {busLine}</Text>
-                  {lineDetails ? (
-                    <>
-                      <Text style={[styles.topBarBullet, { color: theme.textMuted }]}>•</Text>
-                      <Text style={[styles.topBarLiveCountdownText, { color: theme.textMuted }]} numberOfLines={1}>
-                        {lineDetails}
-                      </Text>
-                    </>
-                  ) : null}
+                  <Text style={[styles.topBarLiveBusText, { color: theme.text, flexShrink: 1 }]} numberOfLines={1}>
+                    {lineDetails || `Linha ${busLine}`}
+                  </Text>
                 </View>
               ) : (
                 <>
