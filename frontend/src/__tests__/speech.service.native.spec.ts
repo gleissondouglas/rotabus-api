@@ -23,6 +23,12 @@ function fireListener(event: string, data?: any) {
   listeners.forEach((cb) => cb(data));
 }
 
+jest.mock("@react-native-community/netinfo", () => ({
+  fetch: jest.fn().mockResolvedValue({ isConnected: true }),
+  addEventListener: jest.fn(),
+  useNetInfo: jest.fn(),
+}));
+
 let speechService: any;
 let AudioMock: any;
 
