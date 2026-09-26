@@ -923,8 +923,8 @@ export default function NavigatingScreen() {
               style={[
                 styles.waitingCardContent,
                 isDark 
-                  ? { backgroundColor: 'rgba(25, 28, 34, 0.55)', borderColor: 'rgba(255, 255, 255, 0.12)' }
-                  : { backgroundColor: 'rgba(255, 255, 255, 0.75)', borderColor: 'rgba(255, 255, 255, 0.80)' }
+                  ? { backgroundColor: 'rgba(25, 28, 34, 0.40)', borderColor: 'rgba(255, 255, 255, 0.12)' }
+                  : { backgroundColor: 'rgba(255, 255, 255, 0.25)', borderColor: 'rgba(255, 255, 255, 0.50)' }
               ]}
               fallbackColor={theme.card}
             >
@@ -1059,8 +1059,8 @@ export default function NavigatingScreen() {
               style={[
                 styles.floatingBottomCardContent, 
                 { 
-                  backgroundColor: isDark ? 'rgba(25, 28, 34, 0.55)' : 'rgba(255, 255, 255, 0.75)',
-                  borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.80)',
+                  backgroundColor: isDark ? 'rgba(25, 28, 34, 0.40)' : 'rgba(255, 255, 255, 0.25)',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.50)',
                 }
               ]}
               fallbackColor={theme.card}
