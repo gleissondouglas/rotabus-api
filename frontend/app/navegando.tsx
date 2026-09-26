@@ -1504,19 +1504,20 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.35)",
   },
   waitingTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "900",
     letterSpacing: -0.3,
   },
   waitingHeaderRight: {
     alignItems: "flex-end",
     marginLeft: 8,
+    flexShrink: 1, // Permite encolher se necessário
   },
   waitingGiantCountdown: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: "900",
     letterSpacing: -0.5,
-    lineHeight: 32,
+    lineHeight: 26,
   },
   waitingPredictionText: {
     fontSize: 13,
