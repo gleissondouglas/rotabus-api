@@ -321,9 +321,9 @@ export default function BestRouteScreen() {
       
       let textToSpeak = `${tagText} selecionada. `;
       if (isWalking) {
-        textToSpeak += `Caminhada de ${dur} minutos.`;
+        textToSpeak += `Caminhada de ${formatMinutesToFriendlyText(dur)}.`;
       } else {
-        textToSpeak += `Duração de ${dur} minutos, usando as linhas ${lines}.`;
+        textToSpeak += `Duração de ${formatMinutesToFriendlyText(dur)}, usando as linhas ${lines}.`;
       }
       
       speak(textToSpeak);
@@ -576,7 +576,7 @@ export default function BestRouteScreen() {
                       ]}
                       activeOpacity={0.8}
                       accessibilityRole="button"
-                      accessibilityLabel={`Opção ${r.tag}, ${dur} minutos`}
+                      accessibilityLabel={`Opção ${r.tag}, duração de ${formatMinutesToFriendlyText(dur)}`}
                     >
                       {/* Tag */}
                       <View style={[
@@ -697,12 +697,16 @@ export default function BestRouteScreen() {
                   {/* Coluna esquerda: primeiro ônibus */}
                   {busLine ? (
                     <View style={[styles.summaryDetailItem, { flex: 1 }]}>
-                      <Text style={styles.summaryDetailLabel} numberOfLines={1}>PRIMEIRO ÔNIBUS</Text>
+                      <Text style={styles.summaryDetailLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                        PRIMEIRO ÔNIBUS
+                      </Text>
                       <View style={styles.busLineHighlight}>
                         <MaterialCommunityIcons name="bus" size={15} color="#FFF" />
-                        <Text style={styles.busLineNumber}>Linha {busLine}</Text>
+                        <Text style={styles.busLineNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                          Linha {busLine}
+                        </Text>
                       </View>
-                      <Text style={styles.summaryDetailSubtext} numberOfLines={1}>
+                      <Text style={styles.summaryDetailSubtext} numberOfLines={2}>
                         {direction || "Em direção ao destino"}
                       </Text>
                     </View>
@@ -718,14 +722,22 @@ export default function BestRouteScreen() {
                     <View style={styles.summaryTimesCol}>
                       {activeSummary?.leaveHomeAt && (
                         <View style={styles.summaryTimeRow}>
-                          <Text style={styles.summaryTimeLabel} numberOfLines={1}>SAÍDA</Text>
-                          <Text style={styles.summaryTimeValue} numberOfLines={1}>{activeSummary.leaveHomeAt}</Text>
+                          <Text style={styles.summaryTimeLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                            SAÍDA
+                          </Text>
+                          <Text style={styles.summaryTimeValue} numberOfLines={1}>
+                            {activeSummary.leaveHomeAt}
+                          </Text>
                         </View>
                       )}
                       {activeSummary?.arrivalAtDestination && (
                         <View style={styles.summaryTimeRow}>
-                          <Text style={styles.summaryTimeLabel} numberOfLines={1}>CHEGADA</Text>
-                          <Text style={styles.summaryTimeValue} numberOfLines={1}>{activeSummary.arrivalAtDestination}</Text>
+                          <Text style={styles.summaryTimeLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                            CHEGADA
+                          </Text>
+                          <Text style={styles.summaryTimeValue} numberOfLines={1}>
+                            {activeSummary.arrivalAtDestination}
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -747,7 +759,9 @@ export default function BestRouteScreen() {
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <View style={styles.comfortWaitBadge}>
                         <View style={styles.comfortWaitDot} />
-                        <Text style={styles.comfortWaitBadgeText} numberOfLines={1}>TEMPO DE ESPERA TRANQUILO</Text>
+                        <Text style={styles.comfortWaitBadgeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                          TEMPO DE ESPERA TRANQUILO
+                        </Text>
                       </View>
                       {/* Título com tempo formatado dinâmico — sempre 1 linha */}
                       <Text style={styles.comfortWaitTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -933,13 +947,13 @@ export default function BestRouteScreen() {
             </TouchableOpacity>
           ) : (
             <PrimaryButton
-              iconName={isFutureTrip ? undefined : (isWalkingOnly ? "walk" : "navigate")}
-              title={isFutureTrip ? "Concluir e voltar para o início" : (isWalkingOnly ? "Iniciar caminhada" : "Iniciar agora")}
+              iconName={isFutureTrip ? "notifications" : (isWalkingOnly ? "walk" : "navigate")}
+              title={isFutureTrip ? "Início" : (isWalkingOnly ? "Iniciar caminhada" : "Iniciar agora")}
               onPress={isFutureTrip ? () => router.replace("/inicio") : handleStartNavigation}
               disabled={isLoadingCommand}
               isLoading={isLoadingCommand}
               style={[styles.mainButton]}
-              accessibilityLabel={isFutureTrip ? "Concluir e voltar para a tela inicial" : "Iniciar navegação para esta rota"}
+              accessibilityLabel={isFutureTrip ? "Lembrete salvo. Voltar para a tela inicial" : "Iniciar navegação para esta rota"}
             />
           )}
 
@@ -1160,14 +1174,15 @@ const styles = StyleSheet.create({
   /* ─── 2. Card de resumo ─── */
   summaryCard: {
     borderRadius: 24,
-    padding: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
     backgroundColor: "rgba(15, 23, 42, 0.88)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.25,
     shadowRadius: 24,
     elevation: 8,
-    gap: 18,
+    gap: 16,
     overflow: "hidden",
   },
   topBadgesRow: {
@@ -1251,14 +1266,15 @@ const styles = StyleSheet.create({
   summaryDetailItem: {
     flex: 1,
     minWidth: 0,
-    gap: 6,
+    justifyContent: "center",
+    gap: 5,
   },
   summaryDetailLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: "rgba(255,255,255,0.6)",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
   summaryDetailValue: {
     fontSize: 22,
@@ -1269,32 +1285,32 @@ const styles = StyleSheet.create({
     width: 1,
     alignSelf: "stretch",
     backgroundColor: "rgba(255,255,255,0.1)",
-    marginHorizontal: 12,
+    marginHorizontal: 10,
   },
   summaryTimesCol: {
-    gap: 10,
+    gap: 8,
     flexShrink: 0,
     justifyContent: "center",
   },
   summaryTimeRow: {
     flexDirection: "row",
     alignItems: "baseline",
-    gap: 10,
+    gap: 8,
   },
   summaryTimeLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: "rgba(255,255,255,0.6)",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
     flexShrink: 0,
-    width: 68,
+    width: 62,
   },
   summaryTimeValue: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: "900",
     color: "#FFFFFF",
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
     flexShrink: 0,
   },
   busLineHighlight: {
@@ -1303,22 +1319,23 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: "#3B82F6",
     alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    maxWidth: "100%",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 12,
-    marginTop: 4,
+    marginTop: 2,
   },
   busLineNumber: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
     color: "#FFFFFF",
   },
   summaryDetailSubtext: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
     color: "rgba(255,255,255,0.6)",
     marginTop: 2,
-    lineHeight: 17,
+    lineHeight: 16,
   },
 
   /* ─── Bloco de tempo de espera tranquilo ─── */
@@ -1362,10 +1379,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#60A5FA",
   },
   comfortWaitBadgeText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: "800",
     color: "#93C5FD",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   comfortWaitTitle: {
     fontSize: 17,

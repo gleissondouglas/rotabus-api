@@ -11,6 +11,7 @@ const journeysRoutes = require("./modules/journeys/journeys.routes");
 const usersRoutes = require("./modules/users/users.routes");
 const authRoutes = require("./modules/auth/auth.routes");
 const trackingRoutes = require("./modules/tracking/tracking.routes");
+const remindersRoutes = require("./modules/reminders/reminders.routes");
 const errorMiddleware = require("./shared/middlewares/error.middleware");
 const { globalLimiter } = require("./shared/middlewares/rateLimiter.middleware");
 const { sanitizeMiddleware } = require("./shared/middlewares/sanitize.middleware");
@@ -90,6 +91,7 @@ app.use("/journeys", journeysRoutes);
 app.use("/users", usersRoutes);
 app.use("/auth", authRoutes);
 app.use("/tracking", trackingRoutes);
+app.use("/reminders", remindersRoutes);
 
 // Mantém o contrato JSON da API também para endpoints inexistentes.
 app.use((req, res) => {

@@ -23,11 +23,12 @@ import { useThemeColors } from "../src/theme/colors";
 import Map from "../src/components/Map";
 import { LiquidGlassView } from "../src/components/LiquidGlassView";
 import { LinearGradient } from "expo-linear-gradient";
+import { BackgroundGradient } from "../src/components/BackgroundGradient";
 import { AdaptiveIcon } from "../src/components/AdaptiveIcon";
 import { MarqueeText } from "../src/components/MarqueeText";
 import { speak } from "../src/services/speech.service";
 import { MapData } from "../src/types/journey.types";
-import { formatBusWaitingTimeToFriendlyTextShort } from "../src/utils/date-time";
+import { formatBusWaitingTimeToFriendlyTextShort, formatMinutesToFriendlyText } from "../src/utils/date-time";
 import { formatWalkingInstruction } from "../src/utils/navigationInstructionFormatter";
 import { parseJsonParam, calculateDistance } from "../src/utils/helpers";
 import { trackingService } from "../src/services/tracking.service";
@@ -102,6 +103,7 @@ export default function NavigatingScreen() {
   const [isBusReminderSet, setIsBusReminderSet] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [bottomCardHeight, setBottomCardHeight] = useState(260);
+  const [onBusFeedback, setOnBusFeedback] = useState<"facil" | "tranquilo" | "dificil" | null>("tranquilo");
 
   // Animation Refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -178,7 +180,7 @@ export default function NavigatingScreen() {
 
   const displayCountdownText = useMemo(() => {
     if (busCountdownDiff !== null && busCountdownDiff > 0) {
-      return `${busCountdownDiff} min`;
+      return formatMinutesToFriendlyText(busCountdownDiff);
     }
     if (busCountdown) {
       const clean = busCountdown.replace(/^em\s+/i, "").trim();
@@ -594,7 +596,7 @@ export default function NavigatingScreen() {
   const handleToggleReminder = () => {
     logUserInteraction({
       component: "WaitingBusReminderButton",
-      label: isBusReminderSet ? "Lembrete desativado" : "Me notifique faltando 2 minutos",
+      label: isBusReminderSet ? "Alerta 2 min desativado" : "Alerta 2 min Ativado",
       fileOrScreen: "app/navegando.tsx",
       action: "Alternar lembrete de chegada de ônibus",
     });
@@ -757,7 +759,7 @@ export default function NavigatingScreen() {
                     color={isDark ? '#60A5FA' : theme.primary}
                   />
                   <Text style={[styles.glassPillText, { color: theme.text }]}>
-                    {`${walkTimeMinutes} min caminhando`}
+                    {`${formatMinutesToFriendlyText(Number(walkTimeMinutes))} caminhando`}
                   </Text>
                 </>
               )}
@@ -913,16 +915,11 @@ export default function NavigatingScreen() {
                   <View style={[styles.waitingCheckCircle, isDark && styles.waitingCheckCircleDark]}>
                     <Ionicons name="checkmark" size={20} color={isDark ? '#34D399' : '#10B981'} />
                   </View>
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Text style={[styles.waitingTitle, { color: theme.text }]} numberOfLines={1}>Você chegou ao ponto</Text>
-                    <Text style={[styles.waitingSubtitle, { color: theme.textMuted }]} numberOfLines={1}>
-                      Aguarde o Ônibus Linha {busLine}
-                    </Text>
-                  </View>
+                  <Text style={[styles.waitingTitle, { color: theme.text }]}>Previsão</Text>
                 </View>
 
                 <View style={styles.waitingHeaderRight}>
-                  <Text style={[styles.waitingGiantCountdown, { color: isDark ? '#0A84FF' : '#007AFF' }]}>
+                  <Text style={[styles.waitingGiantCountdown, { color: isDark ? '#0A84FF' : '#007AFF' }]} adjustsFontSizeToFit minimumFontScale={0.5} numberOfLines={1}>
                     {displayCountdownText}
                   </Text>
                   <Text style={[styles.waitingPredictionText, { color: theme.textMuted }]}>
@@ -941,34 +938,26 @@ export default function NavigatingScreen() {
                 </View>
 
                 {/* Destino / Itinerário */}
-                <View style={{ width: "100%", alignItems: "center", overflow: "hidden" }}>
-                  <MarqueeText
-                    style={[styles.waitingDestTitle, { color: theme.text }]}
-                    speed={28}
-                    delay={1600}
-                  >
+                <View style={styles.waitingDestContainer}>
+                  <Text style={[styles.waitingDestTitle, { color: theme.text }]}>
                     {lineDetails || "Parque dos Girassóis"}
-                  </MarqueeText>
+                  </Text>
                 </View>
 
                 {/* Endereço da Parada com Pino */}
                 <View style={styles.waitingStopAddressRow}>
-                  <Ionicons name="location-sharp" size={14} color={isDark ? '#60A5FA' : '#007AFF'} style={{ marginRight: 4 }} />
-                  <View style={{ flex: 1, overflow: "hidden" }}>
-                    <MarqueeText
-                      style={[styles.waitingStopAddressText, { color: isDark ? '#E2E8F0' : '#334155' }]}
-                      speed={30}
-                      delay={1400}
-                    >
-                      {stopDisplayName}
-                    </MarqueeText>
-                  </View>
+                  <Ionicons name="location-sharp" size={14} color={isDark ? '#60A5FA' : '#007AFF'} style={{ marginRight: 4, marginTop: 1 }} />
+                  <Text style={[styles.waitingStopAddressText, { color: isDark ? '#E2E8F0' : '#334155' }]}>
+                    {stopDisplayName}
+                  </Text>
                 </View>
 
                 {/* Via / Instrução */}
-                <Text style={[styles.waitingViaDetailText, { color: theme.textMuted }]} numberOfLines={1}>
-                  Via {direction && direction !== "--" ? direction : (activeTransitStep?.via || "Santos Dumont")}
-                </Text>
+                {(direction && direction !== "--" || activeTransitStep?.via) && (
+                  <Text style={[styles.waitingViaDetailText, { color: theme.textMuted }]}>
+                    Via {direction && direction !== "--" ? direction : (activeTransitStep?.via || "Santos Dumont")}
+                  </Text>
+                )}
               </View>
 
               {/* Row 3: Ações e Botões Inferiores (Thumb Zone) */}
@@ -977,21 +966,15 @@ export default function NavigatingScreen() {
                 <Pressable
                   onPress={handleToggleReminder}
                   accessibilityRole="button"
-                  accessibilityLabel={isBusReminderSet ? "Lembrete ativado" : "Me notifique faltando 2 minutos"}
+                  accessibilityLabel={isBusReminderSet ? "Alerta 2 min Ativado" : "Notificar 2 min antes"}
                   style={({ pressed }) => [
                     styles.waitingPrimaryBtn,
                     { backgroundColor: isDark ? '#0A84FF' : '#007AFF' },
                     pressed && { opacity: 0.85 }
                   ]}
                 >
-                  <Ionicons 
-                    name={isBusReminderSet ? "checkmark-circle" : "notifications"} 
-                    size={18} 
-                    color="#FFFFFF" 
-                    style={{ marginRight: 8 }} 
-                  />
                   <Text style={styles.waitingPrimaryBtnText}>
-                    {isBusReminderSet ? "✓ Lembrete ativado (2 min antes)" : "Me notifique faltando 2 minutos"}
+                    {isBusReminderSet ? "Alerta 2 min Ativado" : "Notificar 2 min antes"}
                   </Text>
                 </Pressable>
 
@@ -1163,40 +1146,27 @@ export default function NavigatingScreen() {
       
       {/* ON BUS FULL SCREEN OVERLAY */}
       {stage === "on_bus" && (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? theme.background : "#F8FAFC", zIndex: 999, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 24) }]}>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? theme.background : "transparent", zIndex: 999, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 24) }]}>
+            {!isDark && <BackgroundGradient />}
             {/* Header */}
             <View style={styles.onBusHeader}>
-              <Pressable onPress={handleSair} style={styles.onBusBackBtn}>
-                <Ionicons name="chevron-back" size={24} color="#2563EB" />
+              <Pressable onPress={handleSair} style={[styles.onBusHeaderPill, { backgroundColor: theme.card }]}>
+                <Ionicons name="chevron-back" size={18} color="#2563EB" />
+                <Text style={[styles.onBusHeaderPillText, { color: theme.text }]}>Voltar</Text>
               </Pressable>
-              <Text style={[styles.onBusHeaderTitle, { color: theme.text }]}>Live Journey Tracking</Text>
               
-              <View style={{ flexDirection: "row", gap: 12 }}>
-                <Pressable style={styles.onBusHeaderSpeaker} onPress={() => speakControlled(formattedInstruction.speechText, true)}>
-                  <Ionicons name="volume-high" size={16} color="#2563EB" />
-                  <Text style={styles.onBusHeaderSpeakerText}>Ouvir</Text>
-                </Pressable>
-                <View style={styles.onBusHeaderAvatar}>
-                  <Ionicons name="person-outline" size={16} color="#FFFFFF" />
-                </View>
-              </View>
+              <Pressable style={[styles.onBusHeaderPill, { backgroundColor: theme.card }]} onPress={() => speakControlled("Você já está a bordo da Linha. Boa viagem!", true)}>
+                <Ionicons name="volume-high" size={18} color="#2563EB" />
+                <Text style={[styles.onBusHeaderPillText, { color: "#2563EB" }]}>Ouvir</Text>
+              </Pressable>
             </View>
 
             {/* Content */}
             <View style={styles.onBusContent}>
-              <View style={styles.onBusIconRings}>
-                <View style={styles.onBusIconRingOuter}>
-                  <View style={styles.onBusIconRingInner}>
-                    <View style={styles.onBusIconSolid}>
-                      <Ionicons name="checkmark" size={32} color="#FFFFFF" />
-                    </View>
-                  </View>
-                </View>
-              </View>
 
-              <View style={styles.onBusBadge}>
-                <Ionicons name="bus" size={16} color="#1E3A8A" />
-                <Text style={styles.onBusBadgeText}>Embarque Confirmado</Text>
+              <View style={[styles.onBusBadge, { backgroundColor: isDark ? theme.card : "#FFFFFF" }]}>
+                <Ionicons name="bus" size={16} color="#2563EB" />
+                <Text style={[styles.onBusBadgeText, { color: isDark ? theme.text : "#0F172A" }]}>EMBARQUE CONFIRMADO</Text>
               </View>
 
               <Text style={[styles.onBusGiantTitle, { color: theme.text }]}>Boa viagem!</Text>
@@ -1205,26 +1175,50 @@ export default function NavigatingScreen() {
                 Você já está a bordo da <Text style={{ fontWeight: "800", color: theme.text }}>Linha {busLine}</Text>. O RotaBus guiou seus passos com segurança até o ponto.
               </Text>
 
-              <View style={styles.onBusFeedbackBox}>
+              <View style={[styles.onBusFeedbackBox, { backgroundColor: theme.card, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'transparent', borderWidth: isDark ? 1 : 0 }]}>
                 <Text style={[styles.onBusFeedbackTitle, { color: theme.text }]}>Como foi o trajeto a pé até o ponto?</Text>
                 <Text style={[styles.onBusFeedbackSubtitle, { color: theme.textMuted }]}>Sua avaliação calibra a precisão dos alertas.</Text>
+                
+                <View style={styles.onBusFeedbackOptions}>
+                  <Pressable 
+                    style={[styles.onBusFeedbackOption, onBusFeedback === "facil" && styles.onBusFeedbackOptionSelected, { backgroundColor: onBusFeedback === "facil" ? (isDark ? "rgba(37,99,235,0.2)" : "#EFF6FF") : "transparent", borderColor: onBusFeedback === "facil" ? "#93C5FD" : (isDark ? "rgba(255,255,255,0.1)" : "#F1F5F9") }]} 
+                    onPress={() => setOnBusFeedback("facil")}
+                  >
+                    <Text style={styles.onBusFeedbackEmoji}>😊</Text>
+                    <Text style={[styles.onBusFeedbackOptionText, { color: theme.text }]}>Fácil</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={[styles.onBusFeedbackOption, onBusFeedback === "tranquilo" && styles.onBusFeedbackOptionSelected, { backgroundColor: onBusFeedback === "tranquilo" ? (isDark ? "rgba(37,99,235,0.2)" : "#EFF6FF") : "transparent", borderColor: onBusFeedback === "tranquilo" ? "#93C5FD" : (isDark ? "rgba(255,255,255,0.1)" : "#F1F5F9") }]} 
+                    onPress={() => setOnBusFeedback("tranquilo")}
+                  >
+                    <Text style={styles.onBusFeedbackEmoji}>👌</Text>
+                    <Text style={[styles.onBusFeedbackOptionText, { color: theme.text }]}>Tranquilo</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={[styles.onBusFeedbackOption, onBusFeedback === "dificil" && styles.onBusFeedbackOptionSelected, { backgroundColor: onBusFeedback === "dificil" ? (isDark ? "rgba(37,99,235,0.2)" : "#EFF6FF") : "transparent", borderColor: onBusFeedback === "dificil" ? "#93C5FD" : (isDark ? "rgba(255,255,255,0.1)" : "#F1F5F9") }]} 
+                    onPress={() => setOnBusFeedback("dificil")}
+                  >
+                    <Text style={styles.onBusFeedbackEmoji}>😓</Text>
+                    <Text style={[styles.onBusFeedbackOptionText, { color: theme.text }]}>Difícil</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
 
             {/* Bottom Actions */}
             <View style={styles.onBusBottomActions}>
               <PrimaryButton 
-                iconName="checkmark-done"
+                iconName="checkmark"
                 title="Concluir e voltar ao início" 
                 onPress={() => router.replace("/inicio")}
-                style={{ borderRadius: 100, minHeight: 64, height: 64, width: "100%" }} 
+                style={{ borderRadius: 100, minHeight: 64, height: 64, width: "100%", elevation: 12, shadowColor: "#007AFF", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16 }} 
               />
               <Pressable 
-                style={({ pressed }) => [styles.onBusSecondaryBtn, pressed && { opacity: 0.7 }]}
+                style={({ pressed }) => [styles.onBusSecondaryBtn, pressed && { opacity: 0.7 }, { backgroundColor: theme.card }]}
                 onPress={() => speakControlled("Você já está a bordo da Linha. Boa viagem!", true)}
               >
-                <Ionicons name="volume-high-outline" size={20} color="#2563EB" />
-                <Text style={styles.onBusSecondaryText}>Ouvir aviso de boa viagem</Text>
+                <Ionicons name="volume-high" size={20} color="#2563EB" />
+                <Text style={[styles.onBusSecondaryText, { color: "#2563EB" }]}>Ouvir aviso de boa viagem</Text>
               </Pressable>
             </View>
         </View>
@@ -1510,14 +1504,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.35)",
   },
   waitingTitle: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 22,
+    fontWeight: "900",
     letterSpacing: -0.3,
-  },
-  waitingSubtitle: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginTop: 2,
   },
   waitingHeaderRight: {
     alignItems: "flex-end",
@@ -1566,36 +1555,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
+  waitingDestContainer: {
+    width: "100%",
+    alignItems: "center",
+    paddingHorizontal: 6,
+  },
   waitingDestTitle: {
     fontSize: 18,
     fontWeight: "800",
     textAlign: "center",
     marginBottom: 8,
     letterSpacing: -0.2,
+    lineHeight: 24,
   },
   waitingStopAddressRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    flexWrap: "wrap",
     marginBottom: 4,
+    paddingHorizontal: 6,
   },
   waitingStopAddressText: {
     fontSize: 13,
     fontWeight: "600",
     textAlign: "center",
+    lineHeight: 18,
   },
   waitingViaDetailText: {
     fontSize: 12,
     fontWeight: "500",
     textAlign: "center",
+    lineHeight: 16,
+    paddingHorizontal: 6,
   },
   waitingActionsCol: {
     gap: 10,
   },
   waitingPrimaryBtn: {
-    height: 54,
-    borderRadius: 27,
-    flexDirection: "row",
+    minHeight: 52,
+    borderRadius: 26,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#007AFF",
@@ -1608,10 +1609,14 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 22,
   },
   waitingSecondaryBtn: {
-    height: 52,
+    minHeight: 52,
     borderRadius: 26,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -1627,6 +1632,8 @@ const styles = StyleSheet.create({
   waitingSecondaryBtnText: {
     fontSize: 16,
     fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 22,
   },
   waitingAudioBtn: {
     height: 38,
@@ -1648,37 +1655,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  onBusBackBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  onBusHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  onBusHeaderSpeaker: {
+  onBusHeaderPill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    gap: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  onBusHeaderSpeakerText: {
-    color: "#2563EB",
-    fontSize: 14,
+  onBusHeaderPillText: {
+    fontSize: 15,
     fontWeight: "700",
-  },
-  onBusHeaderAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#1D4ED8",
-    alignItems: "center",
-    justifyContent: "center",
   },
   onBusContent: {
     flex: 1,
@@ -1716,17 +1708,21 @@ const styles = StyleSheet.create({
   onBusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E0EAFF",
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
     gap: 8,
     marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 1,
   },
   onBusBadgeText: {
-    color: "#1E3A8A",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
+    letterSpacing: 0.5,
   },
   onBusGiantTitle: {
     fontSize: 40,
@@ -1743,15 +1739,50 @@ const styles = StyleSheet.create({
   },
   onBusFeedbackBox: {
     alignItems: "center",
+    width: "100%",
+    padding: 24,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 4,
   },
   onBusFeedbackTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "800",
-    marginBottom: 4,
+    marginBottom: 6,
+    textAlign: "center",
   },
   onBusFeedbackSubtitle: {
     fontSize: 14,
     textAlign: "center",
+    marginBottom: 20,
+  },
+  onBusFeedbackOptions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+    justifyContent: "space-between",
+  },
+  onBusFeedbackOption: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  onBusFeedbackOptionSelected: {
+    borderWidth: 1,
+  },
+  onBusFeedbackEmoji: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  onBusFeedbackOptionText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   onBusBottomActions: {
     paddingHorizontal: 20,
@@ -1767,7 +1798,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   onBusSecondaryText: {
-    color: "#1E40AF",
     fontSize: 16,
     fontWeight: "700",
   }

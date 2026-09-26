@@ -2,6 +2,7 @@ import * as Speech from "expo-speech";
 import { Audio } from "expo-av";
 import { Platform, Alert } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import NetInfo from "@react-native-community/netinfo";
 
 import { VOICE_CONFIG } from "../config/voice.config";
 import { STORAGE_KEYS } from "../constants/storage";
@@ -108,7 +109,11 @@ async function speakInternal(text: string, mode: SpeakMode) {
   }
 
   // TENTA USAR GOOGLE CLOUD TTS (Voz de Alta Qualidade)
-  if (VOICE_CONFIG.provider === "GOOGLE" && VOICE_CONFIG.googleApiKey) {
+  // Verifica rede primeiro para evitar lentidão e timeout no modo "Túnel" (Offline)
+  const netState = await NetInfo.fetch();
+  const isOnline = netState.isConnected && netState.isInternetReachable !== false;
+
+  if (isOnline && VOICE_CONFIG.provider === "GOOGLE" && VOICE_CONFIG.googleApiKey) {
     try {
       console.log("Solicitando áudio para:", text.substring(0, 30) + "...");
       

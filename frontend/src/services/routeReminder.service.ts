@@ -74,34 +74,58 @@ export const routeReminderService = {
       }
 
       const stopInfo = beAtStopAt ? ` às ${beAtStopAt}` : "";
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "🚌 Hora de se preparar para sair!",
-          body: `Seu ônibus (${busLine}) passa${stopInfo}. Saia em ${minutesBefore} minutos para caminhar com calma até o ponto.`,
-          sound: true,
-          data: {
-            destination,
-            busLine,
-            leaveHomeDateTime,
-          },
-          ...(Platform.OS === "android" ? { channelId: "route-reminders" } : {}),
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: triggerDate,
-        },
-      });
+      const notificationTitle = "🚌 Hora de se preparar para sair!";
+      const notificationBody = `Seu ônibus (${busLine}) passa${stopInfo}. Saia em ${minutesBefore} minutos para caminhar com calma até o ponto.`;
 
       const scheduledTime = triggerDate.toLocaleTimeString("pt-BR", {
         hour: "2-digit",
         minute: "2-digit",
       });
 
-      return {
-        success: true,
-        notificationId,
-        scheduledTime,
-      };
+      try {
+        // Tenta enviar para o servidor (BullMQ Queue)
+        // Precisamos importar o api helper aqui, mas para garantir, fazemos require inline ou usamos fetch se preferir.
+        const { api } = require("../utils/api");
+        const response = await api.post("/reminders", {
+          title: notificationTitle,
+          body: notificationBody,
+          triggerDate: triggerDate.toISOString(),
+          data: { destination, busLine, leaveHomeDateTime }
+        });
+        
+        return {
+          success: true,
+          notificationId: response.data.jobId || "backend-job",
+          scheduledTime,
+        };
+      } catch (backendError) {
+        console.warn("[RouteReminderService] Falha ao agendar no backend (BullMQ). Caindo para agendamento local:", backendError);
+        
+        // Fallback: Agenda no dispositivo nativo
+        const notificationId = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: notificationTitle,
+            body: notificationBody,
+            sound: true,
+            data: {
+              destination,
+              busLine,
+              leaveHomeDateTime,
+            },
+            ...(Platform.OS === "android" ? { channelId: "route-reminders" } : {}),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerDate,
+          },
+        });
+
+        return {
+          success: true,
+          notificationId,
+          scheduledTime,
+        };
+      }
     } catch (err: any) {
       console.error("[RouteReminderService] Erro ao agendar notificação:", err);
       return {

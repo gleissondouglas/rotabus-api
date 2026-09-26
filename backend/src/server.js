@@ -10,6 +10,9 @@ const { initSentry } = require("./config/sentry");
 // Inicializa o Sentry para capturar erros fatais do servidor
 initSentry();
 
+// Inicializa o Worker do BullMQ para Push Notifications
+require("./modules/reminders/reminders.worker");
+
 console.log("Iniciando servidor...");
 
 /**

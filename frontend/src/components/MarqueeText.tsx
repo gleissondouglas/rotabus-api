@@ -209,7 +209,13 @@ export function MarqueeText({
         scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          contentWidth > 0 && containerWidth > 0 && contentWidth <= containerWidth && {
+            minWidth: "100%",
+            justifyContent: "center",
+          }
+        ]}
         bounces={false}
       >
         <RNAnimated.View

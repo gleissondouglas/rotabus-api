@@ -159,7 +159,7 @@ describe("Journeys Service", () => {
       expect(result.candidates.length).toBe(2);
     });
 
-    it("deve aplicar auto-seleção se o primeiro lugar for muito mais próximo que o segundo", async () => {
+    it("NÃO deve aplicar auto-seleção se for categoria genérica, mesmo que o primeiro lugar seja muito próximo", async () => {
       localIntelligenceService.guessQueryType.mockReturnValueOnce("generic_category");
       destinationProvider.searchPlaces.mockResolvedValue([
         { name: "Farmácia Perto", address: "Rua A, Uberaba", id: "1", lat: -19.7401, lng: -47.9301 },
@@ -171,8 +171,9 @@ describe("Journeys Service", () => {
         origin: { lat: -19.7400, lng: -47.9300 }
       });
 
-      expect(result.mode).toBe("resolved");
-      expect(result.resolvedDestination.name).toBe("Farmácia Perto");
+      expect(result.mode).toBe("suggestions");
+      expect(result.candidates.length).toBe(2);
+      expect(result.candidates[0].name).toBe("Farmácia Perto");
     });
   });
 

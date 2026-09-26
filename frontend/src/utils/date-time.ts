@@ -113,11 +113,25 @@ export function getNext7Days(referenceDate?: Date | string | number): Next7DaysO
 
 export function formatMinutesToFriendlyText(diffMin: number) {
   if (diffMin <= 0) return "Chegando";
+  
+  if (diffMin >= 24 * 60) {
+    const totalHours = Math.floor(diffMin / 60);
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const mins = diffMin % 60;
+    
+    let result = days === 1 ? "1 dia" : `${days} dias`;
+    if (hours > 0) result += ` ${hours}h`;
+    if (mins > 0) result += ` ${mins}min`;
+    return result;
+  }
+
   if (diffMin >= 60) {
     const hours = Math.floor(diffMin / 60);
     const mins = diffMin % 60;
-    return mins > 0 ? `${hours}h${mins}min` : `${hours}h`;
+    return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
   }
+  
   return `${diffMin} min`;
 }
 

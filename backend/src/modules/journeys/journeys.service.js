@@ -174,7 +174,9 @@ async function resolveDestinationService({ text, origin }, _session = null) {
     queryType === "generic_category";
 
   // IDEIA 2: Auto-seleção de destino óbvio (se o 1º for muito mais perto que o 2º)
-  if (showSuggestions && candidates.length >= 2 && candidates[0].distanceMeters < Infinity) {
+  // Só aplicamos isso se for um local específico (specific_place).
+  // Se for genérico (Hospital, Supermercado), confiamos no Google Places e exibimos todas as opções!
+  if (showSuggestions && candidates.length >= 2 && candidates[0].distanceMeters < Infinity && queryType !== "generic_category") {
     const dist1 = candidates[0].distanceMeters;
     const dist2 = candidates[1].distanceMeters;
     

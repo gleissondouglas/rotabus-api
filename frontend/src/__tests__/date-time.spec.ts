@@ -265,17 +265,26 @@ describe("date-time utility", () => {
       expect(formatMinutesToFriendlyText(59)).toBe("59 min");
     });
 
-    it("deve retornar 'XhYmin' para valores >= 60", () => {
-      expect(formatMinutesToFriendlyText(65)).toBe("1h5min");
-      expect(formatMinutesToFriendlyText(90)).toBe("1h30min");
-      expect(formatMinutesToFriendlyText(125)).toBe("2h5min");
-      expect(formatMinutesToFriendlyText(150)).toBe("2h30min");
+    it("deve retornar 'Xh Ymin' para valores >= 60", () => {
+      expect(formatMinutesToFriendlyText(65)).toBe("1h 5min");
+      expect(formatMinutesToFriendlyText(90)).toBe("1h 30min");
+      expect(formatMinutesToFriendlyText(125)).toBe("2h 5min");
+      expect(formatMinutesToFriendlyText(150)).toBe("2h 30min");
     });
 
     it("deve retornar 'Xh' quando minutos são exatos", () => {
       expect(formatMinutesToFriendlyText(60)).toBe("1h");
       expect(formatMinutesToFriendlyText(120)).toBe("2h");
       expect(formatMinutesToFriendlyText(180)).toBe("3h");
+    });
+
+    it("deve retornar dias, horas e minutos para durações acima de 24h", () => {
+      expect(formatMinutesToFriendlyText(1440)).toBe("1 dia");
+      expect(formatMinutesToFriendlyText(1500)).toBe("1 dia 1h");
+      expect(formatMinutesToFriendlyText(1515)).toBe("1 dia 1h 15min");
+      expect(formatMinutesToFriendlyText(2880)).toBe("2 dias");
+      expect(formatMinutesToFriendlyText(2945)).toBe("2 dias 1h 5min");
+      expect(formatMinutesToFriendlyText(4350)).toBe("3 dias 30min");
     });
   });
 
