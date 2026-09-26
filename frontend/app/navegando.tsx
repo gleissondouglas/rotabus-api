@@ -1185,11 +1185,6 @@ export default function NavigatingScreen() {
             {/* Content */}
             <View style={styles.onBusContent}>
 
-              <View style={[styles.onBusBadge, { backgroundColor: isDark ? theme.card : "#FFFFFF" }]}>
-                <Ionicons name="bus" size={16} color="#2563EB" />
-                <Text style={[styles.onBusBadgeText, { color: isDark ? theme.text : "#0F172A" }]}>EMBARQUE CONFIRMADO</Text>
-              </View>
-
               <Text style={[styles.onBusGiantTitle, { color: theme.text }]}>Boa viagem!</Text>
               
               <Text style={[styles.onBusDescription, { color: theme.textMuted }]}>
@@ -1237,7 +1232,7 @@ export default function NavigatingScreen() {
                   { padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 8 }
                 ]}
               >
-                <View style={styles.waitingSecondaryRow}>
+                <View style={{ flexDirection: "row", gap: 8, alignItems: 'stretch' }}>
                   <Pressable
                     onPress={() => router.replace("/inicio")}
                     style={({ pressed }) => [
