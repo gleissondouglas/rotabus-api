@@ -1180,11 +1180,6 @@ export default function NavigatingScreen() {
                 <Ionicons name="chevron-back" size={18} color="#2563EB" />
                 <Text style={[styles.onBusHeaderPillText, { color: theme.text }]}>Voltar</Text>
               </Pressable>
-              
-              <Pressable style={[styles.onBusHeaderPill, { backgroundColor: theme.card }]} onPress={() => speakControlled("Você já está a bordo da Linha. Boa viagem!", true)}>
-                <Ionicons name="volume-high" size={18} color="#2563EB" />
-                <Text style={[styles.onBusHeaderPillText, { color: "#2563EB" }]}>Ouvir</Text>
-              </Pressable>
             </View>
 
             {/* Content */}
