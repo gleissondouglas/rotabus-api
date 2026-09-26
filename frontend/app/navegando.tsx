@@ -1232,20 +1232,52 @@ export default function NavigatingScreen() {
             </View>
 
             {/* Bottom Actions */}
-            <View style={styles.onBusBottomActions}>
-              <PrimaryButton 
-                iconName="checkmark"
-                title="Concluir e voltar ao início" 
-                onPress={() => router.replace("/inicio")}
-                style={{ borderRadius: 100, minHeight: 64, height: 64, width: "100%", elevation: 12, shadowColor: "#007AFF", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16 }} 
-              />
-              <Pressable 
-                style={({ pressed }) => [styles.onBusSecondaryBtn, pressed && { opacity: 0.7 }, { backgroundColor: theme.card }]}
-                onPress={() => speakControlled("Você já está a bordo da Linha. Boa viagem!", true)}
+            <View style={{ paddingHorizontal: 16 }}>
+              <View 
+                style={[
+                  styles.waitingCardContent,
+                  isDark 
+                    ? { backgroundColor: theme.card, borderColor: 'rgba(255, 255, 255, 0.1)' }
+                    : { backgroundColor: '#FFFFFF', borderColor: 'rgba(0,0,0,0.05)' },
+                  { padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 8 }
+                ]}
               >
-                <Ionicons name="volume-high" size={20} color="#2563EB" />
-                <Text style={[styles.onBusSecondaryText, { color: "#2563EB" }]}>Ouvir aviso de boa viagem</Text>
-              </Pressable>
+                <View style={styles.waitingSecondaryRow}>
+                  <Pressable
+                    onPress={() => router.replace("/inicio")}
+                    style={({ pressed }) => [
+                      styles.waitingSecondaryBtn,
+                      isDark ? styles.waitingSecondaryBtnDark : styles.waitingSecondaryBtnLight,
+                      { backgroundColor: '#007AFF', borderColor: '#007AFF' },
+                      pressed && { opacity: 0.75 },
+                      { flex: 1, shadowColor: "#007AFF", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
+                    ]}
+                  >
+                    <Ionicons name="checkmark" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                    <Text style={[styles.waitingSecondaryBtnText, { color: '#FFFFFF' }]}>
+                      Concluir navegação
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => speakControlled("Você já está a bordo da Linha. Boa viagem!", true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ouvir aviso de boa viagem"
+                    style={({ pressed }) => [
+                      styles.waitingSecondaryBtn,
+                      isDark ? styles.waitingSecondaryBtnDark : styles.waitingSecondaryBtnLight,
+                      pressed && { opacity: 0.75 },
+                      { width: 56, paddingVertical: 0, justifyContent: 'center', alignItems: 'center' }
+                    ]}
+                  >
+                    <Ionicons 
+                      name="volume-high-outline" 
+                      size={26} 
+                      color={isDark ? '#FFFFFF' : '#111827'} 
+                    />
+                  </Pressable>
+                </View>
+              </View>
             </View>
         </View>
       )}
