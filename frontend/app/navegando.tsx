@@ -1005,24 +1005,6 @@ export default function NavigatingScreen() {
                 {/* Botões Secundários Agrupados na mesma linha */}
                 <View style={{ flexDirection: "row", gap: 8, alignItems: 'stretch' }}>
                   <Pressable
-                    onPress={handleListenStatus}
-                    accessibilityRole="button"
-                    accessibilityLabel="Ouvir status da linha em voz alta"
-                    style={({ pressed }) => [
-                      styles.waitingSecondaryBtn,
-                      isDark ? styles.waitingSecondaryBtnDark : styles.waitingSecondaryBtnLight,
-                      pressed && { opacity: 0.75 },
-                      { width: 56, paddingVertical: 0, justifyContent: 'center', alignItems: 'center' }
-                    ]}
-                  >
-                    <Ionicons 
-                      name="volume-high" 
-                      size={24} 
-                      color={isDark ? '#FFFFFF' : '#111827'} 
-                    />
-                  </Pressable>
-                  
-                  <Pressable
                     onPress={handleEnteredBus}
                     accessibilityRole="button"
                     accessibilityLabel="Já entrei no ônibus"
@@ -1036,6 +1018,24 @@ export default function NavigatingScreen() {
                     <Text style={[styles.waitingSecondaryBtnText, { color: isDark ? '#FFFFFF' : '#111827' }]}>
                       Já entrei no ônibus
                     </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleListenStatus}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ouvir status da linha em voz alta"
+                    style={({ pressed }) => [
+                      styles.waitingSecondaryBtn,
+                      isDark ? styles.waitingSecondaryBtnDark : styles.waitingSecondaryBtnLight,
+                      pressed && { opacity: 0.75 },
+                      { width: 56, paddingVertical: 0, justifyContent: 'center', alignItems: 'center' }
+                    ]}
+                  >
+                    <Ionicons 
+                      name="volume-high-outline" 
+                      size={26} 
+                      color={isDark ? '#FFFFFF' : '#111827'} 
+                    />
                   </Pressable>
                 </View>
               </View>
