@@ -1505,7 +1505,7 @@ const styles = StyleSheet.create({
   },
   waitingHeaderRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: 16,
   },
