@@ -932,7 +932,7 @@ export default function NavigatingScreen() {
               <View style={styles.waitingHeaderRow}>
                 <View style={styles.waitingHeaderLeft}>
                   <View style={[styles.waitingCheckCircle, isDark && styles.waitingCheckCircleDark]}>
-                    <Ionicons name="checkmark" size={20} color={isDark ? '#34D399' : '#10B981'} />
+                    <Ionicons name="checkmark" size={16} color={isDark ? '#34D399' : '#10B981'} />
                   </View>
                   <Text style={[styles.waitingTitle, { color: theme.text }]}>Previsão</Text>
                 </View>
@@ -1504,22 +1504,24 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   waitingHeaderRow: {
-    flexDirection: "column",
-    alignItems: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
   },
   waitingHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
   },
   waitingCheckCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "#DCFCE7",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 6,
   },
   waitingCheckCircleDark: {
     backgroundColor: "rgba(16, 185, 129, 0.18)",
@@ -1527,21 +1529,22 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.35)",
   },
   waitingTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "900",
     letterSpacing: -0.3,
   },
   waitingHeaderRight: {
-    alignItems: "flex-start",
-    marginLeft: 56,
-    marginTop: 4,
+    alignItems: "flex-end",
+    marginLeft: 8,
+    flex: 1,
     flexShrink: 1,
   },
   waitingGiantCountdown: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: "900",
     letterSpacing: -0.5,
-    lineHeight: 32,
+    lineHeight: 26,
+    textAlign: "right",
   },
   waitingPredictionText: {
     fontSize: 13,
