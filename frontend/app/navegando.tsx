@@ -765,8 +765,14 @@ export default function NavigatingScreen() {
                 <View style={styles.topBarLiveGroup}>
                   <View style={styles.topBarGreenDot} />
                   <Text style={[styles.topBarLiveBusText, { color: theme.text }]}>Linha {busLine}</Text>
-                  <Text style={[styles.topBarBullet, { color: theme.textMuted }]}>•</Text>
-                  <Text style={[styles.topBarLiveCountdownText, { color: isDark ? '#34D399' : '#059669' }]}>Em {displayCountdownText}</Text>
+                  {lineDetails ? (
+                    <>
+                      <Text style={[styles.topBarBullet, { color: theme.textMuted }]}>•</Text>
+                      <Text style={[styles.topBarLiveCountdownText, { color: theme.textMuted }]} numberOfLines={1}>
+                        {lineDetails}
+                      </Text>
+                    </>
+                  ) : null}
                 </View>
               ) : (
                 <>
@@ -1480,6 +1486,7 @@ const styles = StyleSheet.create({
   topBarLiveCountdownText: {
     fontSize: 14,
     fontWeight: "700",
+    flexShrink: 1,
   },
 
   // Novos Estilos do Card Flutuante (Waiting Bus - Alta Fidelidade)
