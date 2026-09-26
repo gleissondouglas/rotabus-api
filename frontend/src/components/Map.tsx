@@ -332,7 +332,7 @@ const Map: React.FC<MapProps> = ({
     return () => {
       if (fitTimer) clearTimeout(fitTimer);
     };
-  }, [mapData, userLocation, userHeading, effectiveFocusMode, controlsBottomOffset, currentStepIndex, walkSteps, isFollowingUser, isNavigating]);
+  }, [mapData, userLocation, userHeading, effectiveFocusMode, controlsBottomOffset, currentStepIndex, walkSteps, isFollowingUser, isNavigating, liveBusPosition]);
 
   const renderedGeneralPolylines = useMemo(() => {
     if ((walkSteps && walkSteps.length > 0) && effectiveFocusMode !== 'full_route') {

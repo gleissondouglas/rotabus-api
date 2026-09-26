@@ -42,7 +42,7 @@ export const AssistantLoadingState: React.FC<AssistantLoadingStateProps> = ({
       -1,
       true
     );
-  }, []);
+  }, [busTranslateY]);
 
   const busAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: busTranslateY.value }]
@@ -56,7 +56,7 @@ export const AssistantLoadingState: React.FC<AssistantLoadingStateProps> = ({
       -1,
       false
     );
-  }, []);
+  }, [dotsTranslateX]);
   const dotsAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: dotsTranslateX.value }]
   }));

@@ -66,7 +66,7 @@ export function RecentSearchTicker({
       yB.setValue(44);
       opB.setValue(0);
     }
-  }, [items]);
+  }, [items, opA, opB, yA, yB]);
 
   useEffect(() => {
     if (items.length <= 1) {
