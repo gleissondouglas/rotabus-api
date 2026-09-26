@@ -11,6 +11,12 @@ const mockPlay = jest.fn().mockResolvedValue(undefined);
 const mockGetStatus = jest.fn().mockResolvedValue({ isLoaded: true });
 const mockSetCallback = jest.fn();
 
+jest.mock("@react-native-community/netinfo", () => ({
+  fetch: jest.fn().mockResolvedValue({ isConnected: true }),
+  addEventListener: jest.fn(),
+  useNetInfo: jest.fn(),
+}));
+
 jest.mock("expo-speech", () => ({
   speak: jest.fn((_text, options) => {
     if (options?.onDone) setTimeout(options.onDone, 10);

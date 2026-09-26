@@ -1501,15 +1501,13 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   waitingHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: "column",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
   waitingHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
   },
   waitingCheckCircle: {
     width: 44,
@@ -1531,15 +1529,16 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   waitingHeaderRight: {
-    alignItems: "flex-end",
-    marginLeft: 8,
-    flexShrink: 1, // Permite encolher se necessário
+    alignItems: "flex-start",
+    marginLeft: 56,
+    marginTop: 4,
+    flexShrink: 1,
   },
   waitingGiantCountdown: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: "900",
     letterSpacing: -0.5,
-    lineHeight: 26,
+    lineHeight: 32,
   },
   waitingPredictionText: {
     fontSize: 13,
