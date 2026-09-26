@@ -1002,42 +1002,42 @@ export default function NavigatingScreen() {
                   </Text>
                 </Pressable>
 
-                {/* Botão Secundário: Já entrei no ônibus */}
-                <Pressable
-                  onPress={handleEnteredBus}
-                  accessibilityRole="button"
-                  accessibilityLabel="Já entrei no ônibus"
-                  style={({ pressed }) => [
-                    styles.waitingSecondaryBtn,
-                    isDark ? styles.waitingSecondaryBtnDark : styles.waitingSecondaryBtnLight,
-                    pressed && { opacity: 0.75 }
-                  ]}
-                >
-                  <Text style={[styles.waitingSecondaryBtnText, { color: isDark ? '#FFFFFF' : '#111827' }]}>
-                    Já entrei no ônibus
-                  </Text>
-                </Pressable>
-
-                {/* Botão Acessibilidade: Ouvir status da linha */}
-                <Pressable
-                  onPress={handleListenStatus}
-                  accessibilityRole="button"
-                  accessibilityLabel="Ouvir status da linha em voz alta"
-                  style={({ pressed }) => [
-                    styles.waitingAudioBtn,
-                    pressed && { opacity: 0.6 }
-                  ]}
-                >
-                  <Ionicons 
-                    name="volume-medium-outline" 
-                    size={18} 
-                    color={isDark ? '#60A5FA' : '#4B5563'} 
-                    style={{ marginRight: 6 }} 
-                  />
-                  <Text style={[styles.waitingAudioBtnText, { color: isDark ? '#60A5FA' : '#4B5563' }]}>
-                    Ouvir status da linha
-                  </Text>
-                </Pressable>
+                {/* Botões Secundários Agrupados na mesma linha */}
+                <View style={{ flexDirection: "row", gap: 8, alignItems: 'stretch' }}>
+                  <Pressable
+                    onPress={handleListenStatus}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ouvir status da linha em voz alta"
+                    style={({ pressed }) => [
+                      styles.waitingSecondaryBtn,
+                      isDark ? styles.waitingSecondaryBtnDark : styles.waitingSecondaryBtnLight,
+                      pressed && { opacity: 0.75 },
+                      { width: 56, paddingVertical: 0, justifyContent: 'center', alignItems: 'center' }
+                    ]}
+                  >
+                    <Ionicons 
+                      name="volume-high" 
+                      size={24} 
+                      color={isDark ? '#FFFFFF' : '#111827'} 
+                    />
+                  </Pressable>
+                  
+                  <Pressable
+                    onPress={handleEnteredBus}
+                    accessibilityRole="button"
+                    accessibilityLabel="Já entrei no ônibus"
+                    style={({ pressed }) => [
+                      styles.waitingSecondaryBtn,
+                      isDark ? styles.waitingSecondaryBtnDark : styles.waitingSecondaryBtnLight,
+                      pressed && { opacity: 0.75 },
+                      { flex: 1 }
+                    ]}
+                  >
+                    <Text style={[styles.waitingSecondaryBtnText, { color: isDark ? '#FFFFFF' : '#111827' }]}>
+                      Já entrei no ônibus
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
 
             </View>
