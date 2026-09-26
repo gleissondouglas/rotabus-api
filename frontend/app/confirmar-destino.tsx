@@ -200,13 +200,7 @@ const CarouselCardItem = ({
               )}
             </View>
 
-            {/* Tags de validação e categorias */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                <Ionicons name="business-outline" size={14} color={theme.textMuted} />
-                <Text style={{ fontSize: 13, fontWeight: '600', color: theme.textMuted, marginLeft: 4 }}>{city}</Text>
-              </View>
-            </View>
+
 
             
             {/* Aviso fixo no carrossel para evitar shift de layout ao rolar */}
@@ -653,14 +647,6 @@ export default function ConfirmDestinationScreen() {
                   )}
                 </View>
 
-                {/* Tags de validação e categorias */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                    <Ionicons name="business-outline" size={14} color={theme.textMuted} />
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: theme.textMuted, marginLeft: 4 }}>{city}</Text>
-                  </View>
-                </View>
-
                 {/* Alerta */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FCD34D', borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, marginTop: 20, marginHorizontal: -4 }}>
                   <Ionicons name="alert-circle" size={18} color="#D97706" />
@@ -670,34 +656,37 @@ export default function ConfirmDestinationScreen() {
                 </View>
 
                 {/* Alterar Button */}
-                <Pressable
-                  style={({ pressed }) => [
-                    {
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      paddingVertical: 16,
-                      borderRadius: 16,
-                      marginTop: 24,
-                      borderWidth: 1,
-                      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: isDark ? 0 : 0.03,
-                      shadowRadius: 8,
-                      elevation: 2,
-                    },
-                    pressed && { opacity: 0.7 }
-                  ]}
-                  onPress={() => router.back()}
-                  accessibilityLabel="Alterar destino"
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="pencil-outline" size={16} color={theme.text} />
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: theme.text }}>Alterar</Text>
-                </Pressable>
+                <View style={{ alignItems: 'center', width: '100%' }}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        paddingVertical: 12,
+                        paddingHorizontal: 28,
+                        borderRadius: 20,
+                        marginTop: 24,
+                        borderWidth: 1,
+                        backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: isDark ? 0 : 0.03,
+                        shadowRadius: 8,
+                        elevation: 2,
+                      },
+                      pressed && { opacity: 0.7 }
+                    ]}
+                    onPress={() => router.back()}
+                    accessibilityLabel="Alterar destino"
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="pencil-outline" size={16} color={theme.text} />
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: theme.text }}>Alterar</Text>
+                  </Pressable>
+                </View>
 
               </View>
             </Animated.View>
