@@ -945,4 +945,42 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Map;
+function arePropsEqual(prevProps: MapProps, nextProps: MapProps) {
+  // Funções
+  if (prevProps.onFocusModeChange !== nextProps.onFocusModeChange) return false;
+  
+  // Primitivos
+  if (
+    prevProps.userHeading !== nextProps.userHeading ||
+    prevProps.focusMode !== nextProps.focusMode ||
+    prevProps.controlsBottomOffset !== nextProps.controlsBottomOffset ||
+    prevProps.currentStepIndex !== nextProps.currentStepIndex ||
+    prevProps.isNavigating !== nextProps.isNavigating ||
+    prevProps.hideControls !== nextProps.hideControls ||
+    prevProps.busLine !== nextProps.busLine ||
+    prevProps.isWaitingBus !== nextProps.isWaitingBus
+  ) {
+    return false;
+  }
+
+  // Comparar userLocation (latitude e longitude)
+  if (prevProps.userLocation?.latitude !== nextProps.userLocation?.latitude || 
+      prevProps.userLocation?.longitude !== nextProps.userLocation?.longitude) {
+    return false;
+  }
+
+  // Comparar liveBusPosition (lat e lng)
+  if (prevProps.liveBusPosition?.lat !== nextProps.liveBusPosition?.lat || 
+      prevProps.liveBusPosition?.lng !== nextProps.liveBusPosition?.lng) {
+    return false;
+  }
+  
+  // mapData e walkSteps checagem por referência (se o objeto mudou ou o tamanho do array mudou)
+  if (prevProps.mapData !== nextProps.mapData) return false;
+  if (prevProps.walkSteps !== nextProps.walkSteps) return false;
+  if (prevProps.colors !== nextProps.colors) return false;
+
+  return true;
+}
+
+export default React.memo(Map, arePropsEqual);
