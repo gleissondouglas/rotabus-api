@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { StyleSheet, Text, View, ScrollView, Pressable } from "react-native";
+import { StyleSheet, Text, View, ScrollView, Pressable, useColorScheme } from "react-native";
 
 import { BackButton } from "../src/components/BackButton";
 import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
@@ -14,6 +14,7 @@ import { BackgroundGradient } from "../src/components/BackgroundGradient";
 export default function RouteNotFoundScreen() {
   const params = useLocalSearchParams();
   const theme = useThemeColors();
+  const isDark = useColorScheme() === 'dark';
 
   const latitude = String(params.latitude || "");
   const longitude = String(params.longitude || "");
@@ -87,8 +88,8 @@ export default function RouteNotFoundScreen() {
             style={[
               styles.iconContainer, 
               (isDailyLimit || isConnectionError) 
-                ? { backgroundColor: "rgba(255, 152, 0, 0.1)" } 
-                : { backgroundColor: "rgba(239, 68, 68, 0.1)" }
+                ? { backgroundColor: isDark ? "rgba(255, 159, 10, 0.15)" : "rgba(255, 149, 0, 0.15)" } 
+                : { backgroundColor: isDark ? "rgba(255, 69, 58, 0.15)" : "rgba(255, 59, 48, 0.15)" }
             ]}
           >
             <AdaptiveIcon 
@@ -107,8 +108,8 @@ export default function RouteNotFoundScreen() {
                   ? "wifi-off" 
                   : "map-marker-off"
               } 
-              size={40} 
-              color={(isDailyLimit || isConnectionError) ? "#FF9800" : theme.danger} 
+              size={44} 
+              color={(isDailyLimit || isConnectionError) ? (isDark ? "#FF9F0A" : "#FF9500") : (isDark ? "#FF453A" : "#FF3B30")} 
             />
           </View>
 
@@ -118,8 +119,7 @@ export default function RouteNotFoundScreen() {
             </Text>
             
             <View style={styles.messageCardShadow}>
-              <View style={[styles.messageCardContent, { borderColor: theme.border }]}>
-                <LiquidGlassView style={StyleSheet.absoluteFillObject} fallbackColor={theme.card} />
+              <View style={[styles.messageCardContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
                 <Text style={[styles.messageText, { color: theme.text }]}>{message}</Text>
               </View>
             </View>
@@ -144,11 +144,11 @@ export default function RouteNotFoundScreen() {
               />
             ) : (
               <Pressable 
-                style={[styles.secondaryButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+                style={[styles.secondaryButton, { backgroundColor: isDark ? "#1C1C1E" : "#E5E5EA" }]}
                 onPress={handleGoHome}
                 accessibilityRole="button"
               >
-                <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Voltar ao início</Text>
+                <Text style={[styles.secondaryButtonText, { color: theme.primary }]}>Voltar ao início</Text>
               </Pressable>
             )}
 
@@ -173,67 +173,70 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 16,
-    gap: 20,
+    paddingTop: 24,
+    gap: 24,
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 8,
   },
   textContainer: {
     alignItems: "center",
-    gap: 12,
+    gap: 16,
     width: "100%",
   },
   title: {
     fontSize: 28,
-    fontWeight: "900",
+    fontWeight: "700", // Padrão Apple em vez de 900
     textAlign: "center",
+    letterSpacing: 0.35,
   },
   messageCardShadow: {
     width: "100%",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
     elevation: 2,
   },
   messageCardContent: {
-    padding: 16,
-    borderRadius: 20,
-    borderWidth: 1,
+    padding: 20,
+    borderRadius: 16, // Apple standard radius
     overflow: "hidden",
   },
   messageText: {
-    fontSize: 16,
+    fontSize: 17, // Padrão Apple Body
     textAlign: "center",
-    lineHeight: 24,
-    fontWeight: "600",
+    lineHeight: 22,
+    fontWeight: "500",
+    letterSpacing: -0.41,
   },
   hintText: {
-    fontSize: 14,
+    fontSize: 15, // Padrão Apple Subhead
     textAlign: "center",
     lineHeight: 20,
     paddingHorizontal: 16,
+    letterSpacing: -0.24,
   },
   actions: {
     width: "100%",
     gap: 12,
+    marginTop: 8,
   },
   secondaryButton: {
     width: "100%",
     minHeight: 56,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
   },
   secondaryButtonText: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 17,
+    fontWeight: "600",
+    letterSpacing: -0.41,
   },
 });
