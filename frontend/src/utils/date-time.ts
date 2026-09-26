@@ -118,11 +118,9 @@ export function formatMinutesToFriendlyText(diffMin: number) {
     const totalHours = Math.floor(diffMin / 60);
     const days = Math.floor(totalHours / 24);
     const hours = totalHours % 24;
-    const mins = diffMin % 60;
     
     let result = days === 1 ? "1 dia" : `${days} dias`;
     if (hours > 0) result += ` ${hours}h`;
-    if (mins > 0) result += ` ${mins}min`;
     return result;
   }
 
