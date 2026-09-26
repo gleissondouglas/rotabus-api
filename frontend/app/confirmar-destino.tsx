@@ -483,7 +483,14 @@ export default function ConfirmDestinationScreen() {
         >
 
           {/* Título — centralizado com mais respiro no topo */}
-          <View style={[styles.header, { paddingHorizontal: 16, marginTop: isSmallHeight ? 8 : 16 }]}>
+          <View style={[
+            styles.header, 
+            { 
+              paddingHorizontal: 16, 
+              marginTop: isSmallHeight ? 8 : 16,
+              marginBottom: isChoosingSuggestion ? 20 : 4 // Espaçamento menor no caso de card único
+            }
+          ]}>
             <Text 
               style={[styles.title, { color: theme.text }]} 
               maxFontSizeMultiplier={1.2}
