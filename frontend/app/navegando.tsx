@@ -194,7 +194,8 @@ export default function NavigatingScreen() {
       try {
         const d = new Date(targetStopDateTime);
         if (!isNaN(d.getTime())) {
-          return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          const timeString = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          return `às ${timeString}`;
         }
       } catch {}
     }
