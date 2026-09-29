@@ -1,7 +1,7 @@
 import { BackgroundGradient } from "../src/components/BackgroundGradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { ScrollView, StyleSheet, Text, View, TouchableOpacity, useColorScheme, useWindowDimensions } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View, TouchableOpacity, useColorScheme, useWindowDimensions } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
 import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,6 +26,8 @@ import { parseJsonParam, calculateDistance } from "../src/utils/helpers";
 import { routeReminderService } from "../src/services/routeReminder.service";
 import { logUserInteraction } from "../src/utils/devLogger";
 import { decodePolyline } from "../src/utils/polyline";
+import { appStorage } from "../src/services/storage.service";
+import { STORAGE_KEYS } from "../src/constants/storage";
 
 
 function getTransitSteps(steps: JourneyStep[]) {
@@ -402,6 +404,7 @@ export default function BestRouteScreen() {
   }, [voiceText]);
 
   const [scheduledReminderTime, setScheduledReminderTime] = useState<string | null>(null);
+  const [activeReminderJobId, setActiveReminderJobId] = useState<string | null>(null);
   const [isSchedulingReminder, setIsSchedulingReminder] = useState(false);
 
   const isFutureTrip = useMemo(() => {
@@ -425,6 +428,67 @@ export default function BestRouteScreen() {
     return () => clearInterval(interval);
   }, [activeSummary?.leaveHomeDateTime]);
 
+  // Recupera o estado de lembrete ativo, se existir, para sobreviver navegação
+  useEffect(() => {
+    async function restoreReminder() {
+      try {
+        const stored = await appStorage.getItem(STORAGE_KEYS.ACTIVE_REMINDER);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Só restaura o lembrete se ele pertencer a esta exata viagem
+          if (parsed.jobId && parsed.time && parsed.leaveHomeDateTime === activeSummary?.leaveHomeDateTime) {
+            setScheduledReminderTime(parsed.time);
+            setActiveReminderJobId(parsed.jobId);
+          } else if (parsed.leaveHomeDateTime && activeSummary?.leaveHomeDateTime && parsed.leaveHomeDateTime !== activeSummary.leaveHomeDateTime) {
+            // O lembrete persistido é de uma viagem anterior/diferente.
+            // Ignoramos a restauração para esta tela, mas não deletamos pois o alerta
+            // ainda é válido no celular (para a outra rota)
+          }
+        }
+      } catch (e) {
+        console.warn("[melhor-rota] Erro ao recuperar lembrete salvo", e);
+      }
+    }
+    restoreReminder();
+  }, [activeSummary?.leaveHomeDateTime]);
+
+  async function _doScheduleReminder() {
+    if (!activeSummary?.leaveHomeDateTime) return;
+    if (isSchedulingReminder) return; // Guard contra duplo-toque simultâneo
+
+    setIsSchedulingReminder(true);
+    vibrationService.light();
+
+    try {
+      const result = await routeReminderService.scheduleReminder({
+        destination,
+        busLine: isWalkingOnly ? "a pé" : busLine,
+        leaveHomeDateTime: activeSummary.leaveHomeDateTime,
+        beAtStopAt: activeSummary.beAtStopAt,
+        minutesBefore: 10,
+      });
+
+      if (result.success && result.scheduledTime) {
+        vibrationService.success();
+        setScheduledReminderTime(result.scheduledTime);
+        setActiveReminderJobId(result.notificationId ?? null);
+        
+        // Persiste o estado com a data de saída para validação futura
+        await appStorage.setItem(STORAGE_KEYS.ACTIVE_REMINDER, JSON.stringify({
+          time: result.scheduledTime,
+          jobId: result.notificationId,
+          leaveHomeDateTime: activeSummary.leaveHomeDateTime
+        }));
+        
+        speak(`Lembrete agendado! Avisaremos você às ${result.scheduledTime} para sair.`);
+      } else {
+        vibrationService.error();
+      }
+    } finally {
+      setIsSchedulingReminder(false);
+    }
+  }
+
   async function handleScheduleReminder() {
     if (!activeSummary?.leaveHomeDateTime) return;
 
@@ -439,26 +503,57 @@ export default function BestRouteScreen() {
       },
     });
 
-    setIsSchedulingReminder(true);
-    vibrationService.light();
-
-    const result = await routeReminderService.scheduleReminder({
-      destination,
-      busLine: isWalkingOnly ? "a pé" : busLine,
-      leaveHomeDateTime: activeSummary.leaveHomeDateTime,
-      beAtStopAt: activeSummary.beAtStopAt,
-      minutesBefore: 10,
-    });
-
-    setIsSchedulingReminder(false);
-
-    if (result.success && result.scheduledTime) {
-      vibrationService.success();
-      setScheduledReminderTime(result.scheduledTime);
-      speak(`Lembrete agendado! Avisaremos você às ${result.scheduledTime} para sair.`);
+    // Para viagens distantes (+30 min), exige confirmação para evitar agendamentos acidentais
+    if (isFutureTrip) {
+      const leaveAt = activeSummary.leaveHomeAt ?? reminderTargetTime ?? "?";
+      Alert.alert(
+        "Agendar lembrete?",
+        `Você quer ser avisado às ${reminderTargetTime} para sair a tempo de pegar o ônibus às ${leaveAt}?`,
+        [
+          { text: "Agora não", style: "cancel" },
+          {
+            text: "Sim, me avise!",
+            onPress: () => _doScheduleReminder().catch(() => {
+              setIsSchedulingReminder(false);
+              vibrationService.error();
+            }),
+          },
+        ]
+      );
     } else {
-      vibrationService.error();
+      // Viagem próxima: agenda direto, sem fricção
+      await _doScheduleReminder();
     }
+  }
+
+  async function handleCancelReminder() {
+    Alert.alert(
+      "Cancelar lembrete?",
+      "Você não será mais avisado antes de sair. Deseja cancelar?",
+      [
+        { text: "Manter lembrete", style: "cancel" },
+        {
+          text: "Cancelar lembrete",
+          style: "destructive",
+          onPress: async () => {
+            if (activeReminderJobId) {
+              await routeReminderService.cancelReminder(activeReminderJobId);
+            }
+            setScheduledReminderTime(null);
+            setActiveReminderJobId(null);
+            await appStorage.deleteItem(STORAGE_KEYS.ACTIVE_REMINDER);
+            vibrationService.light();
+            speak("Lembrete cancelado.");
+            logUserInteraction({
+              component: '<TouchableOpacity id="btn-cancelar-lembrete" />',
+              label: "Cancelar lembrete de saída",
+              fileOrScreen: "app/melhor-rota.tsx",
+              action: "Cancelar notificação local de saída",
+            });
+          },
+        },
+      ]
+    );
   }
 
   function handleStartNavigation() {
@@ -802,13 +897,27 @@ export default function BestRouteScreen() {
                   )}
 
                   {scheduledReminderTime && (
-                    <View style={styles.comfortWaitButtonScheduled}>
-                      <Ionicons name="checkmark-circle" size={16} color="#34D399" />
-                      <Text style={styles.comfortWaitButtonScheduledText} numberOfLines={1}>
-                        Lembrete agendado para às {scheduledReminderTime}
-                      </Text>
+                    <View style={{ gap: 6 }}>
+                      <View style={styles.comfortWaitButtonScheduled}>
+                        <Ionicons name="checkmark-circle" size={16} color="#34D399" />
+                        <Text style={styles.comfortWaitButtonScheduledText} numberOfLines={1}>
+                          Lembrete agendado para às {scheduledReminderTime}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={handleCancelReminder}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancelar lembrete agendado"
+                        style={{ alignSelf: "center", paddingVertical: 4, paddingHorizontal: 8 }}
+                      >
+                        <Text style={{ fontSize: 12, color: "#EF4444", textDecorationLine: "underline" }}>
+                          Cancelar lembrete
+                        </Text>
+                      </TouchableOpacity>
                     </View>
                   )}
+
                 </View>
               </>
             )}
@@ -850,6 +959,20 @@ export default function BestRouteScreen() {
                       <Ionicons name="alarm-outline" size={18} color="#FFF" />
                       <Text style={styles.reminderButtonText}>
                         {isSchedulingReminder ? "Agendando..." : "Me avisar 10 min antes de sair"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {scheduledReminderTime && (
+                    <TouchableOpacity
+                      onPress={handleCancelReminder}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancelar lembrete agendado"
+                      style={{ alignSelf: "center", paddingVertical: 6, paddingHorizontal: 12 }}
+                    >
+                      <Text style={{ fontSize: 13, color: "#EF4444", textDecorationLine: "underline" }}>
+                        Cancelar lembrete
                       </Text>
                     </TouchableOpacity>
                   )}
