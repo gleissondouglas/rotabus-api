@@ -33,6 +33,8 @@ import { formatBusWaitingTimeToFriendlyTextShort, formatMinutesToFriendlyText } 
 import { formatWalkingInstruction } from "../src/utils/navigationInstructionFormatter";
 import { parseJsonParam, calculateDistance } from "../src/utils/helpers";
 import { trackingService } from "../src/services/tracking.service";
+import { routeReminderService } from "../src/services/routeReminder.service";
+import { useIsSpeaking } from "../src/hooks/useIsSpeaking";
 import { logUserInteraction } from "../src/utils/devLogger";
 
 interface Coords { 
@@ -102,16 +104,28 @@ export default function NavigatingScreen() {
   const [busCountdown, setBusCountdown] = useState<string>(""); // Tempo para o ônibus chegar
   const [busCountdownDiff, setBusCountdownDiff] = useState<number | null>(null);
   const [isBusReminderSet, setIsBusReminderSet] = useState(false);
+  const [busReminderNotificationId, setBusReminderNotificationId] = useState<string | null>(null);
   const [showExitModal, setShowExitModal] = useState(false);
   const [bottomCardHeight, setBottomCardHeight] = useState(260);
   const [onBusFeedback, setOnBusFeedback] = useState<"facil" | "tranquilo" | "dificil" | null>("tranquilo");
+  /** Guard contra duplo toque: bloqueia nova chamada enquanto scheduleReminder está em progresso */
+  const [isSchedulingBusReminder, setIsSchedulingBusReminder] = useState(false);
 
   // Animation Refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(16)).current;
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
   const buttonFadeAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current; // 0=silêncio → 1=falando (glow)
   const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
+
+  /** Detecta se o TTS está falando agora (polling duplo: expo-speech + Google TTS) */
+  const isSpeaking = useIsSpeaking();
+
+  /** Distância em metros até o próximo ponto de embarque (null se não aplicável) */
+  const [distanceToStop, setDistanceToStop] = useState<number | null>(null);
+  /** Ref espelhando distanceToStop — evita closure stale em handleStageTransition */
+  const distanceToStopRef = useRef<number | null>(null);
 
   // Refs para controle de voz e alertas
   const didAnnounceStart = useRef(false);
@@ -142,7 +156,23 @@ export default function NavigatingScreen() {
 
 
 
+  // Animação de "pulsing glow" no botão de voz — ativa enquanto isSpeaking é true
+  useEffect(() => {
+    if (isSpeaking) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0.3, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.stopAnimation();
+      Animated.timing(pulseAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    }
+  }, [isSpeaking, pulseAnim]);
+
   const targetStopDateTime = summary?.beAtStopDateTime;
+
 
   const stopDisplayName = useMemo(() => {
     if (stopName && stopName !== "ponto indicado") {
@@ -282,6 +312,12 @@ export default function NavigatingScreen() {
         if (stopLat && stopLng) {
           const distToStop = calculateDistance(currentLat, currentLng, stopLat, stopLng);
           
+          // Atualiza distância para o ponto (controla o botão adaptativo "Cheguei ao ponto")
+          // O ref espelha o state para evitar closure stale em handleStageTransition
+          const roundedDist = Math.round(distToStop);
+          distanceToStopRef.current = roundedDist;
+          setDistanceToStop(roundedDist);
+
           if (distToStop < 40 && !warnedNearStopRef.current) {
             speakControlled("O ponto de embarque está logo à frente.");
             warnedNearStopRef.current = true;
@@ -578,6 +614,20 @@ export default function NavigatingScreen() {
     if (stage === "walking") {
       const nextTransitStep = allSteps.slice(globalStepIndex).find(s => s.type === "transit");
       if (nextTransitStep) {
+        // Usa o ref (não o state) — garante o valor GPS exato no momento do clique
+        const currentDist = distanceToStopRef.current;
+        const isActuallyNear = currentDist !== null && currentDist <= 80;
+        if (!isActuallyNear && currentDist !== null) {
+          // Longe do ponto: botão age como "Voltar ao início"
+          router.replace({
+            pathname: "/inicio",
+            params: {
+              latitude: String(userLocation?.latitude || params.latitude || ""),
+              longitude: String(userLocation?.longitude || params.longitude || "")
+            }
+          });
+          return;
+        }
         setStage("waiting_bus");
         speakControlled(`Você chegou ao ponto. Aguarde o ônibus ${nextTransitStep.line || busLine}.`, true);
       } else {
@@ -613,22 +663,78 @@ export default function NavigatingScreen() {
     }
   };
 
-  const handleToggleReminder = () => {
+
+  const handleToggleReminder = async () => {
+    // Guard: bloqueia re-entrada durante o await (evita duplo toque criar 2 notificações)
+    if (isSchedulingBusReminder) return;
+
     logUserInteraction({
       component: "WaitingBusReminderButton",
       label: isBusReminderSet ? "Alerta 2 min desativado" : "Alerta 2 min Ativado",
       fileOrScreen: "app/navegando.tsx",
       action: "Alternar lembrete de chegada de ônibus",
     });
-    const nextState = !isBusReminderSet;
-    setIsBusReminderSet(nextState);
-    if (nextState) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      speakControlled("Tudo bem! Vou te avisar 2 minutos antes do ônibus chegar ao ponto.", true);
+
+    if (!isBusReminderSet) {
+      setIsSchedulingBusReminder(true);
+      try {
+        // ATIVAR: agenda notificação local 2 minutos antes do ônibus chegar
+        // Calcula o horário alvo (agora + busCountdownDiff minutos, - 2 min de antecedência)
+        // Garante mínimo de 1 minuto no futuro para o service não rejeitar
+        const minutesAhead = typeof busCountdownDiff === "number" && busCountdownDiff > 2
+          ? busCountdownDiff - 2
+          : 1; // Se o ônibus já está chegando, avisa em 1 minuto
+        const triggerDate = new Date(Date.now() + minutesAhead * 60 * 1000);
+
+        const result = await routeReminderService.scheduleReminder({
+          destination: String(params.destination ?? "seu destino"),
+          busLine: busLine || "ônibus",
+          // +45s de margem: o service valida triggerDate > now, e como minutesBefore=0,
+          // o trigger é exatamente leaveDateTime. Sem margem, latência de rede/processamento
+          // pode fazer triggerDate <= now e o service rejeitar silenciosamente.
+          leaveHomeDateTime: new Date(triggerDate.getTime() + 45_000).toISOString(),
+          minutesBefore: 0,
+        });
+
+        if (result.success) {
+          setBusReminderNotificationId(result.notificationId ?? null);
+          setIsBusReminderSet(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          speakControlled("Tudo bem! Vou te avisar 2 minutos antes do ônibus chegar ao ponto.", true);
+        } else {
+          // Fallback: mantém estado visual mesmo sem notificação agendada
+          setIsBusReminderSet(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+          speakControlled("Tudo bem! Vou te avisar quando o ônibus estiver chegando.", true);
+        }
+      } finally {
+        // Sempre libera o guard — mesmo em caso de erro inesperado
+        setIsSchedulingBusReminder(false);
+      }
     } else {
-      speakControlled("Lembrete desativado.", true);
+      // CANCELAR: pede confirmação antes de remover
+      Alert.alert(
+        "Cancelar aviso?",
+        "Deseja cancelar o aviso de 2 minutos antes do ônibus?",
+        [
+          { text: "Manter aviso", style: "cancel" },
+          {
+            text: "Cancelar aviso",
+            style: "destructive",
+            onPress: async () => {
+              if (busReminderNotificationId) {
+                await routeReminderService.cancelReminder(busReminderNotificationId);
+              }
+              setBusReminderNotificationId(null);
+              setIsBusReminderSet(false);
+              speakControlled("Aviso cancelado.", true);
+            },
+          },
+        ]
+      );
     }
   };
+
 
   const handleEnteredBus = () => {
     logUserInteraction({
@@ -651,11 +757,21 @@ export default function NavigatingScreen() {
     speakControlled(statusText, true);
   };
 
+  /**
+   * Título adaptativo do botão primário no estágio walking.
+   * - Longe do ponto (>80m): "Voltar ao início" — igual às outras telas, dá saída ao usuário
+   * - Próximo ao ponto (≤80m): "Cheguei ao ponto" — avança para o estágio waiting_bus
+   */
+  const isNearStop = distanceToStop !== null && distanceToStop <= 80;
+
   const getPrimaryButtonTitle = () => {
     switch (stage) {
-      case "walking": 
+      case "walking": {
         const hasTransitAhead = allSteps.slice(globalStepIndex).some(s => s.type === "transit");
-        return hasTransitAhead ? "Cheguei ao ponto" : "Cheguei ao destino";
+        if (!hasTransitAhead) return "Cheguei ao destino";
+        // Adaptativo: só mostra "Cheguei ao ponto" quando está próximo
+        return isNearStop ? "Cheguei ao ponto" : "Voltar ao início";
+      }
       case "waiting_bus": return "Já entrei no ônibus";
       case "on_bus": return "Desci do ônibus";
       case "arrived": return "Ir para início";
@@ -888,15 +1004,29 @@ export default function NavigatingScreen() {
                 />
               </View>
               <PrimaryButton title={getPrimaryButtonTitle()} onPress={() => handleStageTransition()} style={styles.mainButton} />
-            <Pressable 
-              style={styles.secondaryActionBtn} 
+            <Pressable
+              style={[
+                styles.secondaryActionBtn,
+                isSpeaking && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(37, 99, 235, 0.12)' }
+              ]}
               onPress={() => speakControlled(formattedInstruction.speechText, true)}
               accessibilityLabel="Ouvir instrução"
               accessibilityRole="button"
             >
-              <Ionicons name="volume-high" size={22} color={theme.primary} />
-              <Text style={[styles.secondaryActionText, { color: theme.primary }]}>Ouvir instrução</Text>
+              {/* Glow animado no botão de ouvir instrução */}
+              <Animated.View
+                style={{
+                  ...StyleSheet.absoluteFillObject,
+                  borderRadius: 12,
+                  backgroundColor: isDark ? 'rgba(96, 165, 250, 0.4)' : 'rgba(37, 99, 235, 0.35)',
+                  opacity: pulseAnim,
+                }}
+                pointerEvents="none"
+              />
+              <Ionicons name="volume-high" size={22} color={isSpeaking ? '#FFFFFF' : theme.primary} />
+              <Text style={[styles.secondaryActionText, { color: isSpeaking ? '#FFFFFF' : theme.primary }]}>Ouvir instrução</Text>
             </Pressable>
+
             
             {(stage === "arrived") && (
               <Pressable 
@@ -1030,15 +1160,25 @@ export default function NavigatingScreen() {
                       styles.waitingSecondaryBtn,
                       isDark ? styles.waitingSecondaryBtnDark : styles.waitingSecondaryBtnLight,
                       pressed && { opacity: 0.75 },
-                      { width: 56, paddingVertical: 0, justifyContent: 'center', alignItems: 'center' }
+                      { width: 56, paddingVertical: 0, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }
                     ]}
                   >
-                    <Ionicons 
-                      name="volume-high-outline" 
-                      size={26} 
-                      color={isDark ? '#FFFFFF' : '#111827'} 
+                    {/* Glow no botão de voz do waiting_bus */}
+                    <Animated.View
+                      style={{
+                        ...StyleSheet.absoluteFillObject,
+                        backgroundColor: isDark ? 'rgba(96, 165, 250, 0.45)' : 'rgba(37, 99, 235, 0.3)',
+                        opacity: pulseAnim,
+                      }}
+                      pointerEvents="none"
+                    />
+                    <Ionicons
+                      name="volume-high-outline"
+                      size={26}
+                      color={isSpeaking ? (isDark ? '#93C5FD' : '#1D4ED8') : (isDark ? '#FFFFFF' : '#111827')}
                     />
                   </Pressable>
+
                 </View>
               </View>
 
@@ -1157,11 +1297,28 @@ export default function NavigatingScreen() {
                   accessibilityLabel="Ouvir instrução de caminho por voz"
                   style={({ pressed }) => [
                     styles.floatingVoiceIconButton,
-                    isDark && { backgroundColor: 'rgba(37, 99, 235, 0.15)', borderColor: 'rgba(59, 130, 246, 0.3)' },
+                    // Light mode: fundo azul ultra-claro com borda
+                    !isDark && { backgroundColor: 'rgba(37, 99, 235, 0.08)', borderColor: 'rgba(37, 99, 235, 0.18)' },
+                    // Dark mode: fundo azul translúcido com borda luminosa
+                    isDark && { backgroundColor: 'rgba(59, 130, 246, 0.18)', borderColor: 'rgba(59, 130, 246, 0.35)' },
                     pressed && { opacity: 0.7 }
                   ]}
                 >
-                  <Ionicons name="volume-high" size={24} color="#2563EB" />
+                  {/* Camada de glow animado — aparece apenas quando isSpeaking */}
+                  <Animated.View
+                    style={{
+                      ...StyleSheet.absoluteFillObject,
+                      borderRadius: 16,
+                      backgroundColor: isDark ? 'rgba(96, 165, 250, 0.55)' : 'rgba(37, 99, 235, 0.45)',
+                      opacity: pulseAnim,
+                    }}
+                    pointerEvents="none"
+                  />
+                  <Ionicons
+                    name="volume-high"
+                    size={24}
+                    color={isSpeaking ? '#FFFFFF' : (isDark ? '#60A5FA' : '#2563EB')}
+                  />
                 </Pressable>
               </View>
 
