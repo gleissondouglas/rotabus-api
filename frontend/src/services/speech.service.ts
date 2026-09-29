@@ -24,6 +24,28 @@ let sound: Audio.Sound | null = null;
 let currentAbortController: AbortController | null = null;
 let pendingSpeechCompletion: (() => void) | null = null;
 
+/** Rastreia se o TTS está falando agora (inclui Google TTS e voz local) */
+let _isSpeaking = false;
+const speakingListeners = new Set<(isSpeaking: boolean) => void>();
+
+function setSpeaking(value: boolean) {
+  if (_isSpeaking !== value) {
+    _isSpeaking = value;
+    speakingListeners.forEach(listener => listener(value));
+  }
+}
+
+/** Inscreve-se nas mudanças de estado de fala (substitui polling) */
+export function subscribeToSpeakingState(listener: (isSpeaking: boolean) => void) {
+  speakingListeners.add(listener);
+  return () => { speakingListeners.delete(listener); };
+}
+
+/** Retorna true se o TTS está falando agora (Google TTS ou Local) */
+export function getSpeakingState(): boolean {
+  return _isSpeaking;
+}
+
 const SPEECH_RECOGNITION_LANGUAGE = "pt-BR";
 const SPEECH_CONTEXTUAL_STRINGS = [
   "Centro",
@@ -157,23 +179,31 @@ async function speakInternal(text: string, mode: SpeakMode) {
         // Limpa o objeto de som da memória quando ele terminar de tocar
         sound.setOnPlaybackStatusUpdate((status) => {
           if (status.isLoaded && status.didJustFinish) {
+            setSpeaking(false);
             sound?.unloadAsync();
             if (sound === newSound) sound = null;
             settlePendingSpeechCompletion();
           }
         });
 
+        setSpeaking(true);
         await sound.playAsync();
 
+        // No modo waitForCompletion: aguarda o áudio terminar de verdade
+        // O _isSpeaking = false é setado pelo didJustFinish acima (modo !waitForCompletion)
+        // ou aqui embaixo (modo waitForCompletion, após a Promise resolver)
         if (mode.waitForCompletion) {
           await new Promise<void>((resolve) => {
             pendingSpeechCompletion = resolve;
           });
+          setSpeaking(false);
         }
-        
+        // Modo !waitForCompletion: NÃO seta false aqui — o áudio ainda está tocando!
+        // O false é setado pelo callback didJustFinish no setOnPlaybackStatusUpdate acima.
         return;
       }
     } catch (error: any) {
+      setSpeaking(false);
       if (error.name === "AbortError") {
         console.log("Fala cancelada (AbortError)");
         return;
@@ -191,10 +221,10 @@ async function speakInternal(text: string, mode: SpeakMode) {
       Speech.speak(text, {
         ...VOICE_CONFIG.localVoice,
         rate: isSlowVoice ? 0.7 : VOICE_CONFIG.localVoice.rate,
-        onStart: () => console.log("Iniciando voz local..."),
-        onDone: settlePendingSpeechCompletion,
-        onStopped: settlePendingSpeechCompletion,
-        onError: settlePendingSpeechCompletion,
+        onStart: () => { setSpeaking(true); console.log("Iniciando voz local..."); },
+        onDone: () => { setSpeaking(false); settlePendingSpeechCompletion(); },
+        onStopped: () => { setSpeaking(false); settlePendingSpeechCompletion(); },
+        onError: () => { setSpeaking(false); settlePendingSpeechCompletion(); },
       });
     });
     return;
@@ -203,7 +233,10 @@ async function speakInternal(text: string, mode: SpeakMode) {
   Speech.speak(text, {
     ...VOICE_CONFIG.localVoice,
     rate: isSlowVoice ? 0.7 : VOICE_CONFIG.localVoice.rate,
-    onStart: () => console.log("Iniciando voz local..."),
+    onStart: () => { setSpeaking(true); console.log("Iniciando voz local..."); },
+    onDone: () => { setSpeaking(false); },
+    onStopped: () => { setSpeaking(false); },
+    onError: () => { setSpeaking(false); },
   });
 }
 
@@ -211,6 +244,8 @@ async function speakInternal(text: string, mode: SpeakMode) {
  * Interrompe qualquer som ou fala que esteja tocando no momento.
  */
 export async function stopSpeaking() {
+  setSpeaking(false);
+
   if (currentAbortController) {
     currentAbortController.abort();
     currentAbortController = null;
