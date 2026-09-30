@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
+import { useKeepAwake } from "expo-keep-awake";
 
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { ListenOptionsButton } from "../src/components/ListenOptionsButton";
@@ -27,7 +28,10 @@ import { BackgroundGradient } from "../src/components/BackgroundGradient";
 import { NavegacaoEmbarcado } from "../src/components/NavegacaoEmbarcado";
 import { AdaptiveIcon } from "../src/components/AdaptiveIcon";
 import { MarqueeText } from "../src/components/MarqueeText";
-import { speak } from "../src/services/speech.service";
+import { speak, startListening, stopSpeaking } from "../src/services/speech.service";
+import { vibrationService } from "../src/services/vibration.service";
+import { appStorage } from "../src/services/storage.service";
+import { STORAGE_KEYS } from "../src/constants/storage";
 import { MapData } from "../src/types/journey.types";
 import { formatBusWaitingTimeToFriendlyTextShort, formatMinutesToFriendlyText } from "../src/utils/date-time";
 import { formatWalkingInstruction } from "../src/utils/navigationInstructionFormatter";
@@ -63,6 +67,9 @@ type NavigationStage =
   | "arrived";
 
 export default function NavigatingScreen() {
+  // Mantém a tela acordada durante toda a navegação para não congelar o GPS em segundo plano
+  useKeepAwake();
+
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
@@ -127,6 +134,12 @@ export default function NavigatingScreen() {
   /** Ref espelhando distanceToStop — evita closure stale em handleStageTransition */
   const distanceToStopRef = useRef<number | null>(null);
 
+  /** Contador de leituras de GPS para detecção de desvio de rota (caminhada) */
+  const offRouteCountRef = useRef(0);
+
+  /** Indica se o microfone está escutando um comando de voz na tela de navegação */
+  const [isListeningVoiceCommand, setIsListeningVoiceCommand] = useState(false);
+
   // Refs para controle de voz e alertas
   const didAnnounceStart = useRef(false);
   const warnedApproachingTurnRef = useRef<number | null>(null);
@@ -138,6 +151,24 @@ export default function NavigatingScreen() {
   const didAlertBusApproaching = useRef(false);
   const lastSpokenStageRef = useRef<NavigationStage | null>(null);
   const lastPingAtRef = useRef(0);
+
+  // Crash Recovery: Salva o estado da viagem para restaurar caso o app feche
+  useEffect(() => {
+    if (stage !== "arrived") {
+      appStorage.setItem(
+        STORAGE_KEYS.ACTIVE_NAVIGATION_SESSION,
+        JSON.stringify({
+          params,
+          stage,
+          globalStepIndex,
+          currentStepIndex,
+          updatedAt: Date.now(),
+        })
+      ).catch(() => {});
+    } else {
+      appStorage.deleteItem(STORAGE_KEYS.ACTIVE_NAVIGATION_SESSION).catch(() => {});
+    }
+  }, [stage, globalStepIndex, currentStepIndex]);
 
   const speakControlled = useCallback((text: string, force = false) => {
     const now = Date.now();
@@ -295,9 +326,36 @@ export default function NavigatingScreen() {
           }
         }
 
-        if (distToEnd < 12 && currentStepIndex < subSteps.length - 1) {
+        const nextSubStep = subSteps[currentStepIndex + 1];
+        let shouldAdvance = distToEnd < 18;
+
+        // Se o pedestre estiver na calçada oposta ou já tiver virado a esquina:
+        // Se a distância até o final do próximo sub-passo for menor do que a distância atual
+        // e ele já estiver a menos de 35m da curva, avança o passo para não travar a rota.
+        if (!shouldAdvance && nextSubStep?.endLocation) {
+          const distToNextEnd = calculateDistance(currentLat, currentLng, nextSubStep.endLocation.lat, nextSubStep.endLocation.lng);
+          if (distToNextEnd < distToEnd && distToEnd < 35) {
+            shouldAdvance = true;
+          }
+        }
+
+        if (shouldAdvance && currentStepIndex < subSteps.length - 1) {
           setCurrentStepIndex(prev => prev + 1);
           return;
+        }
+
+        // Alerta de Desvio de Rota: se o pedestre se afastar mais de 70m do ponto de caminhada
+        if (distToEnd > 70 && subStep.startLocation) {
+          const distFromStart = calculateDistance(currentLat, currentLng, subStep.startLocation.lat, subStep.startLocation.lng);
+          if (distFromStart > 70) {
+            offRouteCountRef.current = (offRouteCountRef.current || 0) + 1;
+            if (offRouteCountRef.current === 3) {
+              speakControlled("Atenção: você parece estar se afastando do caminho. Por favor, confira a direção no mapa.");
+              vibrationService.error();
+            }
+          }
+        } else if (distToEnd < 40) {
+          offRouteCountRef.current = 0;
         }
       }
 
@@ -353,12 +411,14 @@ export default function NavigatingScreen() {
         const distToDropoff = calculateDistance(currentLat, currentLng, dropoffLat, dropoffLng);
         
         if (distToDropoff < 400 && !warnedDropoffRef.current) {
+          vibrationService.dropoffAlert();
           speakControlled("Atenção! Você está se aproximando do seu ponto de descida. Prepare-se para descer.");
           warnedDropoffRef.current = true;
         }
 
         // Descida Automática (se o GPS detectar que ele chegou muito perto do ponto de descida)
         if (distToDropoff < 40) {
+          vibrationService.dropoffAlert();
           const nextMacroStep = allSteps[globalStepIndex + 1];
           if (nextMacroStep) {
             setStage("walking");
@@ -579,6 +639,7 @@ export default function NavigatingScreen() {
 
   const confirmExit = () => {
     setShowExitModal(false);
+    appStorage.deleteItem(STORAGE_KEYS.ACTIVE_NAVIGATION_SESSION).catch(() => {});
     router.replace({ 
       pathname: "/inicio", 
       params: { 
@@ -642,12 +703,17 @@ export default function NavigatingScreen() {
       }
       speakControlled(`Você embarcou no ônibus Linha ${busLine}. Boa viagem! Eu aviso quando estiver perto de descer.`, true);
     } else if (stage === "on_bus") {
-      const hasTransitAhead = allSteps.slice(globalStepIndex + 1).some(s => s.type === "transit");
-      if (hasTransitAhead) {
+      const nextMacroStep = allSteps[globalStepIndex + 1];
+      if (nextMacroStep) {
         setStage("walking");
         setGlobalStepIndex(prev => prev + 1);
         setCurrentStepIndex(0);
-        speakControlled("Você chegou ao ponto de descida. Siga pelo mapa até o próximo ponto de ônibus.", true);
+        const hasMoreTransit = allSteps.slice(globalStepIndex + 2).some(s => s.type === "transit");
+        if (hasMoreTransit) {
+          speakControlled("Você desceu do ônibus. Siga pelo mapa até o próximo ponto de ônibus.", true);
+        } else {
+          speakControlled("Você desceu do ônibus. Siga pelo mapa até o seu destino final.", true);
+        }
       } else {
         setStage("arrived");
         speakControlled("Você chegou ao seu destino final.", true);
@@ -755,6 +821,62 @@ export default function NavigatingScreen() {
     });
     const statusText = `Você chegou ao ponto. O ônibus da Linha ${busLine} com destino a ${lineDetails || 'seu itinerário'} chega em aproximadamente ${displayCountdownText}. Aguarde no local.`;
     speakControlled(statusText, true);
+  };
+
+  /**
+   * Ativa a escuta por voz na tela de navegação para atender deficientes visuais e idosos:
+   * Reconhece "repetir", "onde estou", "falta quanto" e "cheguei".
+   */
+  const handleStartVoiceCommand = async () => {
+    if (isListeningVoiceCommand) {
+      setIsListeningVoiceCommand(false);
+      return;
+    }
+
+    try {
+      await stopSpeaking();
+      await vibrationService.medium();
+      setIsListeningVoiceCommand(true);
+
+      await startListening({
+        onStart: () => {
+          setIsListeningVoiceCommand(true);
+        },
+        onEnd: () => {
+          setIsListeningVoiceCommand(false);
+        },
+        onError: () => {
+          setIsListeningVoiceCommand(false);
+        },
+        onResult: (transcript, isFinal) => {
+          if (!isFinal) return;
+          setIsListeningVoiceCommand(false);
+          const lower = transcript.toLowerCase().trim();
+
+          logUserInteraction({
+            component: "NavigatingVoiceCommand",
+            label: transcript,
+            fileOrScreen: "app/navegando.tsx",
+            action: "Comando de voz na navegação",
+          });
+
+          if (lower.includes("repet") || lower.includes("como") || lower.includes("caminho") || lower.includes("rua")) {
+            speakControlled(formattedInstruction.speechText, true);
+          } else if (lower.includes("onde") || lower.includes("estou") || lower.includes("local")) {
+            const stop = stopDisplayName || "ponto indicado";
+            speakControlled(`Você está a caminho de ${stop}. ${formattedInstruction.speechText}`, true);
+          } else if (lower.includes("tempo") || lower.includes("falta") || lower.includes("quanto") || lower.includes("horário")) {
+            speakControlled(`Previsão de chegada: ${displayCountdownText}. ${formattedInstruction.speechText}`, true);
+          } else if (lower.includes("cheguei") || lower.includes("ponto") || lower.includes("embarquei") || lower.includes("desci")) {
+            handleStageTransition();
+          } else {
+            speakControlled(formattedInstruction.speechText, true);
+          }
+        },
+      });
+    } catch {
+      setIsListeningVoiceCommand(false);
+    }
   };
 
   /**
@@ -1318,6 +1440,26 @@ export default function NavigatingScreen() {
                     name="volume-high"
                     size={24}
                     color={isSpeaking ? '#FFFFFF' : (isDark ? '#60A5FA' : '#2563EB')}
+                  />
+                </Pressable>
+
+                {/* Botão de Microfone: Comandos de voz na navegação para deficientes visuais e idosos */}
+                <Pressable
+                  onPress={handleStartVoiceCommand}
+                  accessibilityRole="button"
+                  accessibilityLabel={isListeningVoiceCommand ? "Ouvindo comando de voz... Toque para cancelar" : "Falar comando de voz ou pedir ajuda"}
+                  style={({ pressed }) => [
+                    styles.floatingVoiceIconButton,
+                    isListeningVoiceCommand && { backgroundColor: '#EF4444', borderColor: '#DC2626' },
+                    !isListeningVoiceCommand && !isDark && { backgroundColor: 'rgba(37, 99, 235, 0.08)', borderColor: 'rgba(37, 99, 235, 0.18)' },
+                    !isListeningVoiceCommand && isDark && { backgroundColor: 'rgba(59, 130, 246, 0.18)', borderColor: 'rgba(59, 130, 246, 0.35)' },
+                    pressed && { opacity: 0.7 }
+                  ]}
+                >
+                  <Ionicons
+                    name={isListeningVoiceCommand ? "mic" : "mic-outline"}
+                    size={24}
+                    color={isListeningVoiceCommand ? '#FFFFFF' : (isDark ? '#60A5FA' : '#2563EB')}
                   />
                 </Pressable>
               </View>

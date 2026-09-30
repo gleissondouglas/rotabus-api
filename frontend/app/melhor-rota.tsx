@@ -99,9 +99,10 @@ function calcMinutesUntilLeave(leaveHomeDateTime?: string): number | null {
   return Math.round(diff);
 }
 
-/** Formata o tempo de espera de forma amigável: "Faltam 45 min" | "Falta 1h" | "Faltam 1h 54min" | "Falta 1 dia e 2h" */
 function formatWaitTimePhrase(minutes: number): string {
-  if (minutes <= 1) return "Falta 1 min para sair";
+  if (minutes < 0) return "Horário previsto já passou";
+  if (minutes === 0) return "Saia agora para o ponto";
+  if (minutes === 1) return "Falta 1 min para sair";
   if (minutes < 60) return `Faltam ${minutes} min para sair`;
 
   const totalHours = Math.floor(minutes / 60);
@@ -407,17 +408,15 @@ export default function BestRouteScreen() {
   const [activeReminderJobId, setActiveReminderJobId] = useState<string | null>(null);
   const [isSchedulingReminder, setIsSchedulingReminder] = useState(false);
 
-  const isFutureTrip = useMemo(() => {
-    if (!activeSummary?.leaveHomeDateTime) return false;
-    const leaveMs = new Date(activeSummary.leaveHomeDateTime).getTime();
-    const diffMin = (leaveMs - Date.now()) / (1000 * 60);
-    return diffMin > 30;
-  }, [activeSummary?.leaveHomeDateTime]);
-
   // Minutos faltando para sair (atualiza periodicamente para refletir a contagem diminuindo)
   const [minutesUntilLeave, setMinutesUntilLeave] = useState<number | null>(
     () => calcMinutesUntilLeave(activeSummary?.leaveHomeDateTime)
   );
+
+  const isFutureTrip = useMemo(() => {
+    if (minutesUntilLeave === null) return false;
+    return minutesUntilLeave > 30;
+  }, [minutesUntilLeave]);
 
   useEffect(() => {
     const updateMinutes = () => {

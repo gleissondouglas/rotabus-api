@@ -163,6 +163,13 @@ async function speakInternal(text: string, mode: SpeakMode) {
       if (result.audioContent) {
         if (signal.aborted) return;
 
+        // Garante que o áudio toque no alto-falante mesmo se o iPhone estiver no modo silencioso
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          staysActiveInBackground: true,
+        }).catch(() => {});
+
         // Cria o som a partir do Base64 retornado pelo Google
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: `data:audio/mp3;base64,${result.audioContent}` },
