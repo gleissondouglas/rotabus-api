@@ -8,7 +8,8 @@ async function pingLocation(req, res, next) {
       return res.status(400).json({ error: true, message: 'Dados incompletos (lineId, lat, lng são obrigatórios).' });
     }
 
-    const success = await recordPassengerLocation({ lineId, direction, lat, lng, speed, bearing });
+    const deviceId = req.body.deviceId || req.headers['x-device-id'] || null;
+    const success = await recordPassengerLocation({ lineId, direction, lat, lng, speed, bearing, deviceId });
 
     return res.status(200).json({ success });
   } catch (error) {

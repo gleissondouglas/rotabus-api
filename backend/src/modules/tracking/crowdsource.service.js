@@ -6,7 +6,7 @@ const REDIS_KEY_PREFIX = 'bus_position:';
  * Registra a posição de um passageiro que clicou em "Embarquei no ônibus".
  * Os dados do celular dele (anônimos) se tornam o GPS comunitário do ônibus.
  */
-async function recordPassengerLocation({ lineId, direction, lat, lng, speed, bearing }) {
+async function recordPassengerLocation({ lineId, direction, lat, lng, speed, bearing, deviceId }) {
   try {
     if (!lineId || !lat || !lng) return false;
 
@@ -23,16 +23,29 @@ async function recordPassengerLocation({ lineId, direction, lat, lng, speed, bea
       bearing: bearing || null,
       direction: direction || null,
       timestamp: Math.floor(Date.now() / 1000),
-      source: 'crowdsourcing' // Indica que veio da comunidade
+      source: 'crowdsourcing',
+      deviceId: deviceId || null,
     };
 
+    // TTL calibrado para 45 segundos (evita ônibus fantasmas congelados na tela)
+    const BUS_POSITION_TTL_SECONDS = 45;
+
+    // Salva a localização individual do dispositivo para diferenciar múltiplos ônibus da mesma linha
+    if (deviceId) {
+      await redisClient.set(
+        `${REDIS_KEY_PREFIX}${cleanLineId}:dev:${deviceId}`,
+        JSON.stringify(positionData),
+        'EX',
+        BUS_POSITION_TTL_SECONDS
+      );
+    }
+
     // Salva a localização da linha geral no Redis
-    // Usa um TTL (expiração) de 120 segundos.
     await redisClient.set(
       `${REDIS_KEY_PREFIX}${cleanLineId}`, 
       JSON.stringify(positionData), 
       'EX', 
-      120 
+      BUS_POSITION_TTL_SECONDS 
     );
 
     // Se houver sentido/direção especificada, salva também com a chave específica da direção
@@ -41,7 +54,7 @@ async function recordPassengerLocation({ lineId, direction, lat, lng, speed, bea
         `${REDIS_KEY_PREFIX}${cleanLineId}:${cleanDirection}`, 
         JSON.stringify(positionData), 
         'EX', 
-        120 
+        BUS_POSITION_TTL_SECONDS 
       );
     }
 
