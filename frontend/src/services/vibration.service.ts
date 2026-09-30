@@ -57,5 +57,22 @@ export const vibrationService = {
     if (Platform.OS !== 'web') {
       await Haptics.selectionAsync();
     }
+  },
+
+  /**
+   * Vibração forte e ritmada para alerta de descida do ônibus.
+   * Acorda o passageiro mesmo com o celular no bolso ou na bolsa.
+   */
+  dropoffAlert: async () => {
+    if (Platform.OS !== 'web') {
+      // Combina haptics pesado com vibração nativa em sequência
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setTimeout(() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      }, 300);
+      setTimeout(() => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }, 600);
+    }
   }
 };

@@ -3,6 +3,7 @@ import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { usePreventDoublePress } from "../src/hooks/usePreventDoublePress";
 import {
+  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -12,6 +13,8 @@ import {
   useColorScheme,
   ScrollView,
 } from "react-native";
+import { appStorage } from "../src/services/storage.service";
+import { STORAGE_KEYS } from "../src/constants/storage";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeInDown, useAnimatedStyle, withSpring, withTiming, useSharedValue, withSequence } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -211,6 +214,50 @@ export default function HomeScreen() {
 
   const lastHandledSearchTextRef = useRef<string | null>(null);
   const voiceIssueMessageRef = useRef("");
+
+  // Crash Recovery: detecta se o aplicativo fechou durante uma viagem ativa recente
+  useEffect(() => {
+    async function checkActiveNavigationSession() {
+      try {
+        const raw = await appStorage.getItem(STORAGE_KEYS.ACTIVE_NAVIGATION_SESSION);
+        if (!raw) return;
+        const session = JSON.parse(raw);
+        const now = Date.now();
+        // Se a viagem foi atualizada há menos de 90 minutos, oferece retomar
+        if (session && session.params && (now - (session.updatedAt || 0)) < 90 * 60 * 1000) {
+          const dest = session.params.destination || "seu destino";
+          Alert.alert(
+            "Viagem em andamento",
+            `Identificamos uma viagem em andamento para ${dest}. Deseja continuar a navegação?`,
+            [
+              {
+                text: "Descartar",
+                style: "destructive",
+                onPress: async () => {
+                  await appStorage.deleteItem(STORAGE_KEYS.ACTIVE_NAVIGATION_SESSION);
+                },
+              },
+              {
+                text: "Continuar Viagem",
+                style: "default",
+                onPress: () => {
+                  router.push({
+                    pathname: "/navegando",
+                    params: session.params,
+                  });
+                },
+              },
+            ]
+          );
+        } else {
+          await appStorage.deleteItem(STORAGE_KEYS.ACTIVE_NAVIGATION_SESSION);
+        }
+      } catch (err) {
+        console.warn("[HomeScreen] Erro ao checar recuperação de navegação:", err);
+      }
+    }
+    checkActiveNavigationSession();
+  }, []);
 
   const getOriginCoords = useCallback(async () => {
     if (isValidCoordinate(originCoords.latitude) && isValidCoordinate(originCoords.longitude)) {
