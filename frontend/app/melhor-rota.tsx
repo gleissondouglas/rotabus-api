@@ -411,15 +411,17 @@ export default function BestRouteScreen() {
 
   const handleViewStopOnMap = useCallback(() => {
     vibrationService.selection();
-    setMapFocusMode("waiting_bus");
+    setMapFocusMode(isWalkingOnly ? "full_route" : "waiting_bus");
     setHasViewedStopOnMap(true);
     mainScrollViewRef.current?.scrollTo({ y: 0, animated: true });
     speak(
-      stopName
-        ? `O ponto de embarque é ${stopName}. Veja a localização no mapa.`
-        : "Veja a localização do ponto no mapa."
+      isWalkingOnly
+        ? "Veja o trajeto a pé até o seu destino no mapa."
+        : stopName
+          ? `O ponto de embarque é ${stopName}. Veja a localização no mapa.`
+          : "Veja a localização do ponto no mapa."
     );
-  }, [stopName]);
+  }, [isWalkingOnly, stopName]);
 
   const handleGoToHome = useCallback(() => {
     vibrationService.selection();
@@ -681,7 +683,7 @@ export default function BestRouteScreen() {
   const hasComfortableWait = minutesUntilLeave !== null && minutesUntilLeave >= 20;
 
   // Bottom bar para padding
-  const bottomBarHeight = isFutureTrip ? 180 : 140;
+  const bottomBarHeight = 175;
 
   return (
     <View style={styles.screen}>
@@ -1169,8 +1171,8 @@ export default function BestRouteScreen() {
             </TouchableOpacity>
           ) : (
             <PrimaryButton
-              iconName={isFutureTrip ? "notifications" : (isWalkingOnly ? "walk" : "navigate")}
-              title={isFutureTrip ? "Início" : (isWalkingOnly ? "Iniciar caminhada" : "Iniciar agora")}
+              iconName={isFutureTrip ? "home" : (isWalkingOnly ? "walk" : "navigate")}
+              title={isFutureTrip ? "Ir para o início" : (isWalkingOnly ? "Iniciar caminhada" : "Iniciar agora")}
               onPress={isFutureTrip ? () => router.replace("/inicio") : handleStartNavigation}
               disabled={isLoadingCommand}
               isLoading={isLoadingCommand}
@@ -1200,39 +1202,47 @@ export default function BestRouteScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Card Ver ponto no mapa / Ir para início (quando for viagem futura) */}
-            {isFutureTrip && (
-              <TouchableOpacity
+            {/* Card Ver ponto ou Ver trajeto no mapa */}
+            <TouchableOpacity
+              style={[
+                styles.bottomCardBtn,
+                isDark
+                  ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
+                  : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
+              ]}
+              onPress={hasViewedStopOnMap && isFutureTrip ? handleGoToHome : handleViewStopOnMap}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={
+                hasViewedStopOnMap && isFutureTrip
+                  ? "Ir para a tela inicial"
+                  : isWalkingOnly
+                    ? "Ver trajeto a pé no mapa"
+                    : "Ver localização do ponto de ônibus no mapa"
+              }
+            >
+              <Ionicons
+                name={hasViewedStopOnMap && isFutureTrip ? "home" : (isWalkingOnly ? "map" : "location")}
+                size={17}
+                color={isDark ? "#60A5FA" : "#0284C7"}
+                style={{ flexShrink: 0 }}
+              />
+              <Text
                 style={[
-                  styles.bottomCardBtn,
-                  isDark
-                    ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
-                    : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
+                  styles.bottomCardBtnTextDark,
+                  { color: isDark ? "#60A5FA" : "#0284C7" }
                 ]}
-                onPress={hasViewedStopOnMap ? handleGoToHome : handleViewStopOnMap}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={hasViewedStopOnMap ? "Ir para a tela inicial" : "Ver localização do ponto de ônibus no mapa"}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
               >
-                <Ionicons
-                  name={hasViewedStopOnMap ? "home" : "location"}
-                  size={17}
-                  color={isDark ? "#60A5FA" : "#0284C7"}
-                  style={{ flexShrink: 0 }}
-                />
-                <Text
-                  style={[
-                    styles.bottomCardBtnTextDark,
-                    { color: isDark ? "#60A5FA" : "#0284C7" }
-                  ]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}
-                >
-                  {hasViewedStopOnMap ? "Ir para início" : "Ver ponto"}
-                </Text>
-              </TouchableOpacity>
-            )}
+                {hasViewedStopOnMap && isFutureTrip
+                  ? "Ir para início"
+                  : isWalkingOnly
+                    ? "Ver trajeto"
+                    : "Ver ponto"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Animated.View>

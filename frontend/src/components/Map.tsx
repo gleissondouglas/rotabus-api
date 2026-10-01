@@ -468,6 +468,8 @@ const Map: React.FC<MapProps> = ({
   /**
    * Chevrons direcionais de caminhada (Acessibilidade WCAG AA).
    * Substitui os pontos azuis estáticos por setas dinâmicas indicando o sentido do trajeto.
+   * Utiliza algoritmo geodésico de amostragem equidistante com limite máximo defensivo
+   * de marcadores para garantir 60 FPS contínuos e prevenir alto consumo de memória/GPU.
    */
   const renderedWalkChevrons = useMemo(() => {
     const polylinesToSample: { id: string; coords: { latitude: number; longitude: number }[] }[] = [];
@@ -499,34 +501,56 @@ const Map: React.FC<MapProps> = ({
       bearing: number;
     }[] = [];
 
+    const MAX_TOTAL_CHEVRONS = 36;
+    const TARGET_SPACING_METERS = 28;
+
     polylinesToSample.forEach(({ id, coords }) => {
+      let totalLineDistance = 0;
       for (let i = 0; i < coords.length - 1; i++) {
+        totalLineDistance += getDistanceMeters(
+          coords[i].latitude,
+          coords[i].longitude,
+          coords[i + 1].latitude,
+          coords[i + 1].longitude
+        );
+      }
+
+      if (totalLineDistance < 10) return;
+
+      const dynamicSpacing = Math.max(
+        TARGET_SPACING_METERS,
+        totalLineDistance / MAX_TOTAL_CHEVRONS
+      );
+
+      let accumulatedDistance = dynamicSpacing * 0.4;
+
+      for (let i = 0; i < coords.length - 1; i++) {
+        if (chevrons.length >= MAX_TOTAL_CHEVRONS) break;
+
         const p1 = coords[i];
         const p2 = coords[i + 1];
         const segDist = getDistanceMeters(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
-        if (segDist < 4) continue;
+        if (segDist < 2) continue;
 
         const bearing = calculateBearing(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
 
-        if (segDist <= 32) {
+        let currentOffset = 0;
+        while (currentOffset + (dynamicSpacing - accumulatedDistance) <= segDist && chevrons.length < MAX_TOTAL_CHEVRONS) {
+          const stepDist = dynamicSpacing - accumulatedDistance;
+          currentOffset += stepDist;
+          const fraction = currentOffset / segDist;
+
           chevrons.push({
-            key: `chev-${id}-${i}-mid`,
-            latitude: (p1.latitude + p2.latitude) / 2,
-            longitude: (p1.longitude + p2.longitude) / 2,
+            key: `chev-${id}-${chevrons.length}`,
+            latitude: p1.latitude + fraction * (p2.latitude - p1.latitude),
+            longitude: p1.longitude + fraction * (p2.longitude - p1.longitude),
             bearing,
           });
-        } else {
-          const count = Math.min(Math.floor(segDist / 25), 8);
-          for (let step = 1; step <= count; step++) {
-            const fraction = step / (count + 1);
-            chevrons.push({
-              key: `chev-${id}-${i}-${step}`,
-              latitude: p1.latitude + fraction * (p2.latitude - p1.latitude),
-              longitude: p1.longitude + fraction * (p2.longitude - p1.longitude),
-              bearing,
-            });
-          }
+
+          accumulatedDistance = 0;
         }
+
+        accumulatedDistance += (segDist - currentOffset);
       }
     });
 
