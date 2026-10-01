@@ -132,6 +132,29 @@ const Map: React.FC<MapProps> = ({
     setOverrideFocusMode(null);
   }, [focusMode]);
 
+  /** Rumos de bússola e orientação do usuário para acessibilidade e navegação */
+  const effectiveHeading = useMemo(() => {
+    if (userHeading !== null && userHeading !== undefined) {
+      return userHeading;
+    }
+    if (userLocation?.heading !== null && userLocation?.heading !== undefined && userLocation.heading >= 0) {
+      return userLocation.heading;
+    }
+    return 0;
+  }, [userHeading, userLocation?.heading]);
+
+  /**
+   * Ângulo de rotação da seta do usuário na tela:
+   * - Quando em navegação ativa seguindo o usuário, a câmera gira junto com o celular,
+   *   logo o rumo do celular aponta sempre para o topo da tela (0°).
+   * - Quando o mapa está fixo/visão geral (Norte para cima), a seta gira indicando
+   *   o rumo exato para onde o celular está apontando em relação ao mapa.
+   */
+  const arrowRotation = useMemo(() => {
+    if (effectiveHeading === null) return 0;
+    return (isNavigating && isFollowingUser) ? 0 : effectiveHeading;
+  }, [effectiveHeading, isNavigating, isFollowingUser]);
+
   /**
    * Alterna entre ver apenas o caminho até o ponto ou a rota inteira.
    */
@@ -155,14 +178,14 @@ const Map: React.FC<MapProps> = ({
     if (isNavigating && userLocation && isFollowingUser) {
       mapRef.current.animateCamera({
         center: {
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
+          latitude: Number(userLocation.latitude),
+          longitude: Number(userLocation.longitude),
         },
         pitch: 45,
-        heading: userHeading ?? userLocation.heading ?? 0,
+        heading: effectiveHeading ?? 0,
         zoom: 19,
         altitude: 260,
-      }, { duration: 800 });
+      }, { duration: 400 });
       return;
     }
 
@@ -466,7 +489,7 @@ const Map: React.FC<MapProps> = ({
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         style={styles.map}
         initialRegion={initialRegion}
-        showsUserLocation={true}
+        showsUserLocation={!userLocation}
         followsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={false}
@@ -648,6 +671,65 @@ const Map: React.FC<MapProps> = ({
             </Marker>
           );
         })()}
+
+        {/* Marcador Acessível do Usuário com Seta Direcional de Orientação */}
+        {userLocation && (
+          <Marker
+            key="user-accessible-location-marker"
+            coordinate={{
+              latitude: Number(userLocation.latitude),
+              longitude: Number(userLocation.longitude),
+            }}
+            zIndex={35}
+            anchor={{ x: 0.5, y: 0.5 }}
+            flat={false}
+          >
+            <View 
+              style={styles.userLocationMarkerContainer}
+              accessibilityRole="image"
+              accessibilityLabel={
+                effectiveHeading !== null 
+                  ? "Sua localização atual no mapa com indicador de orientação" 
+                  : "Sua localização atual no mapa"
+              }
+            >
+              {/* 1. Halo de Precisão GPS (Aura translúcida) */}
+              <View style={styles.userLocationHalo} />
+
+              {/* 2. Facho / Cone de Visão Direcional suave */}
+              <View 
+                style={[
+                  styles.userDirectionalBeamContainer,
+                  { transform: [{ rotate: `${arrowRotation}deg` }] }
+                ]}
+                pointerEvents="none"
+              >
+                <View style={styles.userDirectionalBeam} />
+              </View>
+
+              {/* 3. Ponto Azul Central com Seta Direcional de Acessibilidade */}
+              <View 
+                style={[
+                  styles.userPuckWrapper,
+                  { transform: [{ rotate: `${arrowRotation}deg` }] }
+                ]}
+              >
+                {/* Seta Direcional de Alto Contraste (aponta para onde o celular está virado) */}
+                <View style={styles.userArrowContainer}>
+                  {/* Borda branca de alto contraste (WCAG AA) */}
+                  <View style={styles.userArrowWhiteOutline} />
+                  {/* Miolo azul da seta */}
+                  <View style={styles.userArrowBlueFill} />
+                </View>
+
+                {/* Círculo Azul Principal do Usuário */}
+                <View style={styles.userBluePuck}>
+                  <View style={styles.userPuckCoreDot} />
+                </View>
+              </View>
+            </View>
+          </Marker>
+        )}
       </MapView>
       {!hideControls && (
         <View style={[styles.controls, { bottom: controlsBottomOffset + 18 }]} pointerEvents="box-none">
@@ -943,6 +1025,104 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 6,
   },
+
+  // Marcador Acessível do Usuário com Seta Direcional de Orientação
+  userLocationMarkerContainer: {
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userLocationHalo: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 122, 255, 0.16)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 122, 255, 0.35)',
+  },
+  userDirectionalBeamContainer: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userDirectionalBeam: {
+    position: 'absolute',
+    top: 2,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 16,
+    borderRightWidth: 16,
+    borderTopWidth: 26,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: 'rgba(0, 122, 255, 0.18)',
+  },
+  userPuckWrapper: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userArrowContainer: {
+    position: 'absolute',
+    top: -9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  userArrowWhiteOutline: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 14,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.35,
+    shadowRadius: 2,
+    elevation: 4,
+  },
+  userArrowBlueFill: {
+    position: 'absolute',
+    top: 2.5,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5.5,
+    borderRightWidth: 5.5,
+    borderBottomWidth: 10.5,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#007AFF',
+  },
+  userBluePuck: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#007AFF',
+    borderWidth: 3.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+    elevation: 5,
+    zIndex: 1,
+  },
+  userPuckCoreDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#FFFFFF',
+  },
 });
 
 function arePropsEqual(prevProps: MapProps, nextProps: MapProps) {
@@ -963,9 +1143,10 @@ function arePropsEqual(prevProps: MapProps, nextProps: MapProps) {
     return false;
   }
 
-  // Comparar userLocation (latitude e longitude)
+  // Comparar userLocation (latitude, longitude e heading)
   if (prevProps.userLocation?.latitude !== nextProps.userLocation?.latitude || 
-      prevProps.userLocation?.longitude !== nextProps.userLocation?.longitude) {
+      prevProps.userLocation?.longitude !== nextProps.userLocation?.longitude ||
+      prevProps.userLocation?.heading !== nextProps.userLocation?.heading) {
     return false;
   }
 
