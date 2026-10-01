@@ -7,6 +7,8 @@ export interface ScheduleReminderParams {
   leaveHomeDateTime: string; // ISO string
   beAtStopAt?: string;
   minutesBefore?: number; // padrão 10
+  tripId?: string;
+  fullPayload?: Record<string, any>;
 }
 
 export interface ReminderResult {
@@ -26,6 +28,8 @@ export const routeReminderService = {
     leaveHomeDateTime,
     beAtStopAt,
     minutesBefore = 10,
+    tripId,
+    fullPayload,
   }: ScheduleReminderParams): Promise<ReminderResult> {
     try {
       if (!leaveHomeDateTime) {
@@ -86,11 +90,20 @@ export const routeReminderService = {
         // Tenta enviar para o servidor (BullMQ Queue)
         // Precisamos importar o api helper aqui, mas para garantir, fazemos require inline ou usamos fetch se preferir.
         const { api } = require("../utils/api");
+        const notificationData = {
+          type: "route-reminder",
+          destination,
+          busLine,
+          leaveHomeDateTime,
+          tripId: tripId || null,
+          ...(fullPayload || {}),
+        };
+
         const response = await api.post("/reminders", {
           title: notificationTitle,
           body: notificationBody,
           triggerDate: triggerDate.toISOString(),
-          data: { destination, busLine, leaveHomeDateTime }
+          data: notificationData
         });
         
         return {
@@ -101,17 +114,22 @@ export const routeReminderService = {
       } catch (backendError) {
         console.warn("[RouteReminderService] Falha ao agendar no backend (BullMQ). Caindo para agendamento local:", backendError);
         
+        const localNotificationData = {
+          type: "route-reminder",
+          destination,
+          busLine,
+          leaveHomeDateTime,
+          tripId: tripId || null,
+          ...(fullPayload || {}),
+        };
+
         // Fallback: Agenda no dispositivo nativo
         const notificationId = await Notifications.scheduleNotificationAsync({
           content: {
             title: notificationTitle,
             body: notificationBody,
             sound: true,
-            data: {
-              destination,
-              busLine,
-              leaveHomeDateTime,
-            },
+            data: localNotificationData,
             ...(Platform.OS === "android" ? { channelId: "route-reminders" } : {}),
           },
           trigger: {

@@ -6,6 +6,11 @@ jest.mock("expo-secure-store", () => ({
   getItemAsync: jest.fn().mockResolvedValue(null),
 }));
 
+jest.mock("@react-native-community/netinfo", () => ({
+  fetch: jest.fn().mockResolvedValue({ isConnected: true, isInternetReachable: true }),
+  addEventListener: jest.fn(() => jest.fn()),
+}));
+
 jest.mock("expo-speech-recognition", () => ({
   ExpoSpeechRecognitionModule: {
     requestPermissionsAsync: jest.fn(),

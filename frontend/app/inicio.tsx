@@ -48,11 +48,17 @@ import { FavoritesAndHistoryView } from "../src/components/FavoritesAndHistoryVi
 import { LiquidGlassView } from "../src/components/LiquidGlassView";
 import { AdaptiveIcon } from "../src/components/AdaptiveIcon";
 import { RecentSearchTicker } from "../src/components/RecentSearchTicker";
+import { MarqueeText } from "../src/components/MarqueeText";
 import {
   recentSearchService,
   type FormattedRecentSearch,
 } from "../src/services/recentSearch.service";
 import { logUserInteraction } from "../src/utils/devLogger";
+import {
+  scheduledTripService,
+  type ScheduledTripData,
+  type TripTimingStatus,
+} from "../src/services/scheduledTrip.service";
 
 type ScreenStatus = "idle" | "listening" | "processing" | "error" | "success";
 type VoiceScreenStatus = ScreenStatus | "speaking";
@@ -259,6 +265,55 @@ export default function HomeScreen() {
     checkActiveNavigationSession();
   }, []);
 
+  // Estado e verificação de viagem agendada / lembrete ativo
+  const [scheduledTrip, setScheduledTrip] = useState<ScheduledTripData | null>(null);
+  const [tripTiming, setTripTiming] = useState<TripTimingStatus | null>(null);
+
+  const checkScheduledTrip = useCallback(async () => {
+    try {
+      const trip = await scheduledTripService.getScheduledTrip();
+      if (trip) {
+        const timing = scheduledTripService.getTripTimingStatus(trip);
+        setScheduledTrip(trip);
+        setTripTiming(timing);
+      } else {
+        setScheduledTrip(null);
+        setTripTiming(null);
+      }
+    } catch (e) {
+      console.warn("[inicio] Erro ao checar viagem agendada:", e);
+    }
+  }, []);
+
+  const handleOpenScheduledTrip = useCallback(() => {
+    if (!scheduledTrip?.params) return;
+    vibrationService.selection();
+    router.push({
+      pathname: "/melhor-rota",
+      params: scheduledTrip.params,
+    });
+  }, [scheduledTrip]);
+
+  const handleCancelScheduledTrip = useCallback(() => {
+    Alert.alert(
+      "Cancelar lembrete?",
+      "Deseja cancelar o lembrete de saída para esta viagem?",
+      [
+        { text: "Manter", style: "cancel" },
+        {
+          text: "Cancelar lembrete",
+          style: "destructive",
+          onPress: async () => {
+            vibrationService.light();
+            await scheduledTripService.clearScheduledTrip(true);
+            setScheduledTrip(null);
+            setTripTiming(null);
+          },
+        },
+      ]
+    );
+  }, []);
+
   const getOriginCoords = useCallback(async () => {
     if (isValidCoordinate(originCoords.latitude) && isValidCoordinate(originCoords.longitude)) {
       return originCoords;
@@ -366,6 +421,18 @@ export default function HomeScreen() {
       vibrationService.error();
     }
   }, [getOriginCoords]);
+
+  const handleSearchNewForExpired = useCallback(async () => {
+    if (!scheduledTrip?.destination) return;
+    vibrationService.light();
+    const dest = scheduledTrip.destination;
+    await scheduledTripService.clearScheduledTrip(false);
+    setScheduledTrip(null);
+    setTripTiming(null);
+    setTranscript(dest);
+    setIsTranscriptFinal(true);
+    void processTranscription(dest, false);
+  }, [scheduledTrip, processTranscription]);
 
   /**
    * Loop de voz orquestrado.
@@ -561,6 +628,7 @@ export default function HomeScreen() {
       setErrorMessage("");
       voiceIssueMessageRef.current = "";
       void loadRecentSearches();
+      void checkScheduledTrip();
 
       if (!params.searchText && userName) {
         if (shouldAutoStartHomeVoice()) {
@@ -584,7 +652,7 @@ export default function HomeScreen() {
         void stopAll();
         lastHandledSearchTextRef.current = null;
       };
-    }, [params.searchText, stopAll, userName]),
+    }, [params.searchText, stopAll, userName, checkScheduledTrip]),
   );
 
   // Atualiza o texto de boas-vindas quando o nome do usuário carrega (após o useFocusEffect inicial)
@@ -820,6 +888,143 @@ export default function HomeScreen() {
           }} />
         ) : (
           <>
+        {/* Card de Viagem Agendada / Lembrete Ativo */}
+        {scheduledTrip && tripTiming && (
+          <Animated.View
+            entering={FadeInDown.duration(300)}
+            style={styles.scheduledTripCardWrapper}
+          >
+            <View
+              style={[
+                styles.scheduledTripCard,
+                tripTiming.status === "expired"
+                  ? styles.scheduledTripCardExpired
+                  : styles.scheduledTripCardActive,
+                isDark && {
+                  backgroundColor:
+                    tripTiming.status === "expired"
+                      ? "rgba(239, 68, 68, 0.15)"
+                      : "rgba(15, 23, 42, 0.95)",
+                  borderColor:
+                    tripTiming.status === "expired"
+                      ? "rgba(239, 68, 68, 0.4)"
+                      : "rgba(59, 130, 246, 0.4)",
+                },
+              ]}
+            >
+              <View style={styles.scheduledTripHeaderRow}>
+                <View
+                  style={[
+                    styles.scheduledTripIconBadge,
+                    {
+                      backgroundColor:
+                        tripTiming.status === "expired"
+                          ? "rgba(239, 68, 68, 0.2)"
+                          : "rgba(59, 130, 246, 0.2)",
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={tripTiming.status === "expired" ? "time-outline" : "alarm"}
+                    size={20}
+                    color={tripTiming.status === "expired" ? "#EF4444" : "#3B82F6"}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.scheduledTripBadgeText,
+                      {
+                        color:
+                          tripTiming.status === "expired"
+                            ? "#EF4444"
+                            : tripTiming.status === "time_to_go"
+                            ? "#10B981"
+                            : "#3B82F6",
+                      },
+                    ]}
+                  >
+                    {tripTiming.status === "expired"
+                      ? "Ônibus já passou"
+                      : tripTiming.status === "time_to_go"
+                      ? "Hora de sair!"
+                      : "Viagem agendada"}
+                  </Text>
+                  <View style={{ flex: 1, overflow: "hidden" }}>
+                    <MarqueeText
+                      mode="restart"
+                      speed={28}
+                      delay={1400}
+                      loopDelay={1200}
+                      style={[styles.scheduledTripTitle, { color: theme.text }]}
+                    >
+                      {scheduledTrip.busLine && scheduledTrip.busLine !== "a pé"
+                        ? `Linha ${scheduledTrip.busLine} • ${scheduledTrip.destination}`
+                        : scheduledTrip.destination}
+                    </MarqueeText>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={[styles.scheduledTripSubtitle, { color: theme.textMuted }]}>
+                {tripTiming.status === "expired"
+                  ? `O horário previsto para sair (${scheduledTrip.leaveHomeAt || "horário previsto"}) expirou.`
+                  : tripTiming.message}
+              </Text>
+
+              <View style={styles.scheduledTripActionsRow}>
+                {tripTiming.status === "expired" ? (
+                  <>
+                    <Pressable
+                      style={[styles.scheduledTripBtnPrimary, { backgroundColor: theme.primary }]}
+                      onPress={handleSearchNewForExpired}
+                      accessibilityRole="button"
+                      accessibilityLabel="Buscar novo horário para este destino"
+                      accessibilityHint="Pesquisa novamente as melhores rotas para este destino"
+                    >
+                      <Ionicons name="refresh" size={16} color="#FFF" />
+                      <Text style={styles.scheduledTripBtnPrimaryText}>Buscar novo horário</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.scheduledTripBtnSecondary}
+                      onPress={handleCancelScheduledTrip}
+                      accessibilityRole="button"
+                      accessibilityLabel="Dispensar aviso de viagem expirada"
+                    >
+                      <Text style={[styles.scheduledTripBtnSecondaryText, { color: theme.textMuted }]}>
+                        Dispensar
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Pressable
+                      style={[styles.scheduledTripBtnPrimary, { backgroundColor: theme.primary }]}
+                      onPress={handleOpenScheduledTrip}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ver rota agendada para ${scheduledTrip.destination}`}
+                      accessibilityHint="Abre o mapa e instruções detalhadas da viagem"
+                    >
+                      <Ionicons name="navigate" size={16} color="#FFF" />
+                      <Text style={styles.scheduledTripBtnPrimaryText}>Ver rota agendada</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.scheduledTripBtnSecondary}
+                      onPress={handleCancelScheduledTrip}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancelar lembrete de viagem"
+                    >
+                      <Text style={[styles.scheduledTripBtnSecondaryText, { color: "#EF4444" }]}>
+                        Cancelar lembrete
+                      </Text>
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
         {/* Card unificado: assistente + destino do usuário */}
         {!!promptText && (
           <Animated.View
@@ -1128,5 +1333,84 @@ const styles = StyleSheet.create({
   settingsCardSub: {
     fontSize: 13,
     marginTop: 2,
+  },
+  scheduledTripCardWrapper: {
+    width: "100%",
+    maxWidth: 380,
+    alignSelf: "center",
+  },
+  scheduledTripCard: {
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.5,
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  scheduledTripCardActive: {
+    backgroundColor: "rgba(239, 246, 255, 0.95)",
+    borderColor: "rgba(59, 130, 246, 0.3)",
+  },
+  scheduledTripCardExpired: {
+    backgroundColor: "rgba(254, 242, 242, 0.95)",
+    borderColor: "rgba(239, 68, 68, 0.3)",
+  },
+  scheduledTripHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  scheduledTripIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scheduledTripBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  scheduledTripTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  scheduledTripSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+  scheduledTripActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  scheduledTripBtnPrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  scheduledTripBtnPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  scheduledTripBtnSecondary: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  scheduledTripBtnSecondaryText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
 });
