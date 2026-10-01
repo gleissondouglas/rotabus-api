@@ -28,7 +28,7 @@ import { BackgroundGradient } from "../src/components/BackgroundGradient";
 import { NavegacaoEmbarcado } from "../src/components/NavegacaoEmbarcado";
 import { AdaptiveIcon } from "../src/components/AdaptiveIcon";
 import { MarqueeText } from "../src/components/MarqueeText";
-import { speak, startListening, stopSpeaking } from "../src/services/speech.service";
+import { speak } from "../src/services/speech.service";
 import { vibrationService } from "../src/services/vibration.service";
 import { appStorage } from "../src/services/storage.service";
 import { STORAGE_KEYS } from "../src/constants/storage";
@@ -136,9 +136,6 @@ export default function NavigatingScreen() {
 
   /** Contador de leituras de GPS para detecção de desvio de rota (caminhada) */
   const offRouteCountRef = useRef(0);
-
-  /** Indica se o microfone está escutando um comando de voz na tela de navegação */
-  const [isListeningVoiceCommand, setIsListeningVoiceCommand] = useState(false);
 
   // Refs para controle de voz e alertas
   const didAnnounceStart = useRef(false);
@@ -823,61 +820,6 @@ export default function NavigatingScreen() {
     speakControlled(statusText, true);
   };
 
-  /**
-   * Ativa a escuta por voz na tela de navegação para atender deficientes visuais e idosos:
-   * Reconhece "repetir", "onde estou", "falta quanto" e "cheguei".
-   */
-  const handleStartVoiceCommand = async () => {
-    if (isListeningVoiceCommand) {
-      setIsListeningVoiceCommand(false);
-      return;
-    }
-
-    try {
-      await stopSpeaking();
-      await vibrationService.medium();
-      setIsListeningVoiceCommand(true);
-
-      await startListening({
-        onStart: () => {
-          setIsListeningVoiceCommand(true);
-        },
-        onEnd: () => {
-          setIsListeningVoiceCommand(false);
-        },
-        onError: () => {
-          setIsListeningVoiceCommand(false);
-        },
-        onResult: (transcript, isFinal) => {
-          if (!isFinal) return;
-          setIsListeningVoiceCommand(false);
-          const lower = transcript.toLowerCase().trim();
-
-          logUserInteraction({
-            component: "NavigatingVoiceCommand",
-            label: transcript,
-            fileOrScreen: "app/navegando.tsx",
-            action: "Comando de voz na navegação",
-          });
-
-          if (lower.includes("repet") || lower.includes("como") || lower.includes("caminho") || lower.includes("rua")) {
-            speakControlled(formattedInstruction.speechText, true);
-          } else if (lower.includes("onde") || lower.includes("estou") || lower.includes("local")) {
-            const stop = stopDisplayName || "ponto indicado";
-            speakControlled(`Você está a caminho de ${stop}. ${formattedInstruction.speechText}`, true);
-          } else if (lower.includes("tempo") || lower.includes("falta") || lower.includes("quanto") || lower.includes("horário")) {
-            speakControlled(`Previsão de chegada: ${displayCountdownText}. ${formattedInstruction.speechText}`, true);
-          } else if (lower.includes("cheguei") || lower.includes("ponto") || lower.includes("embarquei") || lower.includes("desci")) {
-            handleStageTransition();
-          } else {
-            speakControlled(formattedInstruction.speechText, true);
-          }
-        },
-      });
-    } catch {
-      setIsListeningVoiceCommand(false);
-    }
-  };
 
   /**
    * Título adaptativo do botão primário no estágio walking.
@@ -1443,25 +1385,6 @@ export default function NavigatingScreen() {
                   />
                 </Pressable>
 
-                {/* Botão de Microfone: Comandos de voz na navegação para deficientes visuais e idosos */}
-                <Pressable
-                  onPress={handleStartVoiceCommand}
-                  accessibilityRole="button"
-                  accessibilityLabel={isListeningVoiceCommand ? "Ouvindo comando de voz... Toque para cancelar" : "Falar comando de voz ou pedir ajuda"}
-                  style={({ pressed }) => [
-                    styles.floatingVoiceIconButton,
-                    isListeningVoiceCommand && { backgroundColor: '#EF4444', borderColor: '#DC2626' },
-                    !isListeningVoiceCommand && !isDark && { backgroundColor: 'rgba(37, 99, 235, 0.08)', borderColor: 'rgba(37, 99, 235, 0.18)' },
-                    !isListeningVoiceCommand && isDark && { backgroundColor: 'rgba(59, 130, 246, 0.18)', borderColor: 'rgba(59, 130, 246, 0.35)' },
-                    pressed && { opacity: 0.7 }
-                  ]}
-                >
-                  <Ionicons
-                    name={isListeningVoiceCommand ? "mic" : "mic-outline"}
-                    size={24}
-                    color={isListeningVoiceCommand ? '#FFFFFF' : (isDark ? '#60A5FA' : '#2563EB')}
-                  />
-                </Pressable>
               </View>
 
             </LiquidGlassView>
@@ -1675,6 +1598,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 52,
     borderRadius: 100,
+    paddingHorizontal: 14,
   },
   floatingVoiceIconButton: {
     width: 52,

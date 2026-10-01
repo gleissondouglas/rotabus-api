@@ -28,6 +28,8 @@ import { logUserInteraction } from "../src/utils/devLogger";
 import { decodePolyline } from "../src/utils/polyline";
 import { appStorage } from "../src/services/storage.service";
 import { STORAGE_KEYS } from "../src/constants/storage";
+import { scheduledTripService } from "../src/services/scheduledTrip.service";
+import { MarqueeText } from "../src/components/MarqueeText";
 
 
 function getTransitSteps(steps: JourneyStep[]) {
@@ -137,6 +139,7 @@ export default function BestRouteScreen() {
   const { autoRead } = useAccessibility();
   const isInitialMount = useRef(true);
   const routeScrollViewRef = useRef<ScrollView>(null);
+  const mainScrollViewRef = useRef<ScrollView>(null);
   const { width } = useWindowDimensions();
 
   const params = useLocalSearchParams();
@@ -404,6 +407,17 @@ export default function BestRouteScreen() {
     speak(voiceText);
   }, [voiceText]);
 
+  const handleViewStopOnMap = useCallback(() => {
+    vibrationService.selection();
+    setMapFocusMode("waiting_bus");
+    mainScrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    speak(
+      stopName
+        ? `O ponto de embarque é ${stopName}. Veja a localização no mapa.`
+        : "Veja a localização do ponto no mapa."
+    );
+  }, [stopName]);
+
   const [scheduledReminderTime, setScheduledReminderTime] = useState<string | null>(null);
   const [activeReminderJobId, setActiveReminderJobId] = useState<string | null>(null);
   const [isSchedulingReminder, setIsSchedulingReminder] = useState(false);
@@ -427,29 +441,49 @@ export default function BestRouteScreen() {
     return () => clearInterval(interval);
   }, [activeSummary?.leaveHomeDateTime]);
 
-  // Recupera o estado de lembrete ativo, se existir, para sobreviver navegação
+  // Chave identificadora única desta opção de rota no carrossel
+  const currentRouteId = useMemo(() => {
+    const leaveTime = activeSummary?.leaveHomeDateTime || "now";
+    const line = isWalkingOnly ? "walk" : busLine || "direct";
+    return `${destination}_${line}_${leaveTime}_opt${selectedRouteIndex}`;
+  }, [destination, isWalkingOnly, busLine, activeSummary?.leaveHomeDateTime, selectedRouteIndex]);
+
+  // Hora prevista para o lembrete tocar (10 minutos antes da saída)
+  const reminderTargetTime = useMemo(() => {
+    if (!activeSummary?.leaveHomeDateTime) return null;
+    const d = new Date(new Date(activeSummary.leaveHomeDateTime).getTime() - 10 * 60 * 1000);
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }, [activeSummary?.leaveHomeDateTime]);
+
+  // Recupera o estado de lembrete ativo para a rota e opção atual
   useEffect(() => {
+    let isMounted = true;
     async function restoreReminder() {
       try {
-        const stored = await appStorage.getItem(STORAGE_KEYS.ACTIVE_REMINDER);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          // Só restaura o lembrete se ele pertencer a esta exata viagem
-          if (parsed.jobId && parsed.time && parsed.leaveHomeDateTime === activeSummary?.leaveHomeDateTime) {
-            setScheduledReminderTime(parsed.time);
-            setActiveReminderJobId(parsed.jobId);
-          } else if (parsed.leaveHomeDateTime && activeSummary?.leaveHomeDateTime && parsed.leaveHomeDateTime !== activeSummary.leaveHomeDateTime) {
-            // O lembrete persistido é de uma viagem anterior/diferente.
-            // Ignoramos a restauração para esta tela, mas não deletamos pois o alerta
-            // ainda é válido no celular (para a outra rota)
-          }
+        const scheduledTrip = await scheduledTripService.getScheduledTrip();
+        if (!isMounted) return;
+
+        if (scheduledTrip && scheduledTrip.id === currentRouteId) {
+          setScheduledReminderTime(scheduledTrip.scheduledTime);
+          setActiveReminderJobId(scheduledTrip.notificationId);
+        } else {
+          // Garante que cards sem lembrete NUNCA mostrem estado agendado
+          setScheduledReminderTime(null);
+          setActiveReminderJobId(null);
         }
       } catch (e) {
         console.warn("[melhor-rota] Erro ao recuperar lembrete salvo", e);
+        if (isMounted) {
+          setScheduledReminderTime(null);
+          setActiveReminderJobId(null);
+        }
       }
     }
     restoreReminder();
-  }, [activeSummary?.leaveHomeDateTime]);
+    return () => {
+      isMounted = false;
+    };
+  }, [currentRouteId]);
 
   async function _doScheduleReminder() {
     if (!activeSummary?.leaveHomeDateTime) return;
@@ -465,6 +499,7 @@ export default function BestRouteScreen() {
         leaveHomeDateTime: activeSummary.leaveHomeDateTime,
         beAtStopAt: activeSummary.beAtStopAt,
         minutesBefore: 10,
+        tripId: currentRouteId,
       });
 
       if (result.success && result.scheduledTime) {
@@ -472,13 +507,43 @@ export default function BestRouteScreen() {
         setScheduledReminderTime(result.scheduledTime);
         setActiveReminderJobId(result.notificationId ?? null);
         
-        // Persiste o estado com a data de saída para validação futura
-        await appStorage.setItem(STORAGE_KEYS.ACTIVE_REMINDER, JSON.stringify({
-          time: result.scheduledTime,
-          jobId: result.notificationId,
-          leaveHomeDateTime: activeSummary.leaveHomeDateTime
-        }));
-        
+        // Salva o pacote completo para que o deep link ou reinício do app recupere a rota inteira
+        await scheduledTripService.saveScheduledTrip({
+          id: currentRouteId,
+          destination,
+          busLine: isWalkingOnly ? "a pé" : busLine,
+          leaveHomeDateTime: activeSummary.leaveHomeDateTime,
+          leaveHomeAt: activeSummary.leaveHomeAt,
+          beAtStopAt: activeSummary.beAtStopAt,
+          scheduledTime: result.scheduledTime,
+          notificationId: result.notificationId ?? "",
+          params: {
+            latitude,
+            longitude,
+            destination,
+            destinationLat,
+            destinationLng,
+            selectedDestination,
+            message: fullBackendMessage,
+            shortMessage,
+            summary: JSON.stringify(activeSummary),
+            alerts: JSON.stringify(activeAlerts),
+            steps: JSON.stringify(activeSteps),
+            map: JSON.stringify(activeMapData),
+            busLine: isWalkingOnly ? "" : busLine,
+            stopName: isWalkingOnly ? destination : stopName,
+            direction: isWalkingOnly
+              ? ""
+              : firstTransitStep?.type === "transit"
+                ? firstTransitStep.headsign
+                : "--",
+            walkTimeMinutes: String(initialWalkTimeMin),
+            ...(isWalkingOnly && { isWalkingOnly: "true" }),
+            selectedRouteIndex,
+          },
+          createdAt: Date.now(),
+        });
+
         speak(`Lembrete agendado! Avisaremos você às ${result.scheduledTime} para sair.`);
       } else {
         vibrationService.error();
@@ -535,12 +600,9 @@ export default function BestRouteScreen() {
           text: "Cancelar lembrete",
           style: "destructive",
           onPress: async () => {
-            if (activeReminderJobId) {
-              await routeReminderService.cancelReminder(activeReminderJobId);
-            }
+            await scheduledTripService.clearScheduledTrip(true);
             setScheduledReminderTime(null);
             setActiveReminderJobId(null);
-            await appStorage.deleteItem(STORAGE_KEYS.ACTIVE_REMINDER);
             vibrationService.light();
             speak("Lembrete cancelado.");
             logUserInteraction({
@@ -558,6 +620,13 @@ export default function BestRouteScreen() {
   function handleStartNavigation() {
     setIsLoadingCommand(true);
     vibrationService.success();
+
+    if (activeReminderJobId) {
+      void scheduledTripService.clearScheduledTrip(true);
+      setScheduledReminderTime(null);
+      setActiveReminderJobId(null);
+    }
+
     router.push({
       pathname: "/navegando",
       params: {
@@ -593,13 +662,6 @@ export default function BestRouteScreen() {
   // Tempo de espera tranquilo: ≥ 20 minutos até sair
   const hasComfortableWait = minutesUntilLeave !== null && minutesUntilLeave >= 20;
 
-  // Hora da notificação antecipada (10min antes)
-  const reminderTargetTime = useMemo(() => {
-    if (!activeSummary?.leaveHomeDateTime) return null;
-    const d = new Date(new Date(activeSummary.leaveHomeDateTime).getTime() - 10 * 60 * 1000);
-    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  }, [activeSummary?.leaveHomeDateTime]);
-
   // Bottom bar para padding
   const bottomBarHeight = isFutureTrip ? 180 : 140;
 
@@ -614,6 +676,7 @@ export default function BestRouteScreen() {
       </View>
 
       <ScrollView
+        ref={mainScrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
@@ -889,19 +952,35 @@ export default function BestRouteScreen() {
                       accessibilityLabel="Me avisar 10 minutos antes de sair"
                     >
                       <Ionicons name="alarm-outline" size={16} color="#FFF" style={{ flexShrink: 0 }} />
-                      <Text style={styles.comfortWaitButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-                        {isSchedulingReminder ? "Agendando..." : `Me avisar 10 min antes (às ${reminderTargetTime})`}
-                      </Text>
+                      <View style={{ flex: 1, overflow: "hidden" }}>
+                        <MarqueeText
+                          mode="restart"
+                          speed={28}
+                          delay={1400}
+                          loopDelay={1200}
+                          style={styles.comfortWaitButtonText}
+                        >
+                          {isSchedulingReminder ? "Agendando..." : `Me avisar 10 min antes (às ${reminderTargetTime})`}
+                        </MarqueeText>
+                      </View>
                     </TouchableOpacity>
                   )}
 
                   {scheduledReminderTime && (
                     <View style={{ gap: 6 }}>
                       <View style={styles.comfortWaitButtonScheduled}>
-                        <Ionicons name="checkmark-circle" size={16} color="#34D399" />
-                        <Text style={styles.comfortWaitButtonScheduledText} numberOfLines={1}>
-                          Lembrete agendado para às {scheduledReminderTime}
-                        </Text>
+                        <Ionicons name="checkmark-circle" size={16} color="#34D399" style={{ flexShrink: 0 }} />
+                        <View style={{ flex: 1, overflow: "hidden" }}>
+                          <MarqueeText
+                            mode="restart"
+                            speed={28}
+                            delay={1400}
+                            loopDelay={1200}
+                            style={styles.comfortWaitButtonScheduledText}
+                          >
+                            {`Lembrete agendado para às ${scheduledReminderTime}`}
+                          </MarqueeText>
+                        </View>
                       </View>
                       <TouchableOpacity
                         onPress={handleCancelReminder}
@@ -1058,14 +1137,17 @@ export default function BestRouteScreen() {
               accessibilityLabel="Me avisar dez minutos antes de sair"
             >
               <Ionicons name="notifications" size={19} color="#FFFFFF" style={{ flexShrink: 0 }} />
-              <Text
-                style={styles.primaryReminderBtnText}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-              >
-                {isSchedulingReminder ? "Agendando..." : `Me avisar 10 min antes (às ${reminderTargetTime})`}
-              </Text>
+              <View style={{ flex: 1, overflow: "hidden" }}>
+                <MarqueeText
+                  mode="restart"
+                  speed={28}
+                  delay={1400}
+                  loopDelay={1200}
+                  style={styles.primaryReminderBtnText}
+                >
+                  {isSchedulingReminder ? "Agendando..." : `Me avisar 10 min antes (às ${reminderTargetTime})`}
+                </MarqueeText>
+              </View>
             </TouchableOpacity>
           ) : (
             <PrimaryButton
@@ -1100,7 +1182,7 @@ export default function BestRouteScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Card Iniciar agora (quando for viagem futura) */}
+            {/* Card Ver ponto no mapa (quando for viagem futura) */}
             {isFutureTrip && (
               <TouchableOpacity
                 style={[
@@ -1109,23 +1191,22 @@ export default function BestRouteScreen() {
                     ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
                     : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
                 ]}
-                onPress={handleStartNavigation}
-                disabled={isLoadingCommand}
+                onPress={handleViewStopOnMap}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="Iniciar navegação agora"
+                accessibilityLabel="Ver localização do ponto de ônibus no mapa"
               >
-                <Ionicons name="navigate" size={17} color={isDark ? "#FFFFFF" : "#0F172A"} style={{ flexShrink: 0 }} />
+                <Ionicons name="location" size={17} color={isDark ? "#60A5FA" : "#0284C7"} style={{ flexShrink: 0 }} />
                 <Text
                   style={[
                     styles.bottomCardBtnTextDark,
-                    isDark && { color: "#FFFFFF" }
+                    { color: isDark ? "#60A5FA" : "#0284C7" }
                   ]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.8}
                 >
-                  Iniciar agora
+                  Ver ponto
                 </Text>
               </TouchableOpacity>
             )}
@@ -1527,33 +1608,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 100,
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
   },
   comfortWaitButtonText: {
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
-    flexShrink: 1,
   },
   comfortWaitButtonScheduled: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
     backgroundColor: "rgba(52, 211, 153, 0.12)",
     borderRadius: 100,
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
   },
   comfortWaitButtonScheduledText: {
     color: "#34D399",
     fontSize: 13.5,
     fontWeight: "700",
-    flexShrink: 1,
   },
 
   /* ─── Reminder card (viagem futura sem comfort wait) ─── */
