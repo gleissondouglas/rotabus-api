@@ -407,9 +407,12 @@ export default function BestRouteScreen() {
     speak(voiceText);
   }, [voiceText]);
 
+  const [hasViewedStopOnMap, setHasViewedStopOnMap] = useState(false);
+
   const handleViewStopOnMap = useCallback(() => {
     vibrationService.selection();
     setMapFocusMode("waiting_bus");
+    setHasViewedStopOnMap(true);
     mainScrollViewRef.current?.scrollTo({ y: 0, animated: true });
     speak(
       stopName
@@ -417,6 +420,21 @@ export default function BestRouteScreen() {
         : "Veja a localização do ponto no mapa."
     );
   }, [stopName]);
+
+  const handleGoToHome = useCallback(() => {
+    vibrationService.selection();
+    router.replace({
+      pathname: "/inicio",
+      params: {
+        latitude: String(latitude || ""),
+        longitude: String(longitude || ""),
+      },
+    });
+  }, [latitude, longitude]);
+
+  useEffect(() => {
+    setHasViewedStopOnMap(false);
+  }, [selectedRouteIndex]);
 
   const [scheduledReminderTime, setScheduledReminderTime] = useState<string | null>(null);
   const [activeReminderJobId, setActiveReminderJobId] = useState<string | null>(null);
@@ -1182,7 +1200,7 @@ export default function BestRouteScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Card Ver ponto no mapa (quando for viagem futura) */}
+            {/* Card Ver ponto no mapa / Ir para início (quando for viagem futura) */}
             {isFutureTrip && (
               <TouchableOpacity
                 style={[
@@ -1191,12 +1209,17 @@ export default function BestRouteScreen() {
                     ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
                     : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
                 ]}
-                onPress={handleViewStopOnMap}
+                onPress={hasViewedStopOnMap ? handleGoToHome : handleViewStopOnMap}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="Ver localização do ponto de ônibus no mapa"
+                accessibilityLabel={hasViewedStopOnMap ? "Ir para a tela inicial" : "Ver localização do ponto de ônibus no mapa"}
               >
-                <Ionicons name="location" size={17} color={isDark ? "#60A5FA" : "#0284C7"} style={{ flexShrink: 0 }} />
+                <Ionicons
+                  name={hasViewedStopOnMap ? "home" : "location"}
+                  size={17}
+                  color={isDark ? "#60A5FA" : "#0284C7"}
+                  style={{ flexShrink: 0 }}
+                />
                 <Text
                   style={[
                     styles.bottomCardBtnTextDark,
@@ -1206,7 +1229,7 @@ export default function BestRouteScreen() {
                   adjustsFontSizeToFit
                   minimumFontScale={0.8}
                 >
-                  Ver ponto
+                  {hasViewedStopOnMap ? "Ir para início" : "Ver ponto"}
                 </Text>
               </TouchableOpacity>
             )}

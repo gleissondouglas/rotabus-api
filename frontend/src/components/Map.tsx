@@ -68,6 +68,33 @@ const getMarkerColor = (type: MapMarker['type']) => {
 };
 
 /**
+ * Calcula o rumo em graus (0° a 360°, onde 0° é Norte) entre duas coordenadas.
+ */
+function calculateBearing(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δλ = toRad(lng2 - lng1);
+
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  const θ = Math.atan2(y, x);
+
+  return (toDeg(θ) + 360) % 360;
+}
+
+/**
+ * Calcula a distância aproximada em metros entre duas coordenadas geográficas.
+ */
+function getDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const dLat = (lat2 - lat1) * 111320;
+  const dLng = (lng2 - lng1) * (111320 * Math.cos((lat1 * Math.PI) / 180));
+  return Math.sqrt(dLat * dLat + dLng * dLng);
+}
+
+/**
  * Componente de Mapa customizado usando react-native-maps.
  * Ele gerencia a exibição da rota, marcadores e o movimento da câmera (seguir usuário).
  */
@@ -373,12 +400,12 @@ const Map: React.FC<MapProps> = ({
           id: polyline.id,
           coords,
           strokeColor: isWalk ? '#2563EB' : '#22C55E',
-          strokeWidth: isWalk ? 6 : 6,
-          lineDashPattern: isWalk ? [0, 16] : undefined,
+          strokeWidth: isWalk ? 5 : 6,
+          lineDashPattern: undefined,
           baseTrackColor: isWalk 
             ? (colorScheme === 'dark' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(37, 99, 235, 0.16)') 
             : undefined,
-          baseTrackWidth: isWalk ? 12 : undefined,
+          baseTrackWidth: isWalk ? 10 : undefined,
           zIndex: isWalk ? 2 : 1,
         };
       })
@@ -400,28 +427,28 @@ const Map: React.FC<MapProps> = ({
         const isTransit = step.type === 'transit';
 
         let strokeColor = isTransit ? '#22C55E' : '#2563EB';
-        let strokeWidth = isTransit ? 8 : 6;
+        let strokeWidth = isTransit ? 8 : 5;
         let zIndex = 5;
-        let lineDashPattern: number[] | undefined = isTransit ? undefined : [0, 16];
+        let lineDashPattern: number[] | undefined = undefined;
         let baseTrackColor: string | undefined = isTransit 
           ? undefined 
           : (colorScheme === 'dark' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(37, 99, 235, 0.16)');
-        let baseTrackWidth: number | undefined = isTransit ? undefined : 12;
+        let baseTrackWidth: number | undefined = isTransit ? undefined : 10;
 
         if (isPast) {
           strokeColor = '#94A3B8';
-          strokeWidth = isTransit ? 6 : 5;
+          strokeWidth = isTransit ? 6 : 4;
           zIndex = 3;
-          lineDashPattern = isTransit ? undefined : [0, 14];
+          lineDashPattern = undefined;
           baseTrackColor = isTransit ? undefined : 'rgba(148, 163, 184, 0.15)';
-          baseTrackWidth = isTransit ? undefined : 10;
+          baseTrackWidth = isTransit ? undefined : 8;
         } else if (!isActive) {
           strokeColor = isTransit ? 'rgba(34, 197, 94, 0.4)' : 'rgba(37, 99, 235, 0.65)';
-          strokeWidth = isTransit ? 6 : 5;
+          strokeWidth = isTransit ? 6 : 4;
           zIndex = 4;
-          lineDashPattern = isTransit ? undefined : [0, 16];
+          lineDashPattern = undefined;
           baseTrackColor = isTransit ? undefined : (colorScheme === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(37, 99, 235, 0.10)');
-          baseTrackWidth = isTransit ? undefined : 10;
+          baseTrackWidth = isTransit ? undefined : 8;
         }
 
         return {
@@ -437,6 +464,74 @@ const Map: React.FC<MapProps> = ({
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
   }, [effectiveFocusMode, walkSteps, currentStepIndex, colorScheme]);
+
+  /**
+   * Chevrons direcionais de caminhada (Acessibilidade WCAG AA).
+   * Substitui os pontos azuis estáticos por setas dinâmicas indicando o sentido do trajeto.
+   */
+  const renderedWalkChevrons = useMemo(() => {
+    const polylinesToSample: { id: string; coords: { latitude: number; longitude: number }[] }[] = [];
+
+    if (walkSteps && walkSteps.length > 0 && effectiveFocusMode !== 'full_route') {
+      walkSteps.forEach((step, idx) => {
+        if (step.type !== 'transit') {
+          const coords = decodePolyline(step.polyline);
+          if (coords.length >= 2) {
+            polylinesToSample.push({ id: `step-${idx}`, coords });
+          }
+        }
+      });
+    } else if (mapData?.polylines) {
+      mapData.polylines
+        .filter(p => p.type === 'walk')
+        .forEach(p => {
+          const coords = decodePolyline(p.encodedPolyline);
+          if (coords.length >= 2) {
+            polylinesToSample.push({ id: p.id, coords });
+          }
+        });
+    }
+
+    const chevrons: {
+      key: string;
+      latitude: number;
+      longitude: number;
+      bearing: number;
+    }[] = [];
+
+    polylinesToSample.forEach(({ id, coords }) => {
+      for (let i = 0; i < coords.length - 1; i++) {
+        const p1 = coords[i];
+        const p2 = coords[i + 1];
+        const segDist = getDistanceMeters(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
+        if (segDist < 4) continue;
+
+        const bearing = calculateBearing(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
+
+        if (segDist <= 32) {
+          chevrons.push({
+            key: `chev-${id}-${i}-mid`,
+            latitude: (p1.latitude + p2.latitude) / 2,
+            longitude: (p1.longitude + p2.longitude) / 2,
+            bearing,
+          });
+        } else {
+          const count = Math.min(Math.floor(segDist / 25), 8);
+          for (let step = 1; step <= count; step++) {
+            const fraction = step / (count + 1);
+            chevrons.push({
+              key: `chev-${id}-${i}-${step}`,
+              latitude: p1.latitude + fraction * (p2.latitude - p1.latitude),
+              longitude: p1.longitude + fraction * (p2.longitude - p1.longitude),
+              bearing,
+            });
+          }
+        }
+      }
+    });
+
+    return chevrons;
+  }, [walkSteps, mapData?.polylines, effectiveFocusMode]);
 
   const renderedTurnMarkers = useMemo(() => {
     if (!walkSteps || walkSteps.length === 0 || effectiveFocusMode === 'full_route') {
@@ -550,6 +645,30 @@ const Map: React.FC<MapProps> = ({
               lineJoin="round"
             />
           </React.Fragment>
+        ))}
+
+        {/* Chevrons Direcionais de Caminhada ao Longo da Rota */}
+        {renderedWalkChevrons.map((chev) => (
+          <Marker
+            key={chev.key}
+            coordinate={{ latitude: chev.latitude, longitude: chev.longitude }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            flat={false}
+            zIndex={12}
+            tracksViewChanges={false}
+          >
+            <View 
+              style={[
+                styles.walkChevronPill,
+                { transform: [{ rotate: `${chev.bearing}deg` }] }
+              ]}
+              pointerEvents="none"
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            >
+              <Ionicons name="chevron-up" size={13} color="#0066FE" />
+            </View>
+          </Marker>
         ))}
 
         {/* Marcadores de Virada */}
@@ -1122,6 +1241,21 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 2.5,
     backgroundColor: '#FFFFFF',
+  },
+  walkChevronPill: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#0066FE',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 3,
   },
 });
 
