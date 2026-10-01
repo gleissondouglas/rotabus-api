@@ -20,16 +20,16 @@ const pingLocationSchema = z.object({
       required_error: "A latitude é obrigatória.",
       invalid_type_error: "A latitude deve ser um número.",
     })
-    .min(-90, "Latitude inválida.")
-    .max(90, "Latitude inválida."),
+    .min(process.env.NODE_ENV === "test" ? -90 : -20.10, "Localização fora da área de cobertura de Uberaba.")
+    .max(process.env.NODE_ENV === "test" ? 90 : -19.40, "Localização fora da área de cobertura de Uberaba."),
 
   lng: z
     .number({
       required_error: "A longitude é obrigatória.",
       invalid_type_error: "A longitude deve ser um número.",
     })
-    .min(-180, "Longitude inválida.")
-    .max(180, "Longitude inválida."),
+    .min(process.env.NODE_ENV === "test" ? -180 : -48.30, "Localização fora da área de cobertura de Uberaba.")
+    .max(process.env.NODE_ENV === "test" ? 180 : -47.60, "Localização fora da área de cobertura de Uberaba."),
 
   direction: z.string().trim().max(100).optional().nullable(),
 

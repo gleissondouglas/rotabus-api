@@ -7,7 +7,7 @@ describe("Tracking Controller", () => {
   let req, res, next;
 
   beforeEach(() => {
-    req = { body: {}, params: {}, query: {} };
+    req = { body: {}, params: {}, query: {}, headers: {} };
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn()
@@ -37,9 +37,26 @@ describe("Tracking Controller", () => {
       
       await trackingController.pingLocation(req, res, next);
       
-      expect(crowdsourceService.recordPassengerLocation).toHaveBeenCalledWith(req.body);
+      expect(crowdsourceService.recordPassengerLocation).toHaveBeenCalledWith({
+        ...req.body,
+        deviceId: null
+      });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({ success: true });
+    });
+
+    it("should extract deviceId from headers when present", async () => {
+      req.body = { lineId: "123", lat: -23.5, lng: -46.6, direction: "ida", speed: 50, bearing: 90 };
+      req.headers = { 'x-device-id': 'device-xyz-123' };
+      crowdsourceService.recordPassengerLocation.mockResolvedValue(true);
+      
+      await trackingController.pingLocation(req, res, next);
+      
+      expect(crowdsourceService.recordPassengerLocation).toHaveBeenCalledWith({
+        ...req.body,
+        deviceId: 'device-xyz-123'
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it("should call next with error if crowdsourceService throws", async () => {

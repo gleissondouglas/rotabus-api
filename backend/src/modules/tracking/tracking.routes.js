@@ -6,12 +6,14 @@ const { validate } = require('../../shared/middlewares/validate.middleware');
 const { pingLocationSchema } = require('./tracking.validator');
 const rateLimit = require('express-rate-limit');
 
-// Rate limit: máximo 1 ping a cada 5 segundos por IP (proteção contra spam de GPS falso)
+// Rate limit inteligente: 1 ping a cada 5 segundos por usuário/dispositivo
+// Previne bloqueios mútuos entre passageiros que compartilham o mesmo CGNAT móvel (mesmo IP)
 const pingLimiter = rateLimit({
   windowMs: 5 * 1000,
   max: 1,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.headers?.['x-device-id'] || req.ip,
   message: { error: true, message: 'Aguarde alguns segundos antes de enviar outra localização.' },
 });
 

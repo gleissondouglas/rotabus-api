@@ -140,6 +140,7 @@ export default function BestRouteScreen() {
   const isInitialMount = useRef(true);
   const routeScrollViewRef = useRef<ScrollView>(null);
   const mainScrollViewRef = useRef<ScrollView>(null);
+  const isTransitioningRef = useRef(false);
   const { width } = useWindowDimensions();
 
   const params = useLocalSearchParams();
@@ -424,6 +425,12 @@ export default function BestRouteScreen() {
   }, [isWalkingOnly, stopName]);
 
   const handleGoToHome = useCallback(() => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+    setTimeout(() => {
+      isTransitioningRef.current = false;
+    }, 800);
+
     vibrationService.selection();
     router.replace({
       pathname: "/inicio",
@@ -574,7 +581,7 @@ export default function BestRouteScreen() {
   }
 
   async function handleScheduleReminder() {
-    if (!activeSummary?.leaveHomeDateTime) return;
+    if (!activeSummary?.leaveHomeDateTime || isSchedulingReminder || isTransitioningRef.current) return;
 
     logUserInteraction({
       component: '<TouchableOpacity id="btn-agendar-lembrete" />',
@@ -638,6 +645,8 @@ export default function BestRouteScreen() {
   }
 
   function handleStartNavigation() {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
     setIsLoadingCommand(true);
     vibrationService.success();
 
@@ -675,8 +684,9 @@ export default function BestRouteScreen() {
       },
     });
     setTimeout(() => {
+      isTransitioningRef.current = false;
       setIsLoadingCommand(false);
-    }, 1000);
+    }, 1200);
   }
 
   // Tempo de espera tranquilo: ≥ 20 minutos até sair

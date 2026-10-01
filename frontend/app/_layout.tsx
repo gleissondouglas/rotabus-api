@@ -96,9 +96,9 @@ function RootLayout() {
               );
               speak(`Atenção: o horário do ônibus para ${trip.destination} já passou.`);
             } else {
-              speak(`Abrindo sua rota agendada para ${trip.destination}.`);
+              speak(`Abrindo sua rota agendada para ${trip.destination || "seu destino"}.`);
               setTimeout(() => {
-                router.push({
+                router.replace({
                   pathname: "/melhor-rota",
                   params: trip.params,
                 });
