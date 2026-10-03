@@ -7,11 +7,18 @@ describe("network util", () => {
   });
 
   describe("withRetry", () => {
+    it("deve retornar dado imediatamente se tiver sucesso", async () => {
+      const fn = jest.fn().mockResolvedValue("sucesso");
+      const res = await withRetry(fn);
+      expect(res).toBe("sucesso");
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+
     it("deve tentar novamente quando houver erro de rede", async () => {
       const fn = jest.fn()
         .mockRejectedValueOnce(new Error("Network request failed"))
         .mockResolvedValueOnce("sucesso");
-        
+
       const result = await withRetry(fn, 1, 10);
       expect(result).toBe("sucesso");
       expect(fn).toHaveBeenCalledTimes(2);
@@ -19,9 +26,17 @@ describe("network util", () => {
 
     it("não deve tentar novamente se não for erro de rede", async () => {
       const fn = jest.fn().mockRejectedValueOnce(new Error("Auth Error"));
-      
+
       await expect(withRetry(fn, 1, 10)).rejects.toThrow("Auth Error");
       expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    it("deve lançar erro se exceder o número de retries configurado", async () => {
+      const error = new Error("Network timeout");
+      const fn = jest.fn().mockRejectedValue(error);
+
+      await expect(withRetry(fn, 1, 10)).rejects.toThrow("Network timeout");
+      expect(fn).toHaveBeenCalledTimes(2); // 1 tentativa normal + 1 retry = falha
     });
   });
 

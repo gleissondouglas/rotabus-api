@@ -1,6 +1,22 @@
 const request = require('supertest');
 
 // Mocks devem ser definidos antes de importar o app
+jest.mock('../../../src/modules/reminders/reminders.queue', () => ({
+  remindersQueue: {
+    add: jest.fn().mockResolvedValue({ id: 'mock-job-id' }),
+    getJob: jest.fn().mockResolvedValue(null),
+  },
+  REMINDERS_QUEUE_NAME: 'push-reminders',
+}));
+
+jest.mock('bullmq', () => ({
+  Queue: jest.fn().mockImplementation(() => ({
+    add: jest.fn().mockResolvedValue({ id: 'mock-job-id' }),
+    getJob: jest.fn().mockResolvedValue(null),
+    close: jest.fn().mockResolvedValue(),
+  })),
+}));
+
 jest.mock('../../../src/modules/auth/auth.middleware', () => ({
   authMiddleware: (req, res, next) => {
     req.user = { id: 1, email: 'test@test.com', role: 'USER' };

@@ -7,7 +7,7 @@ async function scheduleReminder(req, res, next) {
     const userId = req.user.id; // Vem do authMiddleware
 
     // Busca o usuário no banco para pegar o pushToken
-    const user = await usersRepository.getUserById(userId);
+    const user = await usersRepository.findUserById(userId);
 
     if (!user || !user.pushToken) {
       return res.status(400).json({ error: "Usuário não possui push token registrado." });

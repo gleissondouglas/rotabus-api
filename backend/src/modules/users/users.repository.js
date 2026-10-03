@@ -18,6 +18,7 @@ async function findUserById(id) {
       name: true,
       email: true,
       role: true,
+      pushToken: true,
       createdAt: true,
       updatedAt: true,
     },

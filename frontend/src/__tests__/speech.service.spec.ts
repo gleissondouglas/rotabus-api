@@ -466,12 +466,90 @@ describe("SpeechService", () => {
     });
   });
 
-  describe("stopListening", () => {
-    it("não deve lançar erro quando módulo não está disponível", () => {
-      const { stopListening } = require("../services/speech.service");
-      expect(() => {
-        stopListening();
-      }).not.toThrow();
+  describe("com ExpoSpeechRecognitionModule disponível", () => {
+    it("inicia reconhecimento em pt-BR e só marca parcial quando a biblioteca informa isFinal", async () => {
+      let speechServiceWithModule: any;
+      const mockExpoModule = {
+        requestPermissionsAsync: jest.fn().mockResolvedValue({
+          granted: true,
+          status: "granted",
+        }),
+        addListener: jest.fn(),
+        start: jest.fn(),
+        stop: jest.fn(),
+        setCategoryIOS: jest.fn(),
+        setAudioSessionActiveIOS: jest.fn(),
+      };
+
+      const listeners: Record<string, (event: any) => void> = {};
+      mockExpoModule.addListener.mockImplementation(
+        (eventName: string, callback: (event: any) => void) => {
+          listeners[eventName] = callback;
+          return { remove: jest.fn() };
+        }
+      );
+
+      jest.isolateModules(() => {
+        jest.doMock("expo-speech-recognition", () => ({
+          ExpoSpeechRecognitionModule: mockExpoModule,
+        }));
+        speechServiceWithModule = require("../services/speech.service");
+      });
+
+      expect(speechServiceWithModule.isSpeechRecognitionAvailable()).toBe(true);
+
+      const onResult = jest.fn();
+      const startPromise = speechServiceWithModule.startListening({
+        onResult,
+        onError: jest.fn(),
+      });
+
+      await Promise.resolve();
+      await startPromise;
+
+      expect(mockExpoModule.start).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lang: "pt-BR",
+          interimResults: true,
+          maxAlternatives: 3,
+          contextualStrings: expect.arrayContaining(["Centro", "Shopping Uberaba"]),
+        })
+      );
+
+      listeners.result({
+        results: [{ transcript: "Centro", confidence: 0.9, segments: [] }],
+        isFinal: true,
+      });
+
+      expect(onResult).toHaveBeenCalledWith("Centro", true);
+
+      onResult.mockClear();
+      listeners.result({
+        isFinal: false,
+        results: [{ transcript: "Cen", confidence: 0, segments: [] }],
+      });
+
+      expect(onResult).toHaveBeenCalledWith("Cen", false);
+    });
+
+    it("chama stop no ExpoSpeechRecognitionModule ao executar stopListening", () => {
+      let speechServiceWithModule: any;
+      const mockExpoModule = {
+        requestPermissionsAsync: jest.fn(),
+        addListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
+        start: jest.fn(),
+        stop: jest.fn(),
+      };
+
+      jest.isolateModules(() => {
+        jest.doMock("expo-speech-recognition", () => ({
+          ExpoSpeechRecognitionModule: mockExpoModule,
+        }));
+        speechServiceWithModule = require("../services/speech.service");
+      });
+
+      speechServiceWithModule.stopListening();
+      expect(mockExpoModule.stop).toHaveBeenCalled();
     });
   });
 });

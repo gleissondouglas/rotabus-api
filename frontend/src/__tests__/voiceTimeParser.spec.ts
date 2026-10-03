@@ -5,6 +5,8 @@ describe("voiceTimeParser", () => {
 
   it("should parse NOW intents", () => {
     expect(parseVoiceTimeIntent("agora", referenceDate)).toEqual({ type: "NOW" });
+    expect(parseVoiceTimeIntent("sair agora", referenceDate)).toEqual({ type: "NOW" });
+    expect(parseVoiceTimeIntent("pode ser agora", referenceDate)).toEqual({ type: "NOW" });
     expect(parseVoiceTimeIntent("quero ir agora", referenceDate)).toEqual({ type: "NOW" });
     expect(parseVoiceTimeIntent("quero sair agora", referenceDate)).toEqual({ type: "NOW" });
   });
@@ -156,5 +158,48 @@ describe("voiceTimeParser", () => {
       date: "2026-06-16",
       time: "08:00"
     });
+  });
+
+  it("should parse REPEAT intents", () => {
+    expect(parseVoiceTimeIntent("repetir")).toEqual({ type: "REPEAT" });
+    expect(parseVoiceTimeIntent("fala de novo")).toEqual({ type: "REPEAT" });
+  });
+
+  it("should parse CANCEL intents", () => {
+    expect(parseVoiceTimeIntent("cancelar")).toEqual({ type: "CANCEL" });
+    expect(parseVoiceTimeIntent("voltar")).toEqual({ type: "CANCEL" });
+  });
+
+  it("should parse specific portuguese hours and minute formats", () => {
+    expect(parseVoiceTimeIntent("hoje às oito", referenceDate)).toEqual({
+      type: "DEPARTURE_TIME",
+      date: "2026-06-15",
+      time: "08:00",
+    });
+    expect(parseVoiceTimeIntent("hoje às 08:30", referenceDate)).toEqual({
+      type: "DEPARTURE_TIME",
+      date: "2026-06-15",
+      time: "08:30",
+    });
+    expect(parseVoiceTimeIntent("amanhã às nove", referenceDate)).toEqual({
+      type: "DEPARTURE_TIME",
+      date: "2026-06-16",
+      time: "09:00",
+    });
+    expect(parseVoiceTimeIntent("amanhã às 09:15", referenceDate)).toEqual({
+      type: "DEPARTURE_TIME",
+      date: "2026-06-16",
+      time: "09:15",
+    });
+    expect(parseVoiceTimeIntent("chegar às oito", referenceDate)).toEqual({
+      type: "ARRIVAL_TIME",
+      date: "2026-06-15",
+      time: "08:00",
+    });
+  });
+
+  it("should return UNKNOWN for invalid or unrecognizable inputs", () => {
+    expect(parseVoiceTimeIntent("qualquer coisa")).toEqual({ type: "UNKNOWN" });
+    expect(parseVoiceTimeIntent("hoje às trinta horas")).toEqual({ type: "UNKNOWN" });
   });
 });

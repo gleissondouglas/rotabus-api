@@ -50,21 +50,21 @@ describe('TokenProvider', () => {
     });
 
     test('deve lançar erro se JWT_SECRET não configurado ao gerar token', () => {
-      expect(() => tokenProvider.generateToken(payload)).toThrow('JWT_SECRET não configurado.');
-      try {
-        tokenProvider.generateToken(payload);
-      } catch (error) {
-        expect(error.statusCode).toBe(500);
-      }
+      expect(() => tokenProvider.generateToken(payload)).toThrow(
+        expect.objectContaining({
+          message: 'JWT_SECRET não configurado.',
+          statusCode: 500,
+        })
+      );
     });
 
     test('deve lançar erro se JWT_SECRET não configurado ao verificar token', () => {
-      expect(() => tokenProvider.verifyToken('algum-token')).toThrow('JWT_SECRET não configurado.');
-      try {
-        tokenProvider.verifyToken('algum-token');
-      } catch (error) {
-        expect(error.statusCode).toBe(500);
-      }
+      expect(() => tokenProvider.verifyToken('algum-token')).toThrow(
+        expect.objectContaining({
+          message: 'JWT_SECRET não configurado.',
+          statusCode: 500,
+        })
+      );
     });
   });
 });
