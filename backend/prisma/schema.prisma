@@ -7,13 +7,28 @@ datasource db {
   provider = "postgresql"
 }
 
+// Enum de papéis do usuário — o PostgreSQL rejeita qualquer valor fora desta lista.
+enum Role {
+  USER
+  ADMIN
+}
+
+// Enum de estados da sessão de conversa — garante integridade da FSM no banco.
+enum SessionState {
+  IDLE
+  WAITING_DESTINATION
+  WAITING_CONFIRMATION
+  WAITING_TIME_SELECTION
+  JOURNEY_DISPLAYED
+}
+
 model User {
   id                  Int                  @id @default(autoincrement())
-  name                String
-  email               String               @unique
+  name                String               @db.VarChar(100)
+  email               String               @unique @db.VarChar(254)
   passwordHash        String
-  pushToken           String?
-  role                String               @default("USER")
+  pushToken           String?              @db.VarChar(200)
+  role                Role                 @default(USER)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
@@ -25,27 +40,26 @@ model User {
 }
 
 model ConversationSession {
-  id           String    @id @default(uuid())
-  sessionId    String    @unique
+  id           String        @id @default(uuid())
+  sessionId    String        @unique
   userId       Int?
-  currentState String    @default("IDLE")
+  currentState SessionState  @default(IDLE)
   context      Json
   expiresAt    DateTime
   endedAt      DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
   @@index([userId, sessionId])
 }
 
-
 model PasswordResetToken {
   id        Int       @id @default(autoincrement())
-  tokenHash String
+  tokenHash String    @unique
   userId    Int
   expiresAt DateTime
   usedAt    DateTime?
@@ -53,27 +67,26 @@ model PasswordResetToken {
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([tokenHash])
   @@index([userId])
-  }
+}
 
-  model RouteCache {
+model RouteCache {
   id               Int      @id @default(autoincrement())
-  cacheKey         String   @unique
+  cacheKey         String   @unique @db.VarChar(512)
   googleResponse   Json
   timePreference   Json?
   createdAt        DateTime @default(now())
   expiresAt        DateTime
 
   @@index([cacheKey])
-  }
+}
 
 model ApiUsage {
   id        Int      @id @default(autoincrement())
   userId    Int?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  ipAddress String
-  endpoint  String
+  ipAddress String   @db.VarChar(45)
+  endpoint  String   @db.VarChar(100)
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
@@ -84,8 +97,8 @@ model ApiUsage {
 model UserFavorite {
   id        Int      @id @default(autoincrement())
   userId    Int
-  name      String
-  address   String
+  name      String   @db.VarChar(200)
+  address   String   @db.VarChar(500)
   lat       Float
   lng       Float
   createdAt DateTime @default(now())
@@ -99,8 +112,8 @@ model UserFavorite {
 model SearchHistory {
   id          Int      @id @default(autoincrement())
   userId      Int
-  query       String
-  address     String?
+  query       String   @db.VarChar(500)
+  address     String?  @db.VarChar(500)
   lat         Float?
   lng         Float?
   createdAt   DateTime @default(now())

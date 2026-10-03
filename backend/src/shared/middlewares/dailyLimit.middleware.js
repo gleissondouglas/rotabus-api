@@ -7,7 +7,7 @@ function createDailyLimitMiddleware(endpoint, limit, errorMessage, errorCode) {
       const userId = req.user?.id || null;
       const userRole = req.user?.role || "USER";
 
-      const isAdmin = String(userRole).toUpperCase() === "ADMIN";
+      const isAdmin = userRole === "ADMIN";
       if (isAdmin) {
         return next();
       }
