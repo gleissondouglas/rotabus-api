@@ -9,7 +9,7 @@
     "test": "jest",
     "admin:ensure": "node scripts/ensureAdmin.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate": "node scripts/deploy-migrations.js",
     "sessions:cleanup": "node scripts/cleanup-expired-conversation-sessions.js",
     "logs:cleanup": "node scripts/cleanup-old-logs.js",
     "sessions:smoke:postgres": "node scripts/smoke-test-conversation-session-postgres.js",
