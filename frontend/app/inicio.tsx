@@ -59,6 +59,8 @@ import {
   type ScheduledTripData,
   type TripTimingStatus,
 } from "../src/services/scheduledTrip.service";
+import { ErrorModal } from "../src/components/ErrorModal";
+import { getFriendlyErrorMessage } from "../src/utils/friendlyError";
 
 type ScreenStatus = "idle" | "listening" | "processing" | "error" | "success";
 type VoiceScreenStatus = ScreenStatus | "speaking";
@@ -183,6 +185,7 @@ export default function HomeScreen() {
   const [transcript, setTranscript] = useState("");
   const [userName, setUserName] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
   const [isTranscriptFinal, setIsTranscriptFinal] = useState(false);
   /**
    * Controla se o texto da saudação deve animar progressivamente.
@@ -400,24 +403,24 @@ export default function HomeScreen() {
           });
         } else {
           setStatus("error");
-          setErrorMessage(response.message || "Não encontrei esse lugar. Tente falar de forma diferente.");
+          const friendly = getFriendlyErrorMessage(response.message || "Não encontrei esse lugar. Tente falar de forma diferente.");
+          setErrorMessage(friendly);
+          setIsErrorModalVisible(true);
           vibrationService.error();
         }
       } else {
         setStatus("error");
-        setErrorMessage("Não encontrei esse lugar. Tente falar de forma diferente.");
+        const friendly = getFriendlyErrorMessage("Não encontrei esse lugar. Tente falar de forma diferente.");
+        setErrorMessage(friendly);
+        setIsErrorModalVisible(true);
         vibrationService.error();
       }
     } catch (err: any) {
       console.log("Aviso ao processar destino (limite ou erro esperado):", err?.message || err);
       setStatus("error");
-      
-      let errorMsg = err?.message || "Erro ao buscar destino. Verifique sua conexão.";
-      if (errorMsg.toLowerCase().includes("muitas requisições") || errorMsg.includes("429")) {
-        errorMsg = "Muitas buscas seguidas. Por favor, aguarde uns minutos e tente novamente.";
-      }
-      
-      setErrorMessage(errorMsg);
+      const friendlyMsg = getFriendlyErrorMessage(err);
+      setErrorMessage(friendlyMsg);
+      setIsErrorModalVisible(true);
       vibrationService.error();
     }
   }, [getOriginCoords]);
@@ -1087,8 +1090,8 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
-        {/* Banner de erro / fallback */}
-        {status === "error" && !!errorMessage && (
+        {/* Banner de erro / fallback para mensagens inline de voz */}
+        {status === "error" && !isErrorModalVisible && !!errorMessage && (
           <Animated.View
             entering={FadeIn.duration(300)}
             style={{ width: '100%', alignItems: 'center', marginBottom: 12 }}
@@ -1102,7 +1105,7 @@ export default function HomeScreen() {
               style={[styles.errorBanner, { backgroundColor: "rgba(254, 226, 226, 0.4)", borderColor: "rgba(254, 205, 211, 0.5)" }]}
             >
               <Ionicons name="alert-circle" size={18} color="#9F1239" style={styles.errorIcon} />
-              <Text style={styles.errorText}>{errorMessage}</Text>
+              <Text style={styles.errorText} numberOfLines={3}>{errorMessage}</Text>
             </LiquidGlassView>
           </Animated.View>
         )}
@@ -1124,6 +1127,32 @@ export default function HomeScreen() {
           onMicPress={handleMicPress}
         />
       </View>
+
+      {/* Modal / Pop-up elegante e acessível de Erro */}
+      <ErrorModal
+        visible={isErrorModalVisible}
+        title="Não conseguimos continuar"
+        message={errorMessage}
+        primaryActionLabel="Tentar de novo"
+        onPrimaryAction={() => {
+          setIsErrorModalVisible(false);
+          setStatus("idle");
+          setErrorMessage("");
+          handleMicPress();
+        }}
+        secondaryActionLabel="Digitar destino"
+        onSecondaryAction={() => {
+          setIsErrorModalVisible(false);
+          setStatus("idle");
+          setErrorMessage("");
+          handleTypeDestination();
+        }}
+        onClose={() => {
+          setIsErrorModalVisible(false);
+          setStatus("idle");
+          setErrorMessage("");
+        }}
+      />
     </ScreenContainer>
     </View>
   );

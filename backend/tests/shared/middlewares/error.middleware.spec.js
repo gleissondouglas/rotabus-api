@@ -55,4 +55,18 @@ describe('Error Middleware (Baseline)', () => {
       message: 'Erro interno do servidor'
     }));
   });
+
+  test('deve ocultar detalhes técnicos de banco/Prisma em erros 500', () => {
+    const error = new Error('Invalid `prisma.conversationSession.create()` invocation: type "public.SessionState" does not exist');
+    error.statusCode = 500;
+
+    errorMiddleware(error, req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      error: true,
+      message: 'Não foi possível processar sua solicitação no momento. Por favor, tente novamente em instantes.'
+    });
+    expect(sentry.captureException).toHaveBeenCalledWith(error, expect.anything());
+  });
 });

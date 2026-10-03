@@ -18,6 +18,12 @@ function errorMiddleware(error, req, res, _next) {
 
   if (error.code === "ENOTFOUND" || error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT" || error.code === "EHOSTUNREACH") {
     message = "Falha de conexão com os serviços externos de mapas. Verifique sua conexão e tente novamente.";
+  } else if (
+    statusCode >= 500 &&
+    (/prisma|database|sql|column|syntax|query|relation|constraint|42704|22p02|p1001|p1010|p3018/i.test(message) ||
+      (process.env.NODE_ENV === "production" && !error.isOperational))
+  ) {
+    message = "Não foi possível processar sua solicitação no momento. Por favor, tente novamente em instantes.";
   }
 
   // Captura o erro no Sentry se for um erro 500
