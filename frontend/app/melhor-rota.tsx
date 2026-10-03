@@ -30,6 +30,13 @@ import { appStorage } from "../src/services/storage.service";
 import { STORAGE_KEYS } from "../src/constants/storage";
 import { scheduledTripService } from "../src/services/scheduledTrip.service";
 import { MarqueeText } from "../src/components/MarqueeText";
+import { journeyService } from "../src/services/journey.service";
+import {
+  calculateRouteTiming,
+  findNextViableRouteIndex,
+  hasAnyViableRoute,
+  RouteTimingInfo,
+} from "../src/utils/routeTiming";
 
 
 function getTransitSteps(steps: JourneyStep[]) {
@@ -156,25 +163,39 @@ export default function BestRouteScreen() {
   const selectedDestination = String(params.selectedDestination || "");
   const fullBackendMessage = String(params.message || "");
 
-  const summary = parseJsonParam<any>(params.summary, null);
-  const alerts = parseJsonParam<string[]>(params.alerts, []);
-  const steps = parseJsonParam<JourneyStep[]>(params.steps, []);
-  const mapData = parseJsonParam<any>(params.map, undefined);
-  const rawAlternatives = useMemo(() => parseJsonParam<any[]>(params.alternatives, []), [params.alternatives]);
+  const [journeyData, setJourneyData] = useState(() => ({
+    summary: parseJsonParam<any>(params.summary, null),
+    alerts: parseJsonParam<string[]>(params.alerts, []),
+    steps: parseJsonParam<JourneyStep[]>(params.steps, []),
+    mapData: parseJsonParam<any>(params.map, undefined),
+    rawAlternatives: parseJsonParam<any[]>(params.alternatives, []),
+    message: String(params.message || ""),
+  }));
+
+  useEffect(() => {
+    setJourneyData({
+      summary: parseJsonParam<any>(params.summary, null),
+      alerts: parseJsonParam<string[]>(params.alerts, []),
+      steps: parseJsonParam<JourneyStep[]>(params.steps, []),
+      mapData: parseJsonParam<any>(params.map, undefined),
+      rawAlternatives: parseJsonParam<any[]>(params.alternatives, []),
+      message: String(params.message || ""),
+    });
+  }, [params.summary, params.alerts, params.steps, params.map, params.alternatives, params.message]);
 
   // Monta a lista completa de rotas selecionáveis
   const allRoutes = useMemo(() => {
     const main = {
-      tag: summary?.tag || "Recomendada",
-      summary,
-      steps,
-      map: mapData,
-      alerts,
+      tag: journeyData.summary?.tag || "Recomendada",
+      summary: journeyData.summary,
+      steps: journeyData.steps,
+      map: journeyData.mapData,
+      alerts: journeyData.alerts,
     };
-    if (!rawAlternatives || rawAlternatives.length === 0) return [main];
+    if (!journeyData.rawAlternatives || journeyData.rawAlternatives.length === 0) return [main];
     return [
       main,
-      ...rawAlternatives.slice(0, 2).map((alt, i) => {
+      ...journeyData.rawAlternatives.slice(0, 2).map((alt, i) => {
         let altTag = "Alternativa";
         
         if (alt.summary?.isWalkingOnly && !main.summary?.isWalkingOnly) {
@@ -200,14 +221,14 @@ export default function BestRouteScreen() {
         };
       }),
     ];
-  }, [summary, steps, mapData, alerts, rawAlternatives]);
+  }, [journeyData]);
 
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
 
   const currentRoute = allRoutes[selectedRouteIndex] || allRoutes[0];
   const activeSummary = currentRoute.summary;
   const activeSteps = currentRoute.steps || [];
-  const activeMapData = currentRoute.map || mapData;
+  const activeMapData = currentRoute.map || journeyData.mapData;
   const activeAlerts = currentRoute.alerts || [];
 
   const [isLoadingCommand, setIsLoadingCommand] = useState(false);
@@ -449,24 +470,60 @@ export default function BestRouteScreen() {
   const [activeReminderJobId, setActiveReminderJobId] = useState<string | null>(null);
   const [isSchedulingReminder, setIsSchedulingReminder] = useState(false);
 
-  // Minutos faltando para sair (atualiza periodicamente para refletir a contagem diminuindo)
-  const [minutesUntilLeave, setMinutesUntilLeave] = useState<number | null>(
-    () => calcMinutesUntilLeave(activeSummary?.leaveHomeDateTime)
-  );
-
-  const isFutureTrip = useMemo(() => {
-    if (minutesUntilLeave === null) return false;
-    return minutesUntilLeave > 30;
-  }, [minutesUntilLeave]);
+  // Relógio contínuo em tempo real (atualiza a cada 5 segundos)
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [isRefreshingRoutes, setIsRefreshingRoutes] = useState(false);
 
   useEffect(() => {
-    const updateMinutes = () => {
-      setMinutesUntilLeave(calcMinutesUntilLeave(activeSummary?.leaveHomeDateTime));
-    };
-    updateMinutes();
-    const interval = setInterval(updateMinutes, 5000);
+    const interval = setInterval(() => {
+      setNowMs(Date.now());
+    }, 5000);
     return () => clearInterval(interval);
-  }, [activeSummary?.leaveHomeDateTime]);
+  }, []);
+
+  // Avaliação em tempo real de pontualidade e expiração de todas as opções de rota
+  const routesTiming = useMemo(() => {
+    return allRoutes.map((r) => calculateRouteTiming(r, nowMs));
+  }, [allRoutes, nowMs]);
+
+  const currentRouteTiming = routesTiming[selectedRouteIndex] || calculateRouteTiming(currentRoute, nowMs);
+  const isCurrentRouteExpired = currentRouteTiming.isExpired;
+
+  // Próxima opção viável no carrossel se a atual tiver expirado
+  const nextViableRouteIndex = useMemo(() => {
+    return findNextViableRouteIndex(allRoutes, selectedRouteIndex, nowMs);
+  }, [allRoutes, selectedRouteIndex, nowMs]);
+
+  const anyViableRouteAvailable = useMemo(() => {
+    return hasAnyViableRoute(allRoutes, nowMs);
+  }, [allRoutes, nowMs]);
+
+  // Minutos faltando para sair (atualiza periodicamente para refletir a contagem diminuindo)
+  const minutesUntilLeave = currentRouteTiming.minutesUntilLeave;
+
+  const isFutureTrip = useMemo(() => {
+    if (isCurrentRouteExpired) return false;
+    if (minutesUntilLeave === null) return false;
+    return minutesUntilLeave > 30;
+  }, [minutesUntilLeave, isCurrentRouteExpired]);
+
+  // Alerta sonoro e sensorial caso a rota expire enquanto o usuário estiver parado na tela
+  const prevExpiredMapRef = useRef<Record<number, boolean>>({});
+
+  useEffect(() => {
+    const wasExpired = prevExpiredMapRef.current[selectedRouteIndex] ?? false;
+    prevExpiredMapRef.current[selectedRouteIndex] = isCurrentRouteExpired;
+
+    if (!wasExpired && isCurrentRouteExpired) {
+      vibrationService.error();
+      if (nextViableRouteIndex !== null) {
+        const nextRouteTag = allRoutes[nextViableRouteIndex]?.tag || `Opção ${nextViableRouteIndex + 1}`;
+        speak(`Atenção: o horário para pegar este ônibus já passou. A ${nextRouteTag} ainda está disponível.`);
+      } else {
+        speak("Atenção: o horário deste ônibus já passou. Volte ao início ou busque novos horários.");
+      }
+    }
+  }, [isCurrentRouteExpired, selectedRouteIndex, nextViableRouteIndex, allRoutes]);
 
   // Chave identificadora única desta opção de rota no carrossel
   const currentRouteId = useMemo(() => {
@@ -644,8 +701,74 @@ export default function BestRouteScreen() {
     );
   }
 
+  async function handleRefreshRoutes() {
+    if (isRefreshingRoutes || isTransitioningRef.current) return;
+    setIsRefreshingRoutes(true);
+    vibrationService.light();
+
+    try {
+      logUserInteraction({
+        component: '<TouchableOpacity id="btn-atualizar-rotas" />',
+        label: "Buscar novos horários",
+        fileOrScreen: "app/melhor-rota.tsx",
+        action: "Atualizar opções de rota para o horário atual",
+        details: { destination },
+      });
+
+      const newJourney = await journeyService.planJourney({
+        origin: {
+          lat: Number(latitude),
+          lng: Number(longitude),
+        },
+        destination: {
+          text: destination,
+          lat: destinationLat ? Number(destinationLat) : undefined,
+          lng: destinationLng ? Number(destinationLng) : undefined,
+        },
+        timePreference: {
+          type: "DEPARTURE",
+          dateTime: new Date().toISOString(),
+        },
+      });
+
+      if (newJourney && newJourney.summary) {
+        setJourneyData({
+          summary: newJourney.summary,
+          alerts: newJourney.alerts || [],
+          steps: newJourney.steps || [],
+          mapData: newJourney.map,
+          rawAlternatives: newJourney.alternatives || [],
+          message: newJourney.message || "",
+        });
+        setSelectedRouteIndex(0);
+        vibrationService.success();
+        speak("Atualizei as rotas com os próximos ônibus que vão passar.");
+      } else {
+        vibrationService.error();
+        Alert.alert("Aviso", "Não foi possível atualizar as rotas no momento. Tente novamente.");
+      }
+    } catch (err: any) {
+      console.warn("[melhor-rota] Falha ao atualizar rotas:", err);
+      vibrationService.error();
+      Alert.alert("Aviso", "Não foi possível atualizar os horários agora. Verifique sua conexão ou volte ao início.");
+    } finally {
+      setIsRefreshingRoutes(false);
+    }
+  }
+
   function handleStartNavigation() {
     if (isTransitioningRef.current) return;
+
+    if (isCurrentRouteExpired) {
+      vibrationService.error();
+      Alert.alert(
+        "Ônibus já passou",
+        "O horário limite para embarcar neste ônibus já passou e não é mais possível realizar esta rota a tempo. Escolha outra opção ou volte ao início.",
+        [{ text: "Entendi" }]
+      );
+      return;
+    }
+
     isTransitioningRef.current = true;
     setIsLoadingCommand(true);
     vibrationService.success();
@@ -689,8 +812,8 @@ export default function BestRouteScreen() {
     }, 1200);
   }
 
-  // Tempo de espera tranquilo: ≥ 20 minutos até sair
-  const hasComfortableWait = minutesUntilLeave !== null && minutesUntilLeave >= 20;
+  // Tempo de espera tranquilo: ≥ 20 minutos até sair (somente se a rota não tiver expirado)
+  const hasComfortableWait = !isCurrentRouteExpired && minutesUntilLeave !== null && minutesUntilLeave >= 20;
 
   // Bottom bar para padding
   const bottomBarHeight = 175;
@@ -745,6 +868,8 @@ export default function BestRouteScreen() {
                   const firstTransit = r.steps?.find((s: any) => s.type === "transit");
                   const headsign = firstTransit?.headsign || "Em direção ao destino";
                   const lineNames = r.summary?.busLines?.join(", ") || (r.summary?.isWalkingOnly ? "A pé" : "Ônibus");
+                  const optTiming = routesTiming[idx] || calculateRouteTiming(r, nowMs);
+                  const isOptExpired = optTiming.isExpired;
 
                   return (
                     <TouchableOpacity
@@ -760,34 +885,61 @@ export default function BestRouteScreen() {
                           : isDark
                             ? styles.routeCardUnselectedDark
                             : styles.routeCardUnselectedLight,
+                        isOptExpired && !isSelected && styles.routeCardOptionExpired,
                       ]}
                       activeOpacity={0.8}
                       accessibilityRole="button"
-                      accessibilityLabel={`Opção ${r.tag}, duração de ${formatMinutesToFriendlyText(dur)}`}
+                      accessibilityLabel={`Opção ${r.tag}, duração de ${formatMinutesToFriendlyText(dur)}${isOptExpired ? ", ônibus já passou" : ""}`}
                     >
                       {/* Tag */}
                       <View style={[
                         styles.routeCardTag,
-                        isSelected ? styles.routeCardTagSelected : styles.routeCardTagUnselected,
+                        isOptExpired
+                          ? styles.routeCardTagExpired
+                          : isSelected
+                            ? styles.routeCardTagSelected
+                            : styles.routeCardTagUnselected,
                       ]}>
                         <Text style={[
                           styles.routeCardTagText,
-                          isSelected ? styles.routeCardTagTextSelected : styles.routeCardTagTextUnselected,
+                          isOptExpired
+                            ? styles.routeCardTagTextExpired
+                            : isSelected
+                              ? styles.routeCardTagTextSelected
+                              : styles.routeCardTagTextUnselected,
                         ]}>
-                          {r.tag.toUpperCase()}
+                          {isOptExpired ? "ÔNIBUS JÁ PASSOU" : r.tag.toUpperCase()}
                         </Text>
                       </View>
 
                       {/* Duração */}
-                      <Text style={[styles.routeCardDuration, { color: isSelected ? theme.primary : theme.text }]}>
+                      <Text style={[
+                        styles.routeCardDuration,
+                        { color: isSelected ? theme.primary : theme.text },
+                        isOptExpired && !isSelected && { color: theme.textMuted, opacity: 0.7 }
+                      ]}>
                         {dur} min
                       </Text>
 
                       {/* Chip de linha */}
                       {!r.summary?.isWalkingOnly && r.summary?.busLines && r.summary.busLines.length > 0 && (
-                        <View style={[styles.routeCardLinesChip, isSelected ? styles.routeCardChipSelected : styles.routeCardChipUnselected]}>
-                          <MaterialCommunityIcons name="bus" size={13} color={isSelected ? theme.primary : theme.textMuted} />
-                          <Text style={[styles.routeCardLinesChipText, { color: isSelected ? theme.primary : theme.textMuted }]}>
+                        <View style={[
+                          styles.routeCardLinesChip,
+                          isOptExpired && !isSelected
+                            ? styles.routeCardChipExpired
+                            : isSelected
+                              ? styles.routeCardChipSelected
+                              : styles.routeCardChipUnselected
+                        ]}>
+                          <MaterialCommunityIcons
+                            name="bus"
+                            size={13}
+                            color={isOptExpired && !isSelected ? theme.textMuted : isSelected ? theme.primary : theme.textMuted}
+                          />
+                          <Text style={[
+                            styles.routeCardLinesChipText,
+                            { color: isOptExpired && !isSelected ? theme.textMuted : isSelected ? theme.primary : theme.textMuted }
+                          ]}>
                             {r.summary.busLines.length === 1 ? `Linha ${r.summary.busLines[0]}` : r.summary.busLines.join(", ")}
                           </Text>
                         </View>
@@ -800,7 +952,11 @@ export default function BestRouteScreen() {
                       )}
 
                       {/* Direção */}
-                      <Text style={[styles.routeCardDirection, { color: isSelected ? theme.textMuted : (isDark ? "rgba(255,255,255,0.45)" : "#94A3B8") }]} numberOfLines={2}>
+                      <Text style={[
+                        styles.routeCardDirection,
+                        { color: isSelected ? theme.textMuted : (isDark ? "rgba(255,255,255,0.45)" : "#94A3B8") },
+                        isOptExpired && !isSelected && { opacity: 0.6 }
+                      ]} numberOfLines={2}>
                         {headsign}
                       </Text>
                     </TouchableOpacity>
@@ -833,15 +989,30 @@ export default function BestRouteScreen() {
             <View style={styles.topBadgesRow}>
               <View style={[
                 styles.summaryBadge,
-                isWalkingOnly ? { backgroundColor: "rgba(59,130,246,0.25)" } : null,
+                isCurrentRouteExpired
+                  ? { backgroundColor: "rgba(239, 68, 68, 0.2)", borderColor: "rgba(239, 68, 68, 0.4)" }
+                  : isWalkingOnly
+                    ? { backgroundColor: "rgba(59,130,246,0.25)" }
+                    : null,
               ]}>
-                {isWalkingOnly ? (
+                {isCurrentRouteExpired ? (
+                  <Ionicons name="time" size={15} color="#EF4444" />
+                ) : isWalkingOnly ? (
                   <FontAwesome6 name="person-walking" size={15} color="#3B82F6" />
                 ) : (
                   <Ionicons name="checkmark-circle" size={15} color="#34D399" />
                 )}
-                <Text style={[styles.summaryBadgeText, isWalkingOnly && { color: "#3B82F6" }]}>
-                  {isWalkingOnly ? "Você pode ir a pé" : `${currentRoute.tag || "Recomendada"} / Opção ${selectedRouteIndex + 1}`}
+                <Text style={[
+                  styles.summaryBadgeText,
+                  isCurrentRouteExpired
+                    ? { color: "#F87171" }
+                    : isWalkingOnly && { color: "#3B82F6" }
+                ]}>
+                  {isCurrentRouteExpired
+                    ? `Ônibus já passou / Opção ${selectedRouteIndex + 1}`
+                    : isWalkingOnly
+                      ? "Você pode ir a pé"
+                      : `${currentRoute.tag || "Recomendada"} / Opção ${selectedRouteIndex + 1}`}
                 </Text>
               </View>
 
@@ -854,6 +1025,60 @@ export default function BestRouteScreen() {
                 </View>
               )}
             </View>
+
+            {/* Alerta de Ônibus Expirado / Horário Perdido */}
+            {isCurrentRouteExpired && (
+              <View style={[
+                styles.expiredAlertCard,
+                isDark ? styles.expiredAlertCardDark : styles.expiredAlertCardLight
+              ]}>
+                <View style={styles.expiredAlertHeader}>
+                  <Ionicons name="alert-circle" size={24} color="#EF4444" style={{ flexShrink: 0 }} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.expiredAlertTitle, isDark && { color: "#FCA5A5" }]}>
+                      Este ônibus já passou
+                    </Text>
+                    <Text style={[styles.expiredAlertSubtitle, isDark && { color: "#CBD5E1" }]}>
+                      {currentRouteTiming.reason === "walk_time_exceeded"
+                        ? `Não dá mais tempo de caminhar até o ponto a tempo de pegar o ônibus das ${activeSummary?.beAtStopAt || activeSummary?.leaveHomeAt || "horário previsto"}.`
+                        : `O horário limite para sair e embarcar no ônibus das ${activeSummary?.beAtStopAt || activeSummary?.leaveHomeAt || "horário previsto"} já expirou.`}
+                    </Text>
+                  </View>
+                </View>
+
+                {nextViableRouteIndex !== null ? (
+                  <TouchableOpacity
+                    style={styles.expiredSwitchButton}
+                    onPress={() => {
+                      setSelectedRouteIndex(nextViableRouteIndex);
+                      vibrationService.selection();
+                    }}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Mudar para a ${allRoutes[nextViableRouteIndex]?.tag || "outra opção de rota"}`}
+                  >
+                    <Ionicons name="arrow-forward-circle" size={19} color="#0066FE" />
+                    <Text style={styles.expiredSwitchButtonText}>
+                      Toque para ver a {allRoutes[nextViableRouteIndex]?.tag || `Opção ${nextViableRouteIndex + 1}`} que ainda dá tempo
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.expiredSwitchButton}
+                    onPress={handleRefreshRoutes}
+                    disabled={isRefreshingRoutes}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Buscar novos horários atualizados"
+                  >
+                    <Ionicons name="refresh-circle" size={19} color="#0066FE" />
+                    <Text style={styles.expiredSwitchButtonText}>
+                      {isRefreshingRoutes ? "Atualizando horários..." : "Buscar novos horários para agora"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
 
             {/* Chips de indicadores */}
             <View style={styles.chipsRow}>
@@ -912,7 +1137,13 @@ export default function BestRouteScreen() {
                           <Text style={styles.summaryTimeLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                             SAÍDA
                           </Text>
-                          <Text style={styles.summaryTimeValue} numberOfLines={1}>
+                          <Text
+                            style={[
+                              styles.summaryTimeValue,
+                              isCurrentRouteExpired && { color: "#EF4444", textDecorationLine: "line-through" }
+                            ]}
+                            numberOfLines={1}
+                          >
                             {activeSummary.leaveHomeAt}
                           </Text>
                         </View>
@@ -1157,7 +1388,30 @@ export default function BestRouteScreen() {
             : { backgroundColor: "#FFFFFF", borderColor: "rgba(0, 0, 0, 0.06)" }
         ]}>
           {/* Botão principal superior */}
-          {isFutureTrip && !scheduledReminderTime && reminderTargetTime ? (
+          {isCurrentRouteExpired ? (
+            nextViableRouteIndex !== null ? (
+              <PrimaryButton
+                iconName="swap-horizontal"
+                title={`Ver ${allRoutes[nextViableRouteIndex]?.tag || `Opção ${nextViableRouteIndex + 1}`}`}
+                onPress={() => {
+                  setSelectedRouteIndex(nextViableRouteIndex);
+                  vibrationService.selection();
+                }}
+                style={[styles.mainButton, { backgroundColor: "#0066FE" }]}
+                accessibilityLabel={`A rota atual expirou. Ver a ${allRoutes[nextViableRouteIndex]?.tag || `Opção ${nextViableRouteIndex + 1}`} que ainda está disponível`}
+              />
+            ) : (
+              <PrimaryButton
+                iconName="refresh"
+                title={isRefreshingRoutes ? "Atualizando..." : "Buscar novos horários"}
+                onPress={handleRefreshRoutes}
+                disabled={isRefreshingRoutes}
+                isLoading={isRefreshingRoutes}
+                style={[styles.mainButton, { backgroundColor: "#0066FE" }]}
+                accessibilityLabel="Buscar novos horários de ônibus para este destino"
+              />
+            )
+          ) : isFutureTrip && !scheduledReminderTime && reminderTargetTime ? (
             <TouchableOpacity
               style={styles.primaryReminderBtn}
               onPress={handleScheduleReminder}
@@ -1193,72 +1447,133 @@ export default function BestRouteScreen() {
 
           {/* Linha inferior: Dois cards lado a lado */}
           <View style={styles.bottomSecondaryRow}>
-            {/* Card Ouvir Resumo */}
-            <TouchableOpacity
-              style={[
-                styles.bottomCardBtn,
-                isDark
-                  ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
-                  : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
-              ]}
-              onPress={handleHearRoute}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Ouvir resumo da rota em voz alta"
-            >
-              <Ionicons name="volume-high" size={20} color="#0066FE" style={{ flexShrink: 0 }} />
-              <Text style={styles.bottomCardBtnTextBlue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-                {isWalkingOnly ? "Ouvir destino" : "Ouvir resumo"}
-              </Text>
-            </TouchableOpacity>
+            {isCurrentRouteExpired ? (
+              <>
+                {/* Botão Voltar ao início */}
+                <TouchableOpacity
+                  style={[
+                    styles.bottomCardBtn,
+                    isDark
+                      ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
+                      : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
+                  ]}
+                  onPress={() => router.replace("/inicio")}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Voltar para a tela inicial"
+                >
+                  <Ionicons name="home" size={19} color="#0066FE" style={{ flexShrink: 0 }} />
+                  <Text style={styles.bottomCardBtnTextBlue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                    Voltar ao início
+                  </Text>
+                </TouchableOpacity>
 
-            {/* Card Ver ponto ou Ver trajeto no mapa */}
-            <TouchableOpacity
-              style={[
-                styles.bottomCardBtn,
-                isDark
-                  ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
-                  : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
-              ]}
-              onPress={hasViewedStopOnMap && isFutureTrip ? handleGoToHome : handleToggleMapFocus}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={
-                hasViewedStopOnMap && isFutureTrip
-                  ? "Ir para a tela inicial"
-                  : mapFocusMode === "waiting_bus"
-                    ? "Ver trajeto completo da viagem no mapa"
-                    : "Ver localização do ponto de embarque no mapa"
-              }
-            >
-              <Ionicons
-                name={
-                  hasViewedStopOnMap && isFutureTrip
-                    ? "home"
-                    : mapFocusMode === "waiting_bus"
-                      ? "map"
-                      : "location"
-                }
-                size={17}
-                color={isDark ? "#60A5FA" : "#0284C7"}
-                style={{ flexShrink: 0 }}
-              />
-              <Text
-                style={[
-                  styles.bottomCardBtnTextDark,
-                  { color: isDark ? "#60A5FA" : "#0284C7" }
-                ]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
-              >
-                {hasViewedStopOnMap && isFutureTrip
-                  ? "Ir para início"
-                  : mapFocusMode === "waiting_bus"
-                    ? "Ver trajeto"
-                    : "Ver ponto"}
-              </Text>
-            </TouchableOpacity>
+                {/* Botão Ver ponto no mapa */}
+                <TouchableOpacity
+                  style={[
+                    styles.bottomCardBtn,
+                    isDark
+                      ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
+                      : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
+                  ]}
+                  onPress={handleToggleMapFocus}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    mapFocusMode === "waiting_bus"
+                      ? "Ver trajeto completo no mapa"
+                      : "Ver localização do ponto no mapa"
+                  }
+                >
+                  <Ionicons
+                    name={mapFocusMode === "waiting_bus" ? "map" : "location"}
+                    size={18}
+                    color={isDark ? "#60A5FA" : "#0284C7"}
+                    style={{ flexShrink: 0 }}
+                  />
+                  <Text
+                    style={[
+                      styles.bottomCardBtnTextDark,
+                      { color: isDark ? "#60A5FA" : "#0284C7" }
+                    ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {mapFocusMode === "waiting_bus" ? "Ver trajeto" : "Ver ponto"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {/* Card Ouvir Resumo */}
+                <TouchableOpacity
+                  style={[
+                    styles.bottomCardBtn,
+                    isDark
+                      ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
+                      : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
+                  ]}
+                  onPress={handleHearRoute}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ouvir resumo da rota em voz alta"
+                >
+                  <Ionicons name="volume-high" size={20} color="#0066FE" style={{ flexShrink: 0 }} />
+                  <Text style={styles.bottomCardBtnTextBlue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                    {isWalkingOnly ? "Ouvir destino" : "Ouvir resumo"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Card Ver ponto ou Ver trajeto no mapa */}
+                <TouchableOpacity
+                  style={[
+                    styles.bottomCardBtn,
+                    isDark
+                      ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
+                      : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
+                  ]}
+                  onPress={hasViewedStopOnMap && isFutureTrip ? handleGoToHome : handleToggleMapFocus}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    hasViewedStopOnMap && isFutureTrip
+                      ? "Ir para a tela inicial"
+                      : mapFocusMode === "waiting_bus"
+                        ? "Ver trajeto completo da viagem no mapa"
+                        : "Ver localização do ponto de embarque no mapa"
+                  }
+                >
+                  <Ionicons
+                    name={
+                      hasViewedStopOnMap && isFutureTrip
+                        ? "home"
+                        : mapFocusMode === "waiting_bus"
+                          ? "map"
+                          : "location"
+                    }
+                    size={17}
+                    color={isDark ? "#60A5FA" : "#0284C7"}
+                    style={{ flexShrink: 0 }}
+                  />
+                  <Text
+                    style={[
+                      styles.bottomCardBtnTextDark,
+                      { color: isDark ? "#60A5FA" : "#0284C7" }
+                    ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {hasViewedStopOnMap && isFutureTrip
+                      ? "Ir para início"
+                      : mapFocusMode === "waiting_bus"
+                        ? "Ver trajeto"
+                        : "Ver ponto"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Animated.View>
@@ -1810,5 +2125,72 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#0F172A",
+  },
+
+  /* ─── Estilos de Rota Expirada / Ônibus Já Passou ─── */
+  routeCardOptionExpired: {
+    opacity: 0.65,
+    borderColor: "rgba(239, 68, 68, 0.25)",
+  },
+  routeCardTagExpired: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+  },
+  routeCardTagTextExpired: {
+    color: "#EF4444",
+  },
+  routeCardChipExpired: {
+    backgroundColor: "rgba(100, 116, 139, 0.1)",
+  },
+  expiredAlertCard: {
+    borderRadius: 18,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1.5,
+  },
+  expiredAlertCardLight: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  expiredAlertCardDark: {
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderColor: "rgba(239, 68, 68, 0.35)",
+  },
+  expiredAlertHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  expiredAlertTitle: {
+    fontSize: 15.5,
+    fontWeight: "800",
+    color: "#B91C1C",
+    letterSpacing: -0.2,
+    marginBottom: 4,
+  },
+  expiredAlertSubtitle: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#7F1D1D",
+    lineHeight: 18,
+  },
+  expiredSwitchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 102, 254, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(0, 102, 254, 0.2)",
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 8,
+    marginTop: 2,
+  },
+  expiredSwitchButtonText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#0066FE",
+    flexShrink: 1,
+    textAlign: "center",
   },
 });
