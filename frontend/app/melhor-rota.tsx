@@ -410,19 +410,18 @@ export default function BestRouteScreen() {
 
   const [hasViewedStopOnMap, setHasViewedStopOnMap] = useState(false);
 
-  const handleViewStopOnMap = useCallback(() => {
+  const handleToggleMapFocus = useCallback(() => {
     vibrationService.selection();
-    setMapFocusMode(isWalkingOnly ? "full_route" : "waiting_bus");
+    const nextMode = mapFocusMode === "waiting_bus" ? "full_route" : "waiting_bus";
+    setMapFocusMode(nextMode);
     setHasViewedStopOnMap(true);
     mainScrollViewRef.current?.scrollTo({ y: 0, animated: true });
     speak(
-      isWalkingOnly
-        ? "Veja o trajeto a pé até o seu destino no mapa."
-        : stopName
-          ? `O ponto de embarque é ${stopName}. Veja a localização no mapa.`
-          : "Veja a localização do ponto no mapa."
+      nextMode === "waiting_bus"
+        ? (stopName ? `Focando no ponto de embarque: ${stopName}.` : "Focando no ponto de embarque.")
+        : "Exibindo o trajeto completo da viagem."
     );
-  }, [isWalkingOnly, stopName]);
+  }, [mapFocusMode, stopName]);
 
   const handleGoToHome = useCallback(() => {
     if (isTransitioningRef.current) return;
@@ -443,6 +442,7 @@ export default function BestRouteScreen() {
 
   useEffect(() => {
     setHasViewedStopOnMap(false);
+    setMapFocusMode("full_route");
   }, [selectedRouteIndex]);
 
   const [scheduledReminderTime, setScheduledReminderTime] = useState<string | null>(null);
@@ -1220,19 +1220,25 @@ export default function BestRouteScreen() {
                   ? { backgroundColor: "rgba(255, 255, 255, 0.06)", borderColor: "rgba(255, 255, 255, 0.1)" }
                   : { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }
               ]}
-              onPress={hasViewedStopOnMap && isFutureTrip ? handleGoToHome : handleViewStopOnMap}
+              onPress={hasViewedStopOnMap && isFutureTrip ? handleGoToHome : handleToggleMapFocus}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={
                 hasViewedStopOnMap && isFutureTrip
                   ? "Ir para a tela inicial"
-                  : isWalkingOnly
-                    ? "Ver trajeto a pé no mapa"
-                    : "Ver localização do ponto de ônibus no mapa"
+                  : mapFocusMode === "waiting_bus"
+                    ? "Ver trajeto completo da viagem no mapa"
+                    : "Ver localização do ponto de embarque no mapa"
               }
             >
               <Ionicons
-                name={hasViewedStopOnMap && isFutureTrip ? "home" : (isWalkingOnly ? "map" : "location")}
+                name={
+                  hasViewedStopOnMap && isFutureTrip
+                    ? "home"
+                    : mapFocusMode === "waiting_bus"
+                      ? "map"
+                      : "location"
+                }
                 size={17}
                 color={isDark ? "#60A5FA" : "#0284C7"}
                 style={{ flexShrink: 0 }}
@@ -1248,7 +1254,7 @@ export default function BestRouteScreen() {
               >
                 {hasViewedStopOnMap && isFutureTrip
                   ? "Ir para início"
-                  : isWalkingOnly
+                  : mapFocusMode === "waiting_bus"
                     ? "Ver trajeto"
                     : "Ver ponto"}
               </Text>

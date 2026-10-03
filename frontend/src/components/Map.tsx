@@ -249,7 +249,7 @@ const Map: React.FC<MapProps> = ({
         });
       }
     } else if (effectiveFocusMode === 'waiting_bus') {
-      // Quando está aguardando o ônibus no ponto, foca no ponto de embarque e na aproximação
+      // Quando foca no ponto de embarque ("Ver ponto"), enquadra o usuário, o ponto e a caminhada
       if (mapData?.markers) {
         const boardingMarker = mapData.markers.find(m => m.type === 'boarding_stop');
         if (boardingMarker) {
@@ -258,6 +258,15 @@ const Map: React.FC<MapProps> = ({
       }
       if (liveBusPosition) {
         coordinatesToFit.push({ latitude: Number(liveBusPosition.lat), longitude: Number(liveBusPosition.lng) });
+      }
+      // Inclui a rota de caminhada até o ponto para garantir visualização perfeita de todas as esquinas
+      if (mapData?.polylines) {
+        mapData.polylines
+          .filter(p => p.type === 'walk')
+          .forEach(p => {
+            const decoded = decodePolyline(p.encodedPolyline);
+            decoded.forEach(c => coordinatesToFit.push({ latitude: Number(c.latitude), longitude: Number(c.longitude) }));
+          });
       }
     } else if (effectiveFocusMode === 'walking_to_stop' || effectiveFocusMode === 'walking_to_destination' || effectiveFocusMode === 'on_bus' || effectiveFocusMode === 'transfer') {
       // Sempre focamos a câmera no trecho atual em andamento
@@ -348,10 +357,15 @@ const Map: React.FC<MapProps> = ({
               }
             } else {
               // Modo Preview (ex: tela de Melhor Rota em card de 220px)
-              if ((effectiveFocusMode === 'walking_to_stop' || effectiveFocusMode === 'walking_to_destination') && diffLat < 0.004 && diffLng < 0.004) {
-                const STREET_MIN_DELTA = 0.0015;
-                const latDelta = Math.max(diffLat * 2.0, STREET_MIN_DELTA);
-                const lngDelta = Math.max(diffLng * 2.0, STREET_MIN_DELTA);
+              const isWalkingOrStopFocus = 
+                effectiveFocusMode === 'walking_to_stop' || 
+                effectiveFocusMode === 'walking_to_destination' || 
+                effectiveFocusMode === 'waiting_bus';
+
+              if (isWalkingOrStopFocus && diffLat < 0.008 && diffLng < 0.008) {
+                const STREET_MIN_DELTA = 0.0018;
+                const latDelta = Math.max(diffLat * 1.9, STREET_MIN_DELTA);
+                const lngDelta = Math.max(diffLng * 1.9, STREET_MIN_DELTA);
 
                 mapRef.current?.animateToRegion({
                   latitude: centerLat,
@@ -501,8 +515,8 @@ const Map: React.FC<MapProps> = ({
       bearing: number;
     }[] = [];
 
-    const MAX_TOTAL_CHEVRONS = 36;
-    const TARGET_SPACING_METERS = 28;
+    const MAX_TOTAL_CHEVRONS = 8;
+    const TARGET_SPACING_METERS = 55;
 
     polylinesToSample.forEach(({ id, coords }) => {
       let totalLineDistance = 0;
@@ -515,14 +529,18 @@ const Map: React.FC<MapProps> = ({
         );
       }
 
-      if (totalLineDistance < 10) return;
+      if (totalLineDistance < 20) return;
+
+      // Para caminhadas curtas (< 130m), limita a no máximo 2 chevrons para não poluir
+      const maxForLine = totalLineDistance < 130 ? 2 : MAX_TOTAL_CHEVRONS;
 
       const dynamicSpacing = Math.max(
         TARGET_SPACING_METERS,
-        totalLineDistance / MAX_TOTAL_CHEVRONS
+        totalLineDistance / (maxForLine + 1)
       );
 
-      let accumulatedDistance = dynamicSpacing * 0.4;
+      // Inicia com offset de 60% para não colar no marcador do usuário
+      let accumulatedDistance = dynamicSpacing * 0.6;
 
       for (let i = 0; i < coords.length - 1; i++) {
         if (chevrons.length >= MAX_TOTAL_CHEVRONS) break;
@@ -690,7 +708,7 @@ const Map: React.FC<MapProps> = ({
               accessibilityElementsHidden={true}
               importantForAccessibility="no"
             >
-              <Ionicons name="chevron-up" size={13} color="#0066FE" />
+              <Ionicons name="chevron-up" size={10} color="#0066FE" />
             </View>
           </Marker>
         ))}
@@ -719,7 +737,7 @@ const Map: React.FC<MapProps> = ({
               title={isBoardingStop ? undefined : marker.title}
               description={isBoardingStop ? undefined : marker.description}
               pinColor={isBoardingStop ? undefined : marker.pinColor}
-              anchor={isBoardingStop ? { x: 0.5, y: 1.0 } : undefined}
+              anchor={isBoardingStop ? { x: 0.5, y: 0.88 } : undefined}
               zIndex={20}
               accessibilityLabel={`Ponto: ${marker.title || 'Ponto de Embarque'}`}
             >
@@ -1021,40 +1039,40 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   modernStopPinCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2.5,
+    borderWidth: 2,
     borderColor: '#FFFFFF',
     shadowColor: '#1D4ED8',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 5,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
   },
   modernStopPinTip: {
     width: 0,
     height: 0,
     backgroundColor: 'transparent',
     borderStyle: 'solid',
-    borderLeftWidth: 5,
-    borderRightWidth: 5,
+    borderLeftWidth: 4,
+    borderRightWidth: 4,
     borderBottomWidth: 0,
-    borderTopWidth: 6,
+    borderTopWidth: 5,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderTopColor: '#2563EB',
     marginTop: -1,
   },
   modernStopGroundShadow: {
-    width: 14,
-    height: 4,
-    borderRadius: 7,
+    width: 10,
+    height: 3,
+    borderRadius: 5,
     backgroundColor: 'rgba(0, 0, 0, 0.22)',
-    marginTop: 2,
+    marginTop: 1,
   },
   liveBusMarker: {
     backgroundColor: '#F59E0B',
@@ -1267,9 +1285,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   walkChevronPill: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1277,9 +1295,9 @@ const styles = StyleSheet.create({
     borderColor: '#0066FE',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.25,
-    shadowRadius: 2,
-    elevation: 3,
+    shadowOpacity: 0.18,
+    shadowRadius: 1.5,
+    elevation: 2,
   },
 });
 
