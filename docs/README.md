@@ -44,4 +44,4 @@ A documentação está dividida em módulos focados para facilitar a leitura, de
 * [20-CONTRIBUICAO.md](./20-CONTRIBUICAO.md): Guia de instalação, padrões de commit e abertura de PRs.
 
 ---
-> **Nota do Arquiteto:** Este documento baseia-se puramente no código existente. Seções ou fluxos que representam o futuro da aplicação estão devidamente marcados como "Visão Futura" ou "Pendente de Implementação".
+> **🚨 Nota do Arquiteto:** Este documento baseia-se puramente no código existente. Seções ou fluxos que representam o futuro da aplicação estão devidamente marcados como "Visão Futura" ou "Pendente de Implementação".
