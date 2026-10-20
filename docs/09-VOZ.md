@@ -39,8 +39,3 @@ Uma máquina de estados conversacional contínua (Ouvir -> Responder -> Ouvir) p
 
 - O hook de cleanup (`useEffect` unmount) invoca `speech.stopSpeaking()` imediatamente, evitando falas rodando em background em telas indevidas.
 
-## 5. Conflito com Leitores de Tela (TalkBack/VoiceOver)
-
-Por ser um aplicativo voltado para PCDs, muitos usuários operam o celular com os leitores nativos ligados (VoiceOver no iOS, TalkBack no Android).
-- Quando o `expo-speech` dispara no momento em que a tela monta, ele pode atropelar a voz do próprio leitor nativo do sistema, criando ruído ininteligível ou até repetição infinita.
-- **Solução:** O hook customizado `useAutoSpeakOnce` gerencia re-renderizações e controla precisamente a reprodução da fala, garantindo que seja pronunciada apenas uma única vez na montagem da tela, interrompendo graciosamente qualquer loop ao avançar/voltar no sistema.
